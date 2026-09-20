@@ -144,8 +144,9 @@ python test_panel.py   # 面板回归测试：JS 语法守卫/元素完整性/�
 
 ## 致谢
 
-致敬 [MemForge](https://github.com/gitstq/MemForge)（MIT）—— 它先证明了「本地优先 + 单文件记忆库」这条路走得通。
-Hippocampus 是独立实现，聚焦中文检索、MCP 接入与跨 harness 记忆延续。
+感谢 [MemForge](https://github.com/gitstq/MemForge)（MIT）—— 它先证明了「本地优先 + 单文件记忆库」这条路走得通，给了我不少启发。
+
+顺着这条路，我想再往前推一步：**把中文检索做扎实，用 MCP 接入更多 AI 工具，让记忆能在不同 harness 之间延续下去。**
 
 ## License
 

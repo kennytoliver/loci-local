@@ -1,0 +1,45 @@
+# ===== 私有数据，绝不上传 =====
+hippocampus.db
+memhub.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# 个人文件（含真实记忆/路径，不进仓库）
+agents.json
+trash-backup/
+hippocampus-backup-*.json
+RESTORE.md
+filelist.txt
+自检报告-*.md
+docs/
+hippocampus.bat
+hippocampus-panel.bat
+memhub.bat
+memhub-panel.bat
+
+# Python
+__pycache__/
+*.pyc
+
+# 临时文件（下划线开头的脚本/产物，防止误提交）
+_*.py
+_*.txt
+_*.json
+_*.png
+
+# 系统
+.DS_Store
+Thumbs.db
+
+# 本地备份与预览产物
+
+# 数据库一律排除（含改名前的旧名）
+*.db
+hippohub.db
+
+# 本地备份一律不提交（通配符，避免又漏掉新的备份目录名）
+backup-*
+_*
+archive.json
+archive/

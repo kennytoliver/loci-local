@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: ${{ matrix.os }} / Python ${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.9", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: 语法检查（引擎 + 面板 + 安装器）
+        run: |
+          python -m py_compile hippocampus.py panel.py install_agents.py
+
+      - name: 引擎端到端测试（MCP 协议 / 中文检索 / 会话层）
+        run: python test_mcp.py
+
+      - name: 面板回归测试（JS 语法守卫 / 元素完整性 / 路由 / 零依赖）
+        run: python test_panel.py
+
+      - name: 命令行安装器自检
+        shell: bash
+        run: |
+          python install_agents.py --list
+          python install_agents.py --verify

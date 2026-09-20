@@ -8,21 +8,21 @@
 
 One SQLite file, shared by every MCP-capable agent you use — no cloud, no account, no dependencies.
 
-You talk to WorkBuddy in the morning, ZCode (GLM) at noon, Trae in the evening — and every agent starts from zero, re-asking things you already decided. Hippocampus fixes that: **one SQLite file on your machine, exposed to every MCP-capable agent, with nothing to install but Python.**
+You use Claude Code in the morning, Codex after lunch, Cursor in the evening — and every one of them starts from zero, re-asking things you already decided. Hippocampus fixes that: **one SQLite file on your machine, exposed to every MCP-capable agent, with nothing to install but Python.**
 
 ```
-WorkBuddy ─┐
-ZCode ─────┤
-TraeWork ──┼──►  Hippocampus  ──►  hippocampus.db   (one file, on your disk)
-Kimi ──────┤     (MCP server)
-Claude Code┘
+Claude Code ─┐
+Codex ───────┤
+Cursor ──────┼──►  Hippocampus  ──►  hippocampus.db   (one file, on your disk)
+Windsurf ────┤     (MCP server)
+Copilot ─────┘
 ```
 
 ## Why this exists
 
 ### The problem: every time you switch harnesses, you start over
 
-If you use more than one AI coding product (Claude Code, Codex, ZCode, Kimi, Trae, WorkBuddy…), you know the loop:
+If you use more than one AI coding tool (Claude Code, Codex, Cursor, Windsurf, Copilot…), you know the loop:
 
 - In the morning you explain your project's background, your tech choices, and the pitfalls you hit — in product A.
 - At noon you want to try B's new model. You switch over and **it knows nothing**. You explain again.
@@ -43,7 +43,7 @@ Worse: even within one product, **a new conversation can lose context entirely**
 Memory shouldn't belong to a product. It should belong to you. Hippocampus keeps it in a single local SQLite file and exposes it to every agent over standard MCP:
 
 - **Switching no longer resets you**: a new agent calls `memory_context` and immediately gets your standing decisions, preferences and pitfalls.
-- **It works in both directions**: whatever one agent writes (say, "remember this…" in ZCode) is searchable from every other agent. This path is tested end to end.
+- **It works in both directions**: whatever one agent writes (say, "remember this…" in Cursor) is searchable from every other agent. This path is tested end to end.
 - **Not another cloud service**: no account, no API key, no telemetry. One file, on your own disk.
 
 Three things that make it different:
@@ -94,7 +94,9 @@ Python 3.9+ is the only requirement. Rust-free, Node-free, cloud-free.
 
 | Agent | Source |
 |---|---|
-| ZCode (Zhipu GLM) | `~/.zcode/cli/db/db.sqlite` (session / message / part tables) |
+| Claude Code | `~/.claude/projects/**/*.jsonl` (same parser; not yet verified on a real machine) |
+| Codex | `~/.codex/sessions/**/*.jsonl` (same parser; not yet verified on a real machine) |
+| ZCode (Zhipu GLM) | `~/.zcode/cli/db/db.sqlite` (session / message / part tables) — verified end to end |
 | Claude Code | `~/.claude/projects/**/*.jsonl` |
 | Codex | `~/.codex/sessions/**/*.jsonl` |
 
@@ -118,7 +120,7 @@ CI runs both on Ubuntu and Windows across Python 3.9 and 3.12.
 - **Search**: bigram tokenizer + TF-IDF + zero-dependency boosts (pinned ×1.35, project match ×1.30, tag match ×1.20). No embeddings — keeping the install to zero dependencies mattered more than squeezing out the last few points of recall.
 - **Quality checks**: Jaccard **and** containment similarity (calibrated against real data: a pair reading `深圳/广州番禺/佛山` vs `深圳/广州/佛山` scores J=0.54 / C=0.72 — a single 0.66 Jaccard threshold would have missed it).
 - **Time**: superseding marks rather than deletes, so the history of a decision survives.
-- **Hooks**: WorkBuddy ships a plugin-level hook mechanism (`hooks/hooks.json`, Claude Code style), but the event contract isn't publicly documented yet. Rather than ship something that silently never fires, Hippocampus writes a plain-language usage convention into `~/.agents/AGENTS.md` instead.
+- **Hooks**: Some agents ship plugin-level hook mechanisms, but the event contract is not publicly documented yet. Rather than ship something that silently never fires, Hippocampus writes a plain-language usage convention into `~/.agents/AGENTS.md` instead.
 
 ## Contributing
 

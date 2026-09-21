@@ -1142,6 +1142,7 @@ h2{font-family:var(--serif);font-size:24px;font-weight:700;margin-bottom:4px}
 .stats .stat .v{font-size:19px}
 .stats .stat .k{font-size:10.5px;text-transform:none;letter-spacing:0}
 .ptitle{font-size:17px;font-weight:600;margin:0;letter-spacing:.2px}
+.pacts{display:flex;gap:8px;align-items:center}
 .page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:12px}
 .stat{background:none;border:none;padding:0;min-width:76px}
 .stat .k{font-size:11px;color:var(--faint)}
@@ -1495,16 +1496,13 @@ h2::before{content:"";position:absolute;left:0;top:.18em;bottom:.18em;width:3px;
   <main class="main">
     <div class="toolbar">
       <div class="stats" id="stats"></div>
+      <input id="q" placeholder="搜索记忆，支持中文 — 如：上次定的部署方案"
+             onkeydown="if(event.key==='Enter')doSearch()">
+      <button class="btn quitbtn" onclick="shutdownPanel()" title="关闭面板服务（记忆数据不受影响）">⏻ 退出服务</button>
       <button class="themetgl" id="themetgl" onclick="toggleTheme()" title="切换白天 / 黑夜模式">
         <svg id="themeicon" viewBox="0 0 24 24" width="17" height="17" fill="none"
              stroke="currentColor" stroke-width="1.9" stroke-linecap="round"></svg>
       </button>
-      <input id="q" placeholder="搜索记忆，支持中文 — 如：上次定的部署方案"
-             onkeydown="if(event.key==='Enter')doSearch()">
-      <button class="btn" onclick="doSearch()">搜索</button>
-      <button class="btn" onclick="backToList()">全部</button>
-      <button class="btn" onclick="goAdd()">＋ 记一条</button>
-      <button class="btn quitbtn" onclick="shutdownPanel()" title="关闭面板服务（记忆数据不受影响）">⏻ 退出服务</button>
     </div>
 
     <div class="content">
@@ -1512,6 +1510,10 @@ h2::before{content:"";position:absolute;left:0;top:.18em;bottom:.18em;width:3px;
       <section id="v-mem">
         <div class="page-header">
           <h2 class="ptitle">记忆</h2>
+          <div class="pacts">
+            <button class="btn" onclick="backToList()">全部</button>
+            <button class="btn" onclick="goAdd()">＋ 记一条</button>
+          </div>
         </div>
         <div class="panel formcard" id="form">
           <textarea id="f-content" placeholder="要记什么？（决策 / 坑 / 事实 / 经验……）"></textarea>

@@ -1139,6 +1139,8 @@ h2{font-family:var(--serif);font-size:24px;font-weight:700;margin-bottom:4px}
 /* ── 统计 ───────────────────────── */
 .stats{display:flex;flex-wrap:wrap;align-items:center;gap:26px;margin:0;flex:1;min-width:0}
 .stats .stat{min-width:64px}
+.stats .stat .v{font-size:19px}
+.stats .stat .k{font-size:10.5px;text-transform:none;letter-spacing:0}
 .ptitle{font-size:17px;font-weight:600;margin:0;letter-spacing:.2px}
 .page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:12px}
 .stat{background:none;border:none;padding:0;min-width:76px}
@@ -1146,8 +1148,7 @@ h2{font-family:var(--serif);font-size:24px;font-weight:700;margin-bottom:4px}
 .stat .v{font-family:var(--sans);font-size:20px;font-weight:700;margin-top:2px;line-height:1.25;font-variant-numeric:tabular-nums}
 
 /* ── 记忆卡片 ────────────────────── */
-.mem{background:var(--d2);border:1px solid var(--line);border-radius:12px;
-  padding:15px 20px;margin-bottom:10px}
+.mem{background:var(--d1);border:1px solid var(--line);border-radius:8px;padding:14px 18px;margin-bottom:10px}
 .mem .top{display:flex;align-items:center;gap:12px;margin-bottom:8px;flex-wrap:wrap}
 .ttag{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--sub)}
 .ttag i{width:7px;height:7px;border-radius:50%;display:inline-block}
@@ -1326,7 +1327,7 @@ h2::before{content:"";position:absolute;left:0;top:.18em;bottom:.18em;width:3px;
 .stat:hover{transform:translateY(-3px);border-color:rgba(66,133,244,.45)}
 
 /* 卡片：hover 带主色描边，更强的层次 */
-.mem{border-radius:12px}
+.mem{border-radius:8px}
 .mem:hover{border-color:rgba(66,133,244,.40);box-shadow:0 8px 26px rgba(0,0,0,.42)}
 
 /* 主按钮：金色描边 → hover 填充 */
@@ -1411,9 +1412,9 @@ h2::before{content:"";position:absolute;left:0;top:.18em;bottom:.18em;width:3px;
 .split{display:grid;grid-template-columns:360px minmax(0,1fr);gap:20px;align-items:start}
 .split-main{min-width:0}
 .split-side{
-  position:sticky;top:14px;background:var(--d2);border:1px solid var(--line);
-  border-radius:12px;padding:18px;
-  min-height:calc(100vh - 250px);max-height:calc(100vh - 28px);overflow:auto;
+  position:sticky;top:14px;background:var(--d1);border:1px solid var(--line);
+  border-radius:8px;padding:18px;
+  min-height:0;overflow:auto;
   animation:cardIn .3s var(--ease) both
 }
 .split-side h3{font-size:15px;font-weight:500;margin-bottom:10px;color:var(--ink)}

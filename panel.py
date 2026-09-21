@@ -1137,7 +1137,10 @@ h2{font-family:var(--serif);font-size:24px;font-weight:700;margin-bottom:4px}
 .btn.txt:hover{text-decoration:underline;background:none}
 
 /* ── 统计 ───────────────────────── */
-.stats{display:flex;flex-wrap:wrap;align-items:flex-start;gap:28px;margin-bottom:20px}
+.stats{display:flex;flex-wrap:wrap;align-items:center;gap:26px;margin:0;flex:1;min-width:0}
+.stats .stat{min-width:64px}
+.ptitle{font-size:17px;font-weight:600;margin:0;letter-spacing:.2px}
+.page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:12px}
 .stat{background:none;border:none;padding:0;min-width:76px}
 .stat .k{font-size:11px;color:var(--faint)}
 .stat .v{font-family:var(--sans);font-size:20px;font-weight:700;margin-top:2px;line-height:1.25;font-variant-numeric:tabular-nums}
@@ -1468,7 +1471,6 @@ h2::before{content:"";position:absolute;left:0;top:.18em;bottom:.18em;width:3px;
 <div id="toast"></div>
 <div class="app">
   <aside class="side">
-    <div class="lights"><i class="r"></i><i class="y"></i><i class="g"></i></div>
     <div class="sbrand">
       <img class="slogo" src="/icon.png" alt="">
       <div class="sbtext">
@@ -1477,13 +1479,11 @@ h2::before{content:"";position:absolute;left:0;top:.18em;bottom:.18em;width:3px;
       </div>
     </div>
     <nav>
-      <div class="ngroup">资料库</div>
       <a class="nav on" data-v="mem"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5.5" rx="7.5" ry="3"/><path d="M4.5 5.5v6c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3v-6"/><path d="M4.5 11.5v6c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3v-6"/></svg><span>记忆</span></a>
       <a class="nav" data-v="session"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-3.2-6.4"/><path d="M4 20l1.6-4.2"/><circle cx="9" cy="12" r="1"/><circle cx="13" cy="12" r="1"/><circle cx="17" cy="12" r="1"/></svg><span>会话</span></a>
       <a class="nav" data-v="audit"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9.5 16.5 4 11"/><path d="M20 13v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-5"/></svg><span>质检</span></a>
       <a class="nav" data-v="clean"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7"/><path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12"/><path d="M10 11v6M14 11v6"/></svg><span>清理</span></a>
       <a class="nav" data-v="collect"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 4v8l5.5 3.5"/></svg><span>采集</span></a>
-      <div class="ngroup">互通</div>
       <a class="nav" data-v="agents"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="7" width="16" height="12" rx="3"/><path d="M12 3v4"/><circle cx="9" cy="13" r="1.2"/><circle cx="15" cy="13" r="1.2"/></svg><span>Agent</span></a>
       <a class="nav" data-v="pack"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.5L12 4l8.5 4.5v7L12 20l-8.5-4.5z"/><path d="M3.5 8.5L12 13l8.5-4.5M12 13v7"/></svg><span>记忆包</span></a>
       <a class="nav" data-v="handoff"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="6" width="17" height="12" rx="3"/><path d="M8 11h8M8 14h5"/></svg><span>交接卡</span></a>
@@ -1493,6 +1493,7 @@ h2::before{content:"";position:absolute;left:0;top:.18em;bottom:.18em;width:3px;
 
   <main class="main">
     <div class="toolbar">
+      <div class="stats" id="stats"></div>
       <button class="themetgl" id="themetgl" onclick="toggleTheme()" title="切换白天 / 黑夜模式">
         <svg id="themeicon" viewBox="0 0 24 24" width="17" height="17" fill="none"
              stroke="currentColor" stroke-width="1.9" stroke-linecap="round"></svg>
@@ -1508,7 +1509,9 @@ h2::before{content:"";position:absolute;left:0;top:.18em;bottom:.18em;width:3px;
     <div class="content">
       <!-- 记忆 -->
       <section id="v-mem">
-        <div class="stats" id="stats"></div>
+        <div class="page-header">
+          <h2 class="ptitle">记忆</h2>
+        </div>
         <div class="panel formcard" id="form">
           <textarea id="f-content" placeholder="要记什么？（决策 / 坑 / 事实 / 经验……）"></textarea>
           <div class="formrow">

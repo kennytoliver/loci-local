@@ -1141,9 +1141,6 @@ h2{font-family:var(--serif);font-size:24px;font-weight:700;margin-bottom:4px}
 .stats .stat{min-width:64px}
 .stats .stat .v{font-size:19px}
 .stats .stat .k{font-size:10.5px;text-transform:none;letter-spacing:0}
-.ptitle{font-size:17px;font-weight:600;margin:0;letter-spacing:.2px}
-.pacts{display:flex;gap:8px;align-items:center}
-.page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:12px}
 .stat{background:none;border:none;padding:0;min-width:76px}
 .stat .k{font-size:11px;color:var(--faint)}
 .stat .v{font-family:var(--sans);font-size:20px;font-weight:700;margin-top:2px;line-height:1.25;font-variant-numeric:tabular-nums}
@@ -1508,13 +1505,6 @@ h2::before{content:"";position:absolute;left:0;top:.18em;bottom:.18em;width:3px;
     <div class="content">
       <!-- 记忆 -->
       <section id="v-mem">
-        <div class="page-header">
-          <h2 class="ptitle">记忆</h2>
-          <div class="pacts">
-            <button class="btn" onclick="backToList()">全部</button>
-            <button class="btn" onclick="goAdd()">＋ 记一条</button>
-          </div>
-        </div>
         <div class="panel formcard" id="form">
           <textarea id="f-content" placeholder="要记什么？（决策 / 坑 / 事实 / 经验……）"></textarea>
           <div class="formrow">
@@ -1541,6 +1531,8 @@ h2::before{content:"";position:absolute;left:0;top:.18em;bottom:.18em;width:3px;
             </select>
             <button class="btn" style="margin-left:8px" onclick="showContext()">常驻上下文</button>
             <button class="btn" style="margin-left:8px" onclick="toggleCleanup()">批量清理</button>
+            <button class="btn" style="margin-left:8px" onclick="backToList()">全部</button>
+            <button class="btn" style="margin-left:8px" onclick="goAdd()">＋ 记一条</button>
           </span>
         </div>
         <div class="panel" id="cleanup-panel" style="display:none">

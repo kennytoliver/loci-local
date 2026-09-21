@@ -1040,23 +1040,24 @@ PAGE = r"""<!DOCTYPE html>
 <title>Hippocampus</title>
 <style>
 :root{
-  --d0:#0e1116; --d1:#141922; --d2:#1c222d; --d3:#28303d;
-  --line:rgba(255,255,255,.10); --line2:rgba(255,255,255,.18);
-  --ink:#f7f9fc; --sub:#98a2b3; --faint:#6b7688;
-  --acc:#2e7dff; --acc2:#22d3ee; --ok:#30d158; --warn:#ffd60a; --bad:#ff453a;
-  --chrome:rgba(28,28,30,.84); --toastbg:rgba(38,38,42,.96); --hover:rgba(255,255,255,.06);
+  --d0:#161616; --d1:#1d1d1c; --d2:#2e2e2e; --d3:#383838;
+  --line:#2a2a2a; --line2:#404040;
+  --ink:#eff1f4; --sub:#949494; --faint:#6e6e6e;
+  --acc:#8ab4f8; --acc2:#2dccd3; --ok:#34a853; --warn:#fbbc05; --bad:#f1204a;
+  --chrome:rgba(22,22,22,.88); --toastbg:rgba(46,46,46,.96); --hover:rgba(255,255,255,.05);
   --serif:Georgia,"Songti SC","SimSun",serif;
-  --sans:-apple-system,"PingFang SC","Microsoft YaHei","Noto Sans SC",system-ui,sans-serif;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;
 }
 /* 白天模式 */
 :root[data-theme="light"]{
-  --d0:#ffffff; --d1:#f2f5fa; --d2:#ffffff; --d3:#e8edf6;
-  --line:rgba(15,23,42,.10); --line2:rgba(15,23,42,.20);
-  --ink:#0f172a; --sub:#5a6478; --faint:#8a93a5;
-  --acc:#1e6bff; --acc2:#0e9bb8;
+  --d0:#ffffff; --d1:#ffffff; --d2:#f9f9fa; --d3:#eff1f4;
+  --line:#ebebeb; --line2:#d7dade;
+  --ink:#0e1115; --sub:#7f8d9f; --faint:#a0aab5;
+  --acc:#4285f4; --acc2:#4285f4;
   --chrome:rgba(255,255,255,.86); --toastbg:rgba(255,255,255,.98);
-  --hover:rgba(15,23,42,.05);
-}
+  --hover:rgba(14,17,21,.04);
+
+  --ok:#34a853; --warn:#fbbc05; --bad:#ea4335;}
 /* 白底上必须改色的两处（黑底是白字/淡色，白底会隐形） */
 :root[data-theme="light"] .stat:first-child .v{color:var(--acc)}
 :root[data-theme="light"] .nav.on{color:#fff;

@@ -1091,7 +1091,10 @@ body{background:var(--d1);color:var(--ink);font-family:var(--sans);
 .lights{display:flex;gap:8px;padding:16px 18px 10px}
 .lights i{width:12px;height:12px;border-radius:50%;display:block}
 .lights .r{background:#ff5f57}.lights .y{background:#febc2e}.lights .g{background:#28c840}
-.sbrand{padding:6px 18px 18px;border-bottom:1px solid var(--line)}
+.sbrand{display:flex;align-items:center;gap:10px;padding:14px 16px 16px;border-bottom:1px solid var(--line)}
+.slogo{width:32px;height:32px;flex:0 0 32px;border-radius:8px;object-fit:cover;display:block}
+.sbtext{min-width:0}
+.sfoot{padding:10px 18px;font-size:11px;color:var(--faint);border-top:1px solid var(--line);flex-shrink:0}
 .sbrand h1{font-family:var(--serif);font-size:21px;font-weight:700;letter-spacing:.2px}
 .sbrand p{font-size:11px;color:var(--sub);margin-top:3px}
 nav{flex:1;padding:12px 10px;overflow-y:auto}
@@ -1134,7 +1137,7 @@ h2{font-family:var(--serif);font-size:24px;font-weight:700;margin-bottom:4px}
 .btn.txt:hover{text-decoration:underline;background:none}
 
 /* ── 统计 ───────────────────────── */
-.stats{display:flex;flex-wrap:wrap;align-items:flex-start;gap:32px;margin-bottom:22px}
+.stats{display:flex;flex-wrap:wrap;align-items:flex-start;gap:28px;margin-bottom:20px}
 .stat{background:none;border:none;padding:0;min-width:76px}
 .stat .k{font-size:11px;color:var(--faint)}
 .stat .v{font-family:var(--sans);font-size:20px;font-weight:700;margin-top:2px;line-height:1.25;font-variant-numeric:tabular-nums}
@@ -1402,7 +1405,7 @@ h2::before{content:"";position:absolute;left:0;top:.18em;bottom:.18em;width:3px;
 .ml-auto{margin-left:auto}
 
 /* 主从双栏（列表 + 详情） */
-.split{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:18px;align-items:start}
+.split{display:grid;grid-template-columns:360px minmax(0,1fr);gap:20px;align-items:start}
 .split-main{min-width:0}
 .split-side{
   position:sticky;top:14px;background:var(--d2);border:1px solid var(--line);
@@ -1467,8 +1470,11 @@ h2::before{content:"";position:absolute;left:0;top:.18em;bottom:.18em;width:3px;
   <aside class="side">
     <div class="lights"><i class="r"></i><i class="y"></i><i class="g"></i></div>
     <div class="sbrand">
-      <h1>Hippocampus</h1>
-      <p>海马体 · 本地记忆中枢</p>
+      <img class="slogo" src="/icon.png" alt="">
+      <div class="sbtext">
+        <h1>Hippocampus</h1>
+        <p>本地 AI 记忆管理器</p>
+      </div>
     </div>
     <nav>
       <div class="ngroup">资料库</div>
@@ -1482,6 +1488,7 @@ h2::before{content:"";position:absolute;left:0;top:.18em;bottom:.18em;width:3px;
       <a class="nav" data-v="pack"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.5L12 4l8.5 4.5v7L12 20l-8.5-4.5z"/><path d="M3.5 8.5L12 13l8.5-4.5M12 13v7"/></svg><span>记忆包</span></a>
       <a class="nav" data-v="handoff"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="6" width="17" height="12" rx="3"/><path d="M8 11h8M8 14h5"/></svg><span>交接卡</span></a>
     </nav>
+    <div class="sfoot">v0.1.0 · 本地运行</div>
   </aside>
 
   <main class="main">

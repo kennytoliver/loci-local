@@ -1084,7 +1084,7 @@ body{background:var(--d1);color:var(--ink);font-family:var(--sans);
 .app{display:flex;height:100vh}
 
 /* ── 侧边栏（vibrancy）────────────── */
-.side{width:228px;flex-shrink:0;display:flex;flex-direction:column;
+.side{width:240px;flex-shrink:0;display:flex;flex-direction:column;
   background:var(--chrome);backdrop-filter:blur(20px);
   -webkit-backdrop-filter:blur(20px);
   border-right:1px solid var(--line)}
@@ -1113,7 +1113,7 @@ nav{flex:1;padding:12px 10px;overflow-y:auto}
   outline:none;font-family:var(--sans)}
 .toolbar input::placeholder{color:var(--faint)}
 .toolbar input:focus{border-color:var(--line2)}
-.content{flex:1;overflow-y:auto;padding:22px 26px 60px}
+.content{flex:1;overflow-y:auto;padding:20px 20px 48px}
 /* 内容区一律铺满：原先 860px 的阅读宽度上限会在宽屏下留出大片空白 */
 section{max-width:none}
 /* 纯文本页留一点最大宽度，避免一行过长（但远大于原 860） */
@@ -1124,8 +1124,7 @@ h2{font-family:var(--serif);font-size:24px;font-weight:700;margin-bottom:4px}
 .lead{font-size:13px;color:var(--sub);margin-bottom:20px;line-height:1.6}
 
 /* ── 卡片与按钮 ──────────────────── */
-.panel{background:var(--d2);border:1px solid var(--line);border-radius:12px;
-  padding:18px 20px;margin-bottom:12px}
+.panel{background:var(--d1);border:1px solid var(--line);border-radius:8px;padding:16px 20px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.16)}
 .btn{border:1px solid var(--line);background:var(--d3);color:var(--ink);
   border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer;
   font-family:var(--sans);transition:background .12s}
@@ -1135,12 +1134,10 @@ h2{font-family:var(--serif);font-size:24px;font-weight:700;margin-bottom:4px}
 .btn.txt:hover{text-decoration:underline;background:none}
 
 /* ── 统计 ───────────────────────── */
-.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px}
-.stat{background:var(--d2);border:1px solid var(--line);border-radius:12px;
-  padding:14px 18px}
+.stats{display:flex;flex-wrap:wrap;align-items:flex-start;gap:32px;margin-bottom:22px}
+.stat{background:none;border:none;padding:0;min-width:76px}
 .stat .k{font-size:11px;color:var(--faint)}
-.stat .v{font-family:var(--serif);font-size:30px;font-weight:700;margin-top:6px;
-  font-variant-numeric:tabular-nums}
+.stat .v{font-family:var(--sans);font-size:20px;font-weight:700;margin-top:2px;line-height:1.25;font-variant-numeric:tabular-nums}
 
 /* ── 记忆卡片 ────────────────────── */
 .mem{background:var(--d2);border:1px solid var(--line);border-radius:12px;
@@ -1213,7 +1210,7 @@ select,.formrow input[type=text]{background:var(--d1);border:1px solid var(--lin
 
 @media(max-width:760px){
   .side{display:none}
-  .stats{grid-template-columns:repeat(2,1fr)}
+  .stats{gap:20px}
   .agents{grid-template-columns:1fr}
 }
 /* ───────── 设计语言升级 + 动效（纯 CSS，零依赖） ───────── */

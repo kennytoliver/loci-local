@@ -1594,13 +1594,19 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
   cursor:pointer;background:transparent;border:0;width:100%;text-align:left;
   transition:background var(--duration-fast) var(--ease-out)}
 .stable .srow:hover{background:var(--hover)}
-/* 已完成的行：不用整块半透明 —— 那会把状态色一起压到 2.37:1。
-   改成逐部分降色：降级的是信息，不是整块画面。 */
-.stable .srow.indb{opacity:1}
+/* ⚠️ 这里踩过一次：为了对比度把整块 opacity 去掉之后，已入库行**看不出和正常行的区别**，
+   用户以为"置灰失效、去重没生效"（其实勾选框是 disabled，只是看不出来）。
+   所以：用**淡底**表达"已完成"（一眼能分辨），文字再降一档，状态标签保持清楚。 */
+.stable .srow.indb{opacity:1;background:var(--d2)}
 .stable .srow.indb .spath,
-.stable .srow.indb .cell,
-.stable .srow.indb .bdg.state{color:var(--faint)}
-.stable .srow.indb .ck{opacity:.4}
+.stable .srow.indb .cell{color:var(--faint)}
+.stable .srow.indb .bdg.state{color:var(--sub)}
+.stable .srow.indb .ck{opacity:.45}
+/* Agent 徽标：品牌色圆角方块 + 首字母（不用厂商 logo：零依赖 + 避免商标问题） */
+.abadge{display:inline-flex;align-items:center;justify-content:center;
+  border-radius:7px;color:#fff;font-weight:600;line-height:1;flex-shrink:0;
+  letter-spacing:0;user-select:none}
+.agent .aname{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .stable .srow .spath{font-size:13px;color:var(--sub);overflow:hidden;
   text-overflow:ellipsis;white-space:nowrap}
 .stable .srow:hover .spath{color:var(--ink)}
@@ -2311,7 +2317,9 @@ function show(v){
   ["mem","session","audit","clean","collect","agents","skill","pack","handoff"].forEach(x=>document.getElementById("v-"+x).hidden=(x!==v));
   if(v==="session") loadSessions();
   if(v==="audit") runAudit();
-  if(v==="clean"){loadSourceFiles();loadArchive();}
+  if(v==="clean"){loadSourceFiles();loadArchive();
+    // 清理页的 4 个 Panel 也支持折叠（用户要求），渲染完再包
+    setTimeout(function(){wrapPanels("v-clean",["cl-a","cl-b","cl-c","cl-d"])},150);}
   if(v==="skill") loadSkills();
   try{ if(location.hash!=="#"+v) history.replaceState(null,"","#"+v); }catch(e){}
   // ⚠️ 这里不能同步调 secApply()：脚本顶部就会跑一次初始化 show()，而 SEC_FOLD
@@ -2990,10 +2998,37 @@ function dirname(p){
   var i=Math.max(p.lastIndexOf("\\"),p.lastIndexOf("/"));
   return i>0?p.slice(0,i):p;
 }
-function agentColor(a){return a==="WorkBuddy"?"#0a84ff":(a==="Trae"?"#ea4335":
-  (a==="ZCode"?"#30d158":(a==="Copilot"?"#bf5af2":"#ff9f0a")))}
+/* 每个 Agent 的代表色。原来只有 4 个有名字色、其余全是同一个橙 —— 15 个 Agent 排一起
+   分不出谁是谁。这里按各自品牌色补齐（Cursor 用深灰，纯黑在暗色下会看不见）。 */
+function agentColor(a){
+  var m={"WorkBuddy":"#0a84ff","CodeBuddy":"#0a84ff","Trae":"#ea4335","TraeWork":"#f9ab00",
+         "ZCode":"#30d158","VS Code":"#007acc","Cursor":"#5f6368","Windsurf":"#09b6a2",
+         "Claude Code":"#d97757","Codex":"#10a37f","Gemini CLI":"#4285f4",
+         "GitHub Copilot CLI":"#8957e5","Kimi Code":"#7c3aed","Qoder":"#ff6b35",
+         "DeepSeek CLI":"#4d6bfe"};
+  return m[a]||"#ff9f0a";
+}
 function agentTag(a){
   return '<span class="ttag"><i style="background:'+agentColor(a)+'"></i>'+esc(a)+'</span>';
+}
+/* Agent 徽标：品牌色圆角方块 + 首字母。
+   ⚠️ 不用厂商真 logo —— 一是零依赖（不能外链图片、也没法内置版权图），
+   二是开源发布时直接用别家 logo 有商标风险。首字母方块同样能一眼分辨。 */
+/* 徽标上的**两字母**缩写。只用首字母不行 —— Claude Code / CodeBuddy / Codex /
+   Cursor 全是 C，排在一起照样分不清（实测 4 个徽标全显示 "C"）。 */
+function agentAbbr(a){
+  var m={"Claude Code":"CC","CodeBuddy":"CB","Codex":"CX","Cursor":"CU",
+         "DeepSeek CLI":"DS","Gemini CLI":"GM","GitHub Copilot CLI":"GH",
+         "Kimi Code":"KM","Qoder":"QD","Trae":"TR","TraeWork":"TW",
+         "VS Code":"VS","Windsurf":"WS","WorkBuddy":"WB","ZCode":"ZC"};
+  if(m[a])return m[a];
+  var w=String(a||"?").trim().split(/[\s\-_]+/).filter(Boolean);
+  return (w.length>1?(w[0][0]+w[1][0]):String(a||"?").slice(0,2)).toUpperCase();
+}
+function agentBadge(a,size){
+  var s=size||24;
+  return '<span class="abadge" style="width:'+s+'px;height:'+s+'px;background:'+agentColor(a)+
+    ';font-size:'+Math.round(s*0.42)+'px" title="'+escAttr(a)+'">'+esc(agentAbbr(a))+'</span>';
 }
 function grp(title,n,note){
   return '<div class="grphead"><span class="gt">'+esc(title)+'</span>'+
@@ -3030,6 +3065,25 @@ function wrapGroups(root){
     foot.textContent="收起本组 ▴";   // 「收起 ▴」在长文截断里另有所指，这里说清是"整组"
     foot.onclick=function(ev){ev.stopPropagation();toggleGroup(key)};
     body.parentNode.insertBefore(foot,body.nextSibling);
+  });
+}
+/* 把某个页面里的 .panel 逐个变成可折叠（点标题栏收起）—— 清理页有 4 个 Panel，
+   用户要求也能折。同样用后处理，不改 HTML。默认展开，状态也走 toggleGroup。 */
+function wrapPanels(viewId, keys){
+  var v=document.getElementById(viewId); if(!v)return;
+  Array.prototype.slice.call(v.querySelectorAll(":scope > .panel")).forEach(function(p,i){
+    var h=p.querySelector(":scope > .listhead"), key=keys[i];
+    if(!h||!key||h.dataset.wrapped)return;
+    h.dataset.wrapped="1";
+    h.classList.add("ghead");
+    h.id="gh-"+key;
+    h.onclick=function(){toggleGroup(key)};
+    if(!h.querySelector(".cv"))h.insertAdjacentHTML("beforeend",'<span class="cv">▼</span>');
+    var body=document.createElement("div");
+    body.className="gbody";body.id="g-"+key;
+    var n=h.nextSibling;
+    while(n){var nx=n.nextSibling;body.appendChild(n);n=nx}
+    p.appendChild(body);
   });
 }
 /* 列表里只放主版本号。
@@ -4283,7 +4337,7 @@ async function loadAgents(){
     }
     if(btns.length) acts='<div class="acts">'+btns.join("")+'</div>';
     return `<div class="agent">
-      <div class="aname"><span class="dot ${dot}"></span>${esc(a.name)}${tag}</div>
+      <div class="aname">${agentBadge(a.name)}<span class="dot ${dot}"></span>${esc(a.name)}${tag}</div>
       <div class="astat ${cls}">${txt}</div>
       <div class="astat" style="color:var(--faint);word-break:break-all">${esc(a.config)}</div>
       ${acts}

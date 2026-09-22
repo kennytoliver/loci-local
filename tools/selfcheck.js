@@ -172,11 +172,19 @@ function ck(name, cond, extra) {
       const o = getComputedStyle(el).overflow;
       return o !== 'hidden' && o !== 'clip';
     }).length;
+    const inbRow = st.querySelector('.srow.indb');
     return { border: getComputedStyle(st).borderTopWidth,
-             rows: st.querySelectorAll('.srow').length, noClip };
+             rows: st.querySelectorAll('.srow').length, noClip,
+             inb: st.querySelectorAll('.srow.indb').length,
+             inbBg: inbRow ? getComputedStyle(inbRow).backgroundColor : '',
+             inbDisabled: inbRow ? !!inbRow.querySelector('.ck[disabled]') : null };
   });
   if (col) {
     ck('采集表有外框', col.border !== '0px', col.border);
+    ck('已入库行有可见区分（不是"看不出来"）',
+       col.inb === 0 || col.inbBg !== 'rgba(0, 0, 0, 0)', '背景 ' + col.inbBg);
+    ck('已入库行禁止重复勾选（去重生效）',
+       col.inb === 0 || col.inbDisabled === true, 'disabled=' + col.inbDisabled);
     ck('采集表单元格都设了裁切（不会叠字）', col.noClip === 0, '未裁切 ' + col.noClip + ' 格');
     ck('采集表有数据行', col.rows > 0, col.rows + ' 行');
   } else {

@@ -1355,16 +1355,16 @@ select,.formrow input[type=text]{background:var(--d2);border:1px solid var(--lin
    三个子元素会被均分 → 按钮组跑到中间（用户报"文字未对齐"）。
    改成三段式：标题靠左，按钮组和箭头一起顶到右边。 */
 .listhead.ghead>.t{flex-shrink:0;margin-right:auto}
-/* ⚠️ 这里改回"只在该加的地方加"。上一版把框加到了**已经在卡片里**的标题上，用户原话：
-   "本身就在框里面的，为什么要多此一举再加一个框"。
-   现在的规则：
-     ✅ 加框 = **页面级大标题**（.framed，由 frameTitles() 打标）——它下面没有任何卡片衬底，
-        不描一下就跟页面背景糊在一起
-     ❌ 不加 = 卡片内的标题（.panel 里的 .listhead、.split-* 里的 .shead/.dhead）——
-        卡片的边框已经是它们的框
-   仍用 inset 阴影而不是 border（border 会撑高 2px、挤动整页布局）。 */
-.framed{box-shadow:inset 0 0 0 1px var(--line);border-radius:var(--radius-md);
-  background:var(--d2)}
+/* 框线：具体哪几处加，看 frameTitles() 里的 FRAME_SELECTION（**用户在 ?frames=1 里
+   亲手点出来的**，不自动推断 —— 试过两次自动判断，两次都猜错）。
+   画法用绝对定位的 ::after，而不是 border / inset 阴影 —— 因为要支持"往下拉大"：
+   框可以比元素本身高出 --fext 像素，把下面更多内容圈进来。两种画法都不占布局，
+   尺寸不会因此变化。 */
+.framed{position:relative;background:var(--d2)}
+.framed::after{content:"";position:absolute;left:-2px;right:-2px;top:-2px;
+  bottom:calc(-2px - var(--fext,0px));
+  border:1px solid var(--line);border-radius:var(--radius-md);
+  pointer-events:none}
 /* 搜索框和它的按钮是一组，必须贴在一起。⚠️ .listhead 是 space-between：
    直接把 input / button 当子元素放，会被均分到中间和最右（用户报的 bug）。 */
 .fgroup{display:flex;align-items:center;gap:8px;flex:1;justify-content:flex-end;min-width:0}
@@ -3117,17 +3117,25 @@ var FRAME_SELECTION={
   "audit/listhead[1]":1, "audit/listhead[2]":1, "audit/listhead[3]":1,
   "audit/listhead[4]":1, "audit/listhead[5]":1, "audit/listhead[6]":1,
   "audit/listhead[7]":1, "audit/pagehead[0]":1,
-  "clean/listhead[1]":1, "clean/listhead[2]":1, "clean/listhead[3]":1,
-  "clean/listhead[4]":1, "clean/pagehead[0]":1,
+  "clean/listhead[1]":0, "clean/listhead[2]":0, "clean/listhead[3]":0,
+  "clean/listhead[4]":0, "clean/pagehead[0]":1,
   "collect/listhead[1]":0, "collect/pagehead[0]":1,
   "handoff/listhead[1]":0, "handoff/pagehead[0]":1,
   "mem/dhead[2]":1, "mem/pagehead[0]":1, "mem/shead[1]":1,
   "pack/listhead[1]":0, "pack/listhead[2]":0, "pack/listhead[3]":0, "pack/pagehead[0]":1,
-  "session/dhead[4]":0, "session/listhead[1]":0, "session/listhead[2]":1,
-  "session/pagehead[0]":1, "session/shead[3]":0,
+  "session/dhead[4]":1, "session/listhead[1]":0, "session/listhead[2]":1,
+  "session/pagehead[0]":1, "session/shead[3]":1,
   "skill/grphead[3]":1, "skill/grphead[4]":1, "skill/grphead[5]":1,
   "skill/grphead[6]":1, "skill/grphead[7]":1,
-  "skill/listhead[1]":1, "skill/pagehead[0]":1, "skill/shead[2]":1
+  "skill/listhead[1]":0, "skill/pagehead[0]":1, "skill/shead[2]":1
+};
+/* 每个框"往下拉大"多少 px（用户在 ?frames=1 里拖出来的）。框会真的往下延伸这么多，
+   把下面更多内容圈进来 —— 用绝对定位的 ::after 画，不占布局。 */
+var FRAME_EXTRA={
+  "agents/listhead[2]":5,
+  "audit/listhead[1]":5, "audit/listhead[2]":7, "audit/listhead[3]":7,
+  "audit/listhead[4]":4, "audit/listhead[5]":6, "audit/listhead[6]":2,
+  "audit/listhead[7]":6
 };
 var FRAME_SEL=".pagehead,.listhead,.shead,.dhead,.grphead";
 /* 与标注模式的 keyOf 必须逐字一致，否则清单对不上 */
@@ -3142,9 +3150,15 @@ function frameKeyOf(e){
 function frameTitles(){
   var n=0;
   Array.prototype.forEach.call(document.querySelectorAll(FRAME_SEL),function(e){
-    var on=(FRAME_SELECTION[frameKeyOf(e)]===1);
+    var k=frameKeyOf(e), on=(FRAME_SELECTION[k]===1);
     e.classList.toggle("framed",on);
-    if(on)n++;
+    if(on){
+      // 用户拖出来的"往下拉大"高度 → 交给 CSS 的 --fext，框会真的往下延伸
+      e.style.setProperty("--fext",(FRAME_EXTRA[k]||0)+"px");
+      n++;
+    }else{
+      e.style.removeProperty("--fext");
+    }
   });
   return n;
 }

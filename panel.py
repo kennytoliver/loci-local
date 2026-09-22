@@ -1607,6 +1607,24 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
 .ghead.g-recent::before{background:var(--faint)}
 .gbody{display:flex;flex-direction:column;gap:2px;padding:var(--space-2) 0}
 .gbody.hide{display:none}
+/* 区域折叠沿用同一个 hide 语义：sbody（左列表）/ dmain（右详情）收起时整块不占位。
+   ⚠️ 必须有这条 —— 之前只有 .gbody.hide，新增的容器带上 hide 类也「没反应」。 */
+.sbody.hide,.dmain.hide{display:none}
+
+/* 整块区域折叠（2026-09-22）：点标题栏收起整个区块 —— 收起的是**容器**，
+   所以布局真的跟着收缩（.split 是 align-items:start，栏内一变矮那一栏就矮）。
+   箭头用伪元素画在标题文字前，不额外占 DOM。 */
+[data-secfold]{cursor:pointer;user-select:none}
+[data-secfold] .t::before,[data-secfold] h3::before{content:"▼";display:inline-block;
+  font-size:9px;color:var(--sub);margin-right:6px;vertical-align:middle;
+  transition:transform .15s ease}
+[data-secfold].sec-collapsed .t::before,
+[data-secfold].sec-collapsed h3::before{content:"▶"}
+.shead[data-secfold]{border-radius:var(--radius-sm)}
+.shead[data-secfold]:hover{background:var(--hover)}
+/* 收起后在标题栏右侧补一条"内容第一行"，让收起态也有信息 */
+.sec-1{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  font-size:11.5px;color:var(--faint);margin-left:var(--space-3);font-weight:400}
 
 /* 徽章：列表 meta 行与详情卡头共用 */
 .bdg{display:inline-flex;align-items:center;font-size:11px;line-height:15px;
@@ -2150,6 +2168,10 @@ function show(v){
   if(v==="clean"){loadSourceFiles();loadArchive();}
   if(v==="skill") loadSkills();
   try{ if(location.hash!=="#"+v) history.replaceState(null,"","#"+v); }catch(e){}
+  // ⚠️ 这里不能同步调 secApply()：脚本顶部就会跑一次初始化 show()，而 SEC_FOLD
+  //    定义在脚本末尾 —— 同步调用会撞上"还没定义"。延到当前 tick 之后再调。
+  setTimeout(secApply,0);
+  setTimeout(secApply,150);   // 右栏/列表是异步渲染的，渲染完再补一次
 }
 document.querySelectorAll(".nav").forEach(n=>n.onclick=()=>show(n.dataset.v));
 var _h=(location.hash||"").replace("#","");
@@ -2258,6 +2280,7 @@ function renderDetail(id){
       '</div>'+
     '</div>';
   foldAll();
+  secApply();
 }
 function copyText(id){
   var r=(LASTROWS||[]).filter(function(x){return x.id===id})[0]; if(!r)return;
@@ -2609,6 +2632,7 @@ async function loadList(){
   if(!SELID && rows.length){ SELID=rows[0].id; }
   renderDetail(SELID);
   if(SELID){var el2=document.getElementById('memcard-'+SELID); if(el2)el2.classList.add('sel');}
+  secApply();
 }
 
 async function doSearch(){
@@ -3458,6 +3482,59 @@ function foldOne(el){
 }
 function foldAll(){document.querySelectorAll(FOLD_SEL).forEach(foldOne)}
 
+/* ---------- 整块区域折叠（2026-09-22）----------
+   用户要的是"整块收起"：收起后只剩标题栏（+ 内容第一行），把高度让给别的区块。
+   与上面的文本折叠（line-clamp）不同 —— 这里 display:none 掉整个内容容器，
+   布局会真的收缩、下面的内容往上顶。状态存 localStorage，刷新后保持。
+   事件用委托绑在 document 上：右栏是 JS 重渲染的，绑在元素上会随 innerHTML 丢。 */
+var SEC_FOLD = [
+  ["#v-mem .split-main .shead",     "#v-mem .split-main .sbody",     "mem-list"],
+  ["#v-mem .split-side .dhead",     "#v-mem .split-side .dmain",     "mem-detail"],
+  ["#v-session .split-main .shead", "#v-session .split-main .sbody", "sess-list"],
+  ["#v-session .split-side .dhead", "#v-session .split-side .dmain", "sess-view"],
+  ["#v-skill .split-main .shead",   "#v-skill .split-main .sbody",   "skill-list"],
+  ["#v-skill .split-side .dhead",   "#v-skill .split-side .dmain",   "skill-detail"]
+];
+function secOn(k){try{return localStorage.getItem("hp.sec."+k)==="1"}catch(e){return false}}
+function secApply(){
+  if(!SEC_FOLD)return;   // 定义在脚本末尾；早期调用（初始化 show）先安全退出
+  SEC_FOLD.forEach(function(cfg){
+    var head=document.querySelector(cfg[0]), body=document.querySelector(cfg[1]);
+    if(!head||!body)return;
+    if(head.dataset.secfold!==cfg[2])head.dataset.secfold=cfg[2];
+    if(body.dataset.secbody!==cfg[2])body.dataset.secbody=cfg[2];
+    var on=secOn(cfg[2]);
+    // 只在状态真的不一致时才动 DOM —— 下面的 MutationObserver 靠这个收敛，
+    // 否则 secApply 改 DOM → 触发 observer → 再 secApply，会自激成死循环。
+    if(body.classList.contains("hide")!==on)body.classList.toggle("hide",on);
+    if(head.classList.contains("sec-collapsed")!==on)head.classList.toggle("sec-collapsed",on);
+    var one=head.querySelector(".sec-1");
+    if(on){
+      if(!one){one=document.createElement("span");one.className="sec-1";head.appendChild(one)}
+      var first=body.querySelector(".mtitle,.mmain,.mem,.bub");
+      var txt=first?(first.textContent.trim().replace(/\s+/g," ").slice(0,50)):"";
+      if(one.textContent!==txt)one.textContent=txt;
+    }else if(one){one.remove()}
+  });
+}
+/* 右栏详情、本机内容右栏、会话左列表都是随时重渲染的：
+   靠 observer 自动把折叠状态补回去，免得每处渲染都手写一次调用（漏一处就失效）。 */
+var _secQ=false;
+function secQueue(){if(_secQ)return;_secQ=true;setTimeout(function(){_secQ=false;secApply()},0)}
+["detail","sk-detail","s-list","list"].forEach(function(id){
+  var el=document.getElementById(id);
+  if(el)new MutationObserver(secQueue).observe(el,{childList:true,subtree:true});
+});
+document.addEventListener("click",function(e){
+  var head=e.target.closest("[data-secfold]");
+  if(!head)return;
+  if(e.target.closest("button,a,input,select,.dacts,.macts"))return;  // 别抢按钮
+  var k=head.dataset.secfold;
+  var now=!secOn(k);
+  try{localStorage.setItem("hp.sec."+k,now?"1":"0")}catch(err){}
+  secApply();
+});
+
 var LAST_SID=null, LAST_SES=null;
 
 function roleClass(r){return r==="user"?"me":(r==="assistant"?"ai":"raw")}
@@ -3530,6 +3607,7 @@ function renderSessionView(r){
   el.innerHTML=html;
   el.style.display="block";
   foldAll();
+  secApply();
 }
 
 function clearSessionView(){

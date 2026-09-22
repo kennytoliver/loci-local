@@ -3129,37 +3129,89 @@ function frameTitles(){
     });
   return n;
 }
-/* ── 框线调试模式（用户要的"能标注哪些要框、哪些不要"）──
-   面板地址后面加 ?frames=1 打开：把所有**候选**元素用虚线描出来并标上类名 ——
-   **橙色 = 现在没框、灰色 = 已在框内**。截图发我即可精确指认。
-   只在带参数时生效，正常打开面板完全不受影响。 */
+/* ── 框线标注模式 v2（用户要的"能自己点着选"）──
+   地址后加 ?frames=1 打开：
+     · 每个候选元素用虚线描出来并标上名字
+     · **点一下 = 切换「要框 → 不要框 → 未定」**，改完立刻生效（所见即所得）
+     · 右上角浮条显示已选数量；点浮条 = **把结果复制到剪贴板**，直接发我
+   选择存在 localStorage，刷新不丢。只在带参数时生效，正常打开完全不受影响。 */
 if(location.search.indexOf("frames")>=0){
   (function(){
-    var ST="position:absolute;font-size:10px;line-height:1.2;background:#ff9f0a;color:#000;"+
-           "padding:0 3px;border-radius:3px;z-index:9999;pointer-events:none;white-space:nowrap";
-    var paint=function(){
-      document.querySelectorAll("[data-frm]").forEach(function(e){
-        e.style.outline="";var t=e.querySelector(".frmtag");if(t)t.remove();delete e.dataset.frm;});
-      document.querySelectorAll(".pagehead,.listhead,.shead,.dhead,.grphead").forEach(function(e){
-        var inCard=inFramed(e);
-        e.style.outline=inCard?"1px dashed #6b7280":"1px dashed #ff9f0a";
-        e.dataset.frm="1";
-        if(!e.querySelector(".frmtag")){
-          var t=document.createElement("span");
-          t.className="frmtag";
-          var nm=String(e.className||"").trim().split(" ")[0];
-          t.textContent="."+(nm||e.tagName.toLowerCase())+(inCard?"（在框内）":"");
-          t.style.cssText=ST;t.style.top="-9px";t.style.left="2px";
-          if(getComputedStyle(e).position==="static")e.style.position="relative";
-          e.appendChild(t);
-        }
+    var SEL=".pagehead,.listhead,.shead,.dhead,.grphead";
+    var KEY="hip_frames";
+    var want={};
+    try{want=JSON.parse(localStorage.getItem(KEY)||"{}")||{}}catch(e){want={}}
+    var C_UNDEC="#ff9f0a", C_YES="#34a853", C_NO="#f1204a";
+    /* key 要稳定：用「页面 + 类名 + 该页内的序号」—— 直接用它在本页 peers 里的下标，
+       切页后下标会变，加页面前缀才不会串。 */
+    function keyOf(e){
+      var sec=e.closest("section[id^='v-']");
+      var sid=sec?sec.id:"?";
+      var peers=sec?Array.prototype.slice.call(sec.querySelectorAll(SEL)):[];
+      var cls=String(e.className||"").replace(/\b(framed|want-frame|no-frame)\b/g,"")
+        .trim().split(/\s+/)[0]||e.tagName.toLowerCase();
+      return sid.replace(/^v-/,"")+"/"+cls+"["+peers.indexOf(e)+"]";
+    }
+    function badge(k){
+      return k+(want[k]===1?" ✓ 要框":(want[k]===0?" ✗ 不要":"")); }
+    function colorOf(k){
+      return want[k]===1?C_YES:(want[k]===0?C_NO:C_UNDEC); }
+    function paint(){
+      Array.prototype.forEach.call(document.querySelectorAll(SEL),function(e){
+        var k=keyOf(e);
+        e.dataset.fkey=k;
+        e.style.outline="1px dashed "+colorOf(k);
+        e.style.outlineOffset="2px";
+        e.style.cursor="pointer";
+        if(want[k]===1)e.classList.add("framed");else e.classList.remove("framed");
+        var t=e.querySelector(".frmtag");
+        if(!t){t=document.createElement("span");t.className="frmtag";e.appendChild(t);}
+        var shortName=k.split("/")[1].replace(/\[\d+\]$/,"");   // 标签上只显示短名，别太长
+        t.textContent="."+shortName+(want[k]===1?" ✓":(want[k]===0?" ✗":""));
+        t.style.cssText="position:absolute;top:-10px;left:2px;font-size:10px;line-height:1.2;"+
+          "background:"+colorOf(k)+";color:#fff;padding:0 3px;border-radius:3px;"+
+          "z-index:99999;pointer-events:none;white-space:nowrap";
+        if(getComputedStyle(e).position==="static")e.style.position="relative";
       });
-    };
+      var bar=document.getElementById("frmbar");
+      if(bar){
+        var ys=Object.keys(want).filter(function(k){return want[k]===1}).length;
+        var ns=Object.keys(want).filter(function(k){return want[k]===0}).length;
+        bar.textContent="🟢 要框 "+ys+" 处 · 🔴 不要 "+ns+" 处 ｜ 点元素切换，选完点这里复制发我";
+      }
+    }
+    function showPick(){
+      var lines=Object.keys(want).sort().map(function(k){
+        return "  "+k+"  →  "+(want[k]===1?"要框":"不要框");});
+      return "框线选择结果（"+lines.length+" 处）：\n"+lines.join("\n");
+    }
+    // 捕获阶段拦截点击：面板自己的 onclick 不会被触发
+    document.addEventListener("click",function(ev){
+      var e=ev.target&&ev.target.closest?ev.target.closest(SEL):null;
+      if(!e)return;
+      ev.preventDefault();ev.stopPropagation();
+      var k=e.dataset.fkey||keyOf(e);
+      want[k]=(want[k]===1)?0:1;        // 未定 → 要框 → 不要 → 要框 …
+      try{localStorage.setItem(KEY,JSON.stringify(want))}catch(x){}
+      paint();
+    },true);
     var wait=setInterval(function(){
       if(typeof window.show==="function"){
-        clearInterval(wait);setTimeout(paint,1200);
+        clearInterval(wait);
+        var bar=document.createElement("div");
+        bar.id="frmbar";
+        bar.style.cssText="position:fixed;right:16px;top:16px;z-index:999999;cursor:pointer;"+
+          "background:#0065fd;color:#fff;font:12px/1.6 system-ui,sans-serif;padding:8px 14px;"+
+          "border-radius:8px;box-shadow:0 4px 14px rgba(0,0,0,.35);max-width:340px";
+        bar.onclick=function(){
+          var txt=showPick();
+          if(navigator.clipboard)navigator.clipboard.writeText(txt).catch(function(){});
+          alert("已复制，直接发我即可：\n\n"+txt);
+        };
+        document.body.appendChild(bar);
+        setTimeout(paint,1000);
         var old=window.show;
-        window.show=function(v){old(v);setTimeout(paint,900)};
+        window.show=function(v){old(v);setTimeout(paint,800)};
       }
     },300);
   })();

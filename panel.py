@@ -999,7 +999,7 @@ def verify_mcp(timeout=20):
     try:
         send({"jsonrpc": "2.0", "id": 1, "method": "initialize",
               "params": {"protocolVersion": "2024-11-05", "capabilities": {},
-                         "clientInfo": {"name": "hippocampus-panel", "version": "0.1"}}})
+                         "clientInfo": {"name": "hippocampus-panel", "version": "0.2"}}})
         r = recv()
         name = (r or {}).get("result", {}).get("serverInfo", {}).get("name")
         send({"jsonrpc": "2.0", "method": "notifications/initialized"})
@@ -1599,6 +1599,11 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
   border-color:transparent}
 .split-side .dbody{font-size:14px;line-height:1.7;color:var(--ink);
   white-space:pre-wrap;word-break:break-word}
+/* 技能/配置详情的正文要像"一块内容"（原来是透明无边框，看着像没有正文）。
+   ⚠️ 不给内层高度限制 —— 之前那个 max-height 小窗是踩过的坑，别加回来。 */
+#sk-text{background:var(--background);border:1px solid var(--line);
+  border-radius:var(--radius-md);padding:var(--space-4);font-size:13px;line-height:1.7;
+  white-space:pre-wrap;word-break:break-word}
 .split-side .dmeta{font-size:12px;color:var(--sub);line-height:1.9;word-break:break-all}
 .split-side .dacts{display:flex;gap:8px;flex-wrap:wrap;margin:0;flex-shrink:0}
 .mem.sel{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc),0 8px 26px rgba(138,180,248,.22)}
@@ -1777,7 +1782,7 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
       <a class="nav" data-v="pack"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.5L12 4l8.5 4.5v7L12 20l-8.5-4.5z"/><path d="M3.5 8.5L12 13l8.5-4.5M12 13v7"/></svg><span>记忆包</span></a>
       <a class="nav" data-v="handoff"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="6" width="17" height="12" rx="3"/><path d="M8 11h8M8 14h5"/></svg><span>交接卡</span></a>
     </nav>
-    <div class="sfoot">v0.1.0 · 本地运行</div>
+    <div class="sfoot">v0.2.0 · 本地运行</div>
   </aside>
 
   <main class="main">
@@ -3093,9 +3098,13 @@ async function pickSkill(i){
       '</div>'+
       '<div class="hint" id="sk-plan" style="margin:8px 0 0"></div>'+
     '</div>'+
-    '<div class="dmain"><div class="handoff-out" id="sk-text" style="display:block"></div></div>';
+    '<div class="dmain">'+
+      '<div class="dsec"><h4 class="dsec-t">正文内容</h4>'+
+        '<div class="handoff-out" id="sk-text" style="display:block"></div></div>'+
+    '</div>';
   var t=document.getElementById("sk-text");
   t.textContent=r.text+(r.truncated?"\n\n…（已截断）":"");
+  foldAll();secApply();
 }
 /* 配置文件详情：正文一定是**后端脱敏过**的那份。
    面板这边不做任何还原，也拿不到未脱敏的值 —— 后端对敏感文件直接回空 text。 */

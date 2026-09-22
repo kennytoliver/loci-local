@@ -2821,7 +2821,7 @@ def mcp_server():
             reply(rid, {
                 "protocolVersion": ver,
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "hippocampus", "version": "0.1.0"}})
+                "serverInfo": {"name": "hippocampus", "version": "0.2.0"}})
         elif method == "notifications/initialized":
             pass
         elif method == "tools/list":

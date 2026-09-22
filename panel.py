@@ -1339,6 +1339,10 @@ select,.formrow input[type=text]{background:var(--d2);border:1px solid var(--lin
 .listhead{display:flex;justify-content:space-between;align-items:center;
   margin:20px 0 12px}
 .listhead .t{font-family:var(--sans);font-size:14px;font-weight:600;letter-spacing:-.1px}
+/* 搜索框和它的按钮是一组，必须贴在一起。⚠️ .listhead 是 space-between：
+   直接把 input / button 当子元素放，会被均分到中间和最右（用户报的 bug）。 */
+.fgroup{display:flex;align-items:center;gap:8px;flex:1;justify-content:flex-end;min-width:0}
+.fgroup .textin{max-width:300px}
 /* 页面标题区 —— 对齐 Trae 稿 .page-header / .page-title（20px/600），
    补上「4 个数值条」下方原本空掉的那一块 */
 .pagehead{display:flex;align-items:center;justify-content:space-between;gap:var(--space-4);
@@ -1376,8 +1380,9 @@ select,.formrow input[type=text]{background:var(--d2);border:1px solid var(--lin
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   direction:rtl;text-align:left;unicode-bidi:plaintext}
 .srcrow .swhy{flex:1 1 auto;color:var(--faint);font-size:11.5px}
-.srcnote{margin-top:10px;padding:8px 11px;border-radius:var(--radius-md);
-  background:var(--d2);border:1px solid var(--line);font-size:11.5px;color:var(--sub);line-height:1.7}
+/* 「另有 N 个…」这类来源备注：用户明确说太复杂、不想看见，直接不渲染。
+   规则留着（DOM 也还在），以后想改成折叠或极简提示，改这一处即可。 */
+.srcnote{display:none}
 
 @media(max-width:760px){
   .side{display:none}
@@ -1548,6 +1553,12 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
 .split-main .shead{display:flex;align-items:center;justify-content:space-between;gap:12px;
   padding:var(--space-4) var(--space-5);min-height:52px;border-bottom:1px solid var(--line)}
 .split-main .shead .t{font-size:14px;font-weight:600;letter-spacing:-.1px;color:var(--ink)}
+/* 标题栏右侧的计数常常很长（"40 个 skill | 14 个配置文件 | 3 个 MCP | 55 个插件 …"），
+   不截断会把标题栏撑成两行、看着像"排列不准"（用户报的 bug）。
+   标题自己不缩；计数占剩下的宽度，超出用省略号。 */
+.split-main .shead .t{flex-shrink:0}
+.split-main .shead .hint{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;margin:0;text-align:right}
 .split-main .sbody{padding:var(--space-1) 0}
 /* 搜索结果是平铺列表（无分组），行距由 `.lrow + .lrow` 统一给 */
 .split-main .handoff-out{margin:var(--space-3) var(--space-3) var(--space-2)}
@@ -1884,10 +1895,12 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
         <!-- 骨架 A：左会话列表 + 右原文时间线 -->
         <div class="listhead" style="margin-top:20px">
           <span class="t">已归档会话</span>
-          <input class="textin" id="s-q" style="max-width:280px" placeholder="在原话里检索…（回车或点检索）"
-                 onkeydown="if(event.key==='Enter')sessionSearch()"
-                 oninput="if(!this.value.trim())loadSessions()">
-          <button class="btn" onclick="sessionSearch()" title="在原话里检索（也可直接回车）">检索</button>
+          <span class="fgroup">
+            <input class="textin" id="s-q" placeholder="在原话里检索…（回车或点检索）"
+                   onkeydown="if(event.key==='Enter')sessionSearch()"
+                   oninput="if(!this.value.trim())loadSessions()">
+            <button class="btn" onclick="sessionSearch()" title="在原话里检索（也可直接回车）">检索</button>
+          </span>
         </div>
         <div class="split">
           <div class="split-main">

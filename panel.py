@@ -3157,9 +3157,10 @@ function frameTitles(){
 if(location.search.indexOf("frames")>=0){
   (function(){
     var SEL=".pagehead,.listhead,.shead,.dhead,.grphead";
-    var KEY="hip_frames";
-    var want={};
+    var KEY="hip_frames", EKEY="hip_frames_h";
+    var want={},extra={};   // extra: key → 额外拉伸高度(px)，让框能"拉大"盖住下面更多内容
     try{want=JSON.parse(localStorage.getItem(KEY)||"{}")||{}}catch(e){want={}}
+    try{extra=JSON.parse(localStorage.getItem(EKEY)||"{}")||{}}catch(e){extra={}}
     var C_UNDEC="#ff9f0a", C_YES="#34a853", C_NO="#f1204a";
     /* key 要稳定：用「页面 + 类名 + 该页内的序号」—— 直接用它在本页 peers 里的下标，
        切页后下标会变，加页面前缀才不会串。 */
@@ -3186,7 +3187,28 @@ if(location.search.indexOf("frames")>=0){
         var t=e.querySelector(".frmtag");
         if(!t){t=document.createElement("span");t.className="frmtag";e.appendChild(t);}
         var shortName=k.split("/")[1].replace(/\[\d+\]$/,"");   // 标签上只显示短名，别太长
-        t.textContent="."+shortName+(want[k]===1?" ✓":(want[k]===0?" ✗":""));
+        t.textContent="."+shortName+(want[k]===1?" ✓":(want[k]===0?" ✗":""))
+          +((extra[k]||0)>0?("  ↕"+extra[k]):"");
+        // ── 拉伸：右下角一个握把，按住往下拖 → 框变高（把下面更多内容圈进来）。
+        //    框用绝对定位画，**完全不碰真实布局**（这是硬要求，不能因为标注改了版面）。
+        var gh=extra[k]||0, grip=e.querySelector(".frmgrip"), box=e.querySelector(".frmbox");
+        if(!grip){
+          grip=document.createElement("div");
+          grip.className="frmgrip";
+          grip.style.cssText="position:absolute;right:-6px;width:12px;height:12px;"+
+            "background:#0065fd;border:1px solid #fff;border-radius:3px;cursor:ns-resize;"+
+            "z-index:100000";
+          e.appendChild(grip);
+          box=document.createElement("div");
+          box.className="frmbox";
+          box.style.cssText="position:absolute;left:-3px;top:-3px;pointer-events:none;"+
+            "border:1px dashed #0065fd;border-radius:5px;z-index:99998";
+          e.appendChild(box);
+        }
+        box.style.width=(e.offsetWidth+6)+"px";
+        box.style.height=(e.offsetHeight+gh+6)+"px";
+        grip.style.bottom=(-6-gh)+"px";
+        grip.dataset.k=k;
         t.style.cssText="position:absolute;top:-10px;left:2px;font-size:10px;line-height:1.2;"+
           "background:"+colorOf(k)+";color:#fff;padding:0 3px;border-radius:3px;"+
           "z-index:99999;pointer-events:none;white-space:nowrap";
@@ -3201,7 +3223,8 @@ if(location.search.indexOf("frames")>=0){
     }
     function showPick(){
       var lines=Object.keys(want).sort().map(function(k){
-        return "  "+k+"  →  "+(want[k]===1?"要框":"不要框");});
+        var h=extra[k]||0;
+        return "  "+k+"  →  "+(want[k]===1?"要框":"不要框")+(h>0?("（往下拉大 "+h+"px）"):"");});
       return "框线选择结果（"+lines.length+" 处）：\n"+lines.join("\n");
     }
     // 捕获阶段拦截点击：面板自己的 onclick 不会被触发
@@ -3214,6 +3237,27 @@ if(location.search.indexOf("frames")>=0){
       try{localStorage.setItem(KEY,JSON.stringify(want))}catch(x){}
       paint();
     },true);
+    // 拉伸握把的拖拽（全局只绑一次；用捕获，免得被面板的点击处理吃掉）
+    (function(){
+      var dragK=null,startY=0,startH=0;
+      document.addEventListener("mousedown",function(ev){
+        var g=ev.target&&ev.target.closest?ev.target.closest(".frmgrip"):null;
+        if(!g)return;
+        ev.preventDefault();ev.stopPropagation();
+        dragK=g.dataset.k;startY=ev.clientY;startH=extra[dragK]||0;
+        var mv=function(e2){
+          extra[dragK]=Math.max(0,Math.round(startH+(e2.clientY-startY)));
+          try{localStorage.setItem(EKEY,JSON.stringify(extra))}catch(x){}
+          paint();
+        };
+        var up=function(){
+          document.removeEventListener("mousemove",mv,true);
+          document.removeEventListener("mouseup",up,true);dragK=null;
+        };
+        document.addEventListener("mousemove",mv,true);
+        document.addEventListener("mouseup",up,true);
+      },true);
+    })();
     var wait=setInterval(function(){
       if(typeof window.show==="function"){
         clearInterval(wait);
@@ -3228,6 +3272,20 @@ if(location.search.indexOf("frames")>=0){
           alert("已复制，直接发我即可：\n\n"+txt);
         };
         document.body.appendChild(bar);
+        /* 「清空重选」——用户说"我会被已经画出来的框影响，忘了哪些本来该要、哪些不该要"，
+           所以得给一个干净起点：一键清掉全部选择 + 全部拉伸高度。 */
+        var clr=document.createElement("div");
+        clr.textContent="🗑 清空重选";
+        clr.style.cssText="position:fixed;right:16px;top:62px;z-index:999999;cursor:pointer;"+
+          "background:#f1204a;color:#fff;font:12px/1.6 system-ui,sans-serif;padding:6px 12px;"+
+          "border-radius:8px;box-shadow:0 4px 14px rgba(0,0,0,.35)";
+        clr.onclick=function(){
+          if(!confirm("清空所有已选和拉伸高度，从零开始重选？"))return;
+          want={};extra={};
+          try{localStorage.removeItem(KEY);localStorage.removeItem(EKEY)}catch(x){}
+          paint();
+        };
+        document.body.appendChild(clr);
         setTimeout(paint,1000);
         var old=window.show;
         window.show=function(v){old(v);setTimeout(paint,800)};

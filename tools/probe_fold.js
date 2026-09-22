@@ -31,15 +31,17 @@ const CHROME = [process.env.CHROME_PATH,
 
   const stat = await page.evaluate(() => {
     const bus = Array.from(document.querySelectorAll('#s-view .bub'));
+    const lim = (typeof window.FOLD_CHARS === 'number') ? window.FOLD_CHARS : 320;
     return {
       total: bus.length,
-      long: bus.filter((b) => b.textContent.trim().length > 320).length,
-      short: bus.filter((b) => b.textContent.trim().length <= 320).length,
+      lim,
+      long: bus.filter((b) => b.textContent.trim().length > lim).length,
+      short: bus.filter((b) => b.textContent.trim().length <= lim).length,
       folded: document.querySelectorAll('#s-view .bub.folded').length,
       btns: document.querySelectorAll('#s-view .foldbtn').length,
     };
   });
-  console.log(`气泡 共${stat.total} | 长(>320字)${stat.long} 短${stat.short} | 已折叠${stat.folded} | 按钮${stat.btns}`);
+  console.log(`气泡 共${stat.total} | 阈值>${stat.lim}字 长${stat.long} 短${stat.short} | 已折叠${stat.folded} | 按钮${stat.btns}`);
 
   // 点第一个按钮：高度应变大、文字变「收起」；再点回来
   const r = await page.evaluate(() => {

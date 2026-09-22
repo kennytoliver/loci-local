@@ -3436,8 +3436,8 @@ async function importCands(){
    会话原文（几百轮铺下来特别长）/ 记忆详情正文 / 交接卡与常驻上下文输出，
    超过阈值就按行截断，点「展开全文」看全。短内容不出现按钮 —— 免得满屏都是
    「展开」，反而更吵。折叠的是视觉行数，DOM 里内容完好，搜索/复制不受影响。 */
-var FOLD_CHARS = 320;
-var FOLD_LINES = 6;
+var FOLD_CHARS = 150;
+var FOLD_LINES = 4;
 var FOLD_SEL = "#s-view .bub, .dbody, .foldbody";
 function foldOne(el){
   if(el.dataset.foldReady)return;

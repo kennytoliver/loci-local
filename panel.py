@@ -1355,13 +1355,16 @@ select,.formrow input[type=text]{background:var(--d2);border:1px solid var(--lin
    三个子元素会被均分 → 按钮组跑到中间（用户报"文字未对齐"）。
    改成三段式：标题靠左，按钮组和箭头一起顶到右边。 */
 .listhead.ghead>.t{flex-shrink:0;margin-right:auto}
-/* 区块标题栏统一加框（用户要求：十个大标题都该像"一块"）。
-   ⚠️ 硬约束：加框不得引入任何新 bug ——
-     ① 用 inset 阴影而不是 border（border 会撑高 2px、挤动整页布局，.bdg 踩过同一个坑）
-     ② 不动 padding / 字号，元素尺寸与改动前**完全一致**
-     ③ .shead/.dhead 原来靠 border-bottom 与内容分隔，加框后必须去掉，否则下沿双线 */
-.listhead,.grphead,.shead,.dhead{box-shadow:inset 0 0 0 1px var(--line)}
-.shead,.dhead{border-bottom-color:transparent}
+/* ⚠️ 这里改回"只在该加的地方加"。上一版把框加到了**已经在卡片里**的标题上，用户原话：
+   "本身就在框里面的，为什么要多此一举再加一个框"。
+   现在的规则：
+     ✅ 加框 = **页面级大标题**（.framed，由 frameTitles() 打标）——它下面没有任何卡片衬底，
+        不描一下就跟页面背景糊在一起
+     ❌ 不加 = 卡片内的标题（.panel 里的 .listhead、.split-* 里的 .shead/.dhead）——
+        卡片的边框已经是它们的框
+   仍用 inset 阴影而不是 border（border 会撑高 2px、挤动整页布局）。 */
+.framed{box-shadow:inset 0 0 0 1px var(--line);border-radius:var(--radius-md);
+  background:var(--d2)}
 /* 搜索框和它的按钮是一组，必须贴在一起。⚠️ .listhead 是 space-between：
    直接把 input / button 当子元素放，会被均分到中间和最右（用户报的 bug）。 */
 .fgroup{display:flex;align-items:center;gap:8px;flex:1;justify-content:flex-end;min-width:0}
@@ -2337,6 +2340,9 @@ function show(v){
   //    定义在脚本末尾 —— 同步调用会撞上"还没定义"。延到当前 tick 之后再调。
   setTimeout(secApply,0);
   setTimeout(secApply,150);   // 右栏/列表是异步渲染的，渲染完再补一次
+  // 页面级大标题的框：等渲染完再打标（.panel / .split-* 里的不加，见 frameTitles 注释）
+  setTimeout(frameTitles,160);
+  setTimeout(frameTitles,700);   // 异步内容渲染完再补一次
 }
 document.querySelectorAll(".nav").forEach(n=>n.onclick=()=>show(n.dataset.v));
 var _h=(location.hash||"").replace("#","");
@@ -3096,6 +3102,66 @@ function wrapPanels(viewId, keys){
     while(n){var nx=n.nextSibling;body.appendChild(n);n=nx}
     p.appendChild(body);
   });
+}
+/* 给"页面级大标题"打上 .framed —— **只给不在任何卡片里的那些**。
+   判断依据：往上找有没有 .panel / .split-main / .split-side —— 它们的边框已经是框了，
+   再描一圈就是双重框（用户原话："本身就在框里面的，为什么要多此一举"）。 */
+/* 判断元素是不是"已经在某个带边框的容器里"。
+   ⚠️ 不要靠类名硬编码 —— 第一次写只认 .panel / .split-*，结果质检页的 7 个标题
+   全被加了框（它的容器不是这几个类）。改成通用判断：往上找，只要任何祖先自己
+   带边框或内阴影，就算"已经在框里"。 */
+function inFramed(el){
+  var p=el.parentElement;
+  while(p&&p!==document.body){
+    var cs=getComputedStyle(p);
+    if(parseFloat(cs.borderTopWidth)>0||(cs.boxShadow&&cs.boxShadow!=="none"))return true;
+    p=p.parentElement;
+  }
+  return false;
+}
+function frameTitles(){
+  var n=0;
+  Array.prototype.forEach.call(
+    document.querySelectorAll(".pagehead,.listhead,.shead,.dhead"),
+    function(e){
+      if(inFramed(e))return;      // 已经在框里的绝不重复加（用户原话：多此一举）
+      e.classList.add("framed");n++;
+    });
+  return n;
+}
+/* ── 框线调试模式（用户要的"能标注哪些要框、哪些不要"）──
+   面板地址后面加 ?frames=1 打开：把所有**候选**元素用虚线描出来并标上类名 ——
+   **橙色 = 现在没框、灰色 = 已在框内**。截图发我即可精确指认。
+   只在带参数时生效，正常打开面板完全不受影响。 */
+if(location.search.indexOf("frames")>=0){
+  (function(){
+    var ST="position:absolute;font-size:10px;line-height:1.2;background:#ff9f0a;color:#000;"+
+           "padding:0 3px;border-radius:3px;z-index:9999;pointer-events:none;white-space:nowrap";
+    var paint=function(){
+      document.querySelectorAll("[data-frm]").forEach(function(e){
+        e.style.outline="";var t=e.querySelector(".frmtag");if(t)t.remove();delete e.dataset.frm;});
+      document.querySelectorAll(".pagehead,.listhead,.shead,.dhead,.grphead").forEach(function(e){
+        var inCard=inFramed(e);
+        e.style.outline=inCard?"1px dashed #6b7280":"1px dashed #ff9f0a";
+        e.dataset.frm="1";
+        if(!e.querySelector(".frmtag")){
+          var t=document.createElement("span");
+          t.className="frmtag";
+          t.textContent="."+String(e.className||"").split(" ")[0]+(inCard?"（在框内）":"");
+          t.style.cssText=ST;t.style.top="-9px";t.style.left="2px";
+          if(getComputedStyle(e).position==="static")e.style.position="relative";
+          e.appendChild(t);
+        }
+      });
+    };
+    var wait=setInterval(function(){
+      if(typeof window.show==="function"){
+        clearInterval(wait);setTimeout(paint,1200);
+        var old=window.show;
+        window.show=function(v){old(v);setTimeout(paint,900)};
+      }
+    },300);
+  })();
 }
 /* 列表里只放主版本号。
    WorkBuddy 的版本串是 `5.5.6-wb.38337834.g5f969292.h7826dc9400fd`（44 字符），

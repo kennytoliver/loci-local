@@ -100,6 +100,22 @@ function ck(name, cond, extra) {
   });
   ck('分组能整块收起且布局跟随', fold.hid && fold.after === 0 && fold.back === fold.before,
      fold.before + '→' + fold.after + '→' + fold.back + 'px');
+  const grp2 = await page.evaluate(() => {
+    const h = document.querySelector('#sk-list .ghead');
+    if (!h) return null;
+    const f = h.parentNode.querySelector('.grpfoot');
+    const border = getComputedStyle(h).borderTopWidth;
+    if (!f) return { border, t0: '(无按钮)' };
+    const b = h.nextElementSibling;
+    const t0 = f.textContent; f.click();
+    const hid = b.classList.contains('hide'); const t1 = f.textContent; f.click();
+    return { border, t0, t1, t2: f.textContent, hid };
+  });
+  ck('分组是一个带边框的框', grp2 && grp2.border !== '0px', grp2 ? grp2.border : '无');
+  ck('分组内容下方有「收起」按钮', grp2 && /收起/.test(grp2.t0 || ''), grp2 ? grp2.t0 : '无');
+  ck('点下方按钮能收起且文字翻转',
+     grp2 && grp2.hid && /展开/.test(grp2.t1 || '') && /收起/.test(grp2.t2 || ''),
+     grp2 ? (grp2.t0 + ' → ' + grp2.t1 + ' → ' + grp2.t2) : '');
   // 点第一个技能看详情
   await page.evaluate(() => {
     const el = document.querySelector('#sk-list .mem[onclick*="pickSkill"]');
@@ -120,6 +136,32 @@ function ck(name, cond, extra) {
   ck('正文有实际内容', det.len > 0, det.len + ' 字');
   ck('正文有边框（像一块内容）', det.border !== '0px' && det.border !== '0', det.border);
   ck('正文没有被内层高度限制压扁', det.h > 60, det.h + 'px');
+
+  // ---------- 采集页 ----------
+  console.log('\n[采集页]');
+  await page.evaluate(() => window.show('collect'));
+  await wait(1200);
+  await page.evaluate(() => { if (typeof doScan === 'function') doScan(); });
+  await page.waitForSelector('#v-collect .stable', { timeout: 25000 }).catch(() => {});
+  await wait(600);
+  const col = await page.evaluate(() => {
+    const st = document.querySelector('#v-collect .stable');
+    if (!st) return null;
+    const items = Array.from(st.querySelectorAll('.shead-row>span, .srow>span'));
+    const noClip = items.filter((el) => {
+      const o = getComputedStyle(el).overflow;
+      return o !== 'hidden' && o !== 'clip';
+    }).length;
+    return { border: getComputedStyle(st).borderTopWidth,
+             rows: st.querySelectorAll('.srow').length, noClip };
+  });
+  if (col) {
+    ck('采集表有外框', col.border !== '0px', col.border);
+    ck('采集表单元格都设了裁切（不会叠字）', col.noClip === 0, '未裁切 ' + col.noClip + ' 格');
+    ck('采集表有数据行', col.rows > 0, col.rows + ' 行');
+  } else {
+    ck('采集表能渲染', false, '没有 .stable（可能扫描没跑完）');
+  }
 
   // ---------- 其它页 ----------
   console.log('\n[其它页]');

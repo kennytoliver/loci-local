@@ -1368,6 +1368,17 @@ select,.formrow input[type=text]{background:var(--d2);border:1px solid var(--lin
    所以计数用 margin-left:auto 顶到右边，箭头紧贴标题。 */
 .grphead.ghead{gap:6px}
 .grphead.ghead .cv{cursor:pointer}
+/* 每一类单独成一个「框」（用户要的"一块一片区域"）：框头 + 框体各自有边框，
+   折叠后框体消失、框头留着。 */
+#sk-list .grphead.ghead{border:1px solid var(--line);border-radius:var(--radius-md);
+  padding:var(--space-2) var(--space-3);background:var(--d2);margin-top:var(--space-3)}
+#sk-list .gbody{border:1px solid var(--line);border-radius:var(--radius-md);
+  padding:var(--space-2);margin-top:2px}
+/* 分组内容下方的收起按钮（用户要求放在下面，而不是去点标题） */
+.grpfoot{display:block;width:100%;margin-top:4px;padding:4px 0;font:inherit;font-size:12px;
+  color:var(--acc);background:transparent;border:1px dashed var(--line);
+  border-radius:var(--radius-md);cursor:pointer}
+.grpfoot:hover{background:var(--hover)}
 .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .hint{font-size:12px;color:var(--faint);line-height:1.7;margin-top:10px}
 /* 本机对话来源列表 —— 让"这次到底扫了谁、为什么"看得见
@@ -1512,7 +1523,13 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
 .health .hchip.warn{color:var(--warn);border-color:var(--warn)}
 
 /* ── 可勾选文件表（套规范 Table 组件：静音表头 + 细描边行 + 彩色状态）── */
-.stable{display:flex;flex-direction:column}
+/* 用户反馈：这张表原来没有外框、长内容还会压到邻列叠字。
+   加外框 + 每个单元格自己裁 —— `min-width:0` 是关键：grid 子项默认不肯缩，
+   会被长字符串（比如完整时间戳）顶出去盖到下一列。 */
+.stable{display:flex;flex-direction:column;border:1px solid var(--line);
+  border-radius:var(--radius-lg);padding:var(--space-2) 0;background:var(--card)}
+.stable .shead-row>span,.stable .srow>span{min-width:0;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
 .stable .shead-row,.stable .srow{
   display:grid;grid-template-columns:26px minmax(0,1fr) 58px 116px 92px 74px;
   gap:var(--space-3);align-items:center}
@@ -2640,6 +2657,8 @@ function toggleGroup(key){
   if(!body) return;
   var nowHidden = body.classList.toggle('hide');
   if(head) head.classList.toggle('collapsed', nowHidden);
+  var foot = document.getElementById('gf-' + key);   // 内容下方那个按钮也跟着翻字
+  if(foot) foot.textContent = nowHidden ? '展开 ▾' : '收起 ▴';
 }
 
 async function loadList(){
@@ -2883,7 +2902,8 @@ function wrapGroups(root){
     h.classList.add("ghead");
     h.id="gh-"+key;
     h.onclick=function(){toggleGroup(key)};
-    if(!h.querySelector(".cv"))h.insertAdjacentHTML("afterbegin",'<span class="cv">▼</span>');
+    // 箭头放**最右**：放标题前面会把标题文字挤开、看着"排列不准"（用户反馈）
+    if(!h.querySelector(".cv"))h.insertAdjacentHTML("beforeend",'<span class="cv">▼</span>');
     var body=document.createElement("div");
     body.className="gbody";body.id="g-"+key;
     var n=h.nextSibling;
@@ -2893,6 +2913,12 @@ function wrapGroups(root){
       n=nx;
     }
     h.parentNode.insertBefore(body,h.nextSibling);
+    // 用户要"收起按钮放在下面"：内容下方给一个明确的按钮（收起后翻成"展开"）
+    var foot=document.createElement("button");
+    foot.type="button";foot.className="grpfoot";foot.id="gf-"+key;
+    foot.textContent="收起 ▴";
+    foot.onclick=function(ev){ev.stopPropagation();toggleGroup(key)};
+    body.parentNode.insertBefore(foot,body.nextSibling);
   });
 }
 /* 列表里只放主版本号。

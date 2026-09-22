@@ -1082,12 +1082,20 @@ PAGE = r"""<!DOCTYPE html>
   /* 实心主按钮专用填充色：--acc 是「表面上的亮色」，拿它当填充面会出现
      白字压浅蓝（深色实测 2.11:1，不达标）。取色来自现有 --sidebar-primary。 */
   --acc-solid:#0065fd; --acc-solid-ink:#fff; --acc-solid-hover:#0052cc;
+  /* FIX-5：主色当「文字」用时单独一条令牌 —— 亮色下 --acc 当文字只有 3.56:1
+     （12px 文字需 4.5:1），暗色却有 8.01:1。暗色这里与 --acc 同值，观感零变化。 */
+  --acc-ink:#8ab4f8;
   /* 数据可视化五色（库的 --chart-1..5，暗色刻意更"电"）——
      规范原话：图表是整个系统里颜色能量最强的地方，其余表面要保持安静 */
   --chart-1:#2dccd3; --chart-2:#f1204a; --chart-3:#edbbe8; --chart-4:#fbeb35; --chart-5:#baf6f0;
   --destructive:#ef4444; --destructive-foreground:#ffffff;
   --tracking-normal:0em;
-  --chrome:rgba(22,22,22,.88); --toastbg:rgba(46,46,46,.96); --hover:rgba(255,255,255,.05);
+  --chrome:rgba(22,22,22,.88); --toastbg:rgba(46,46,46,.96);
+  /* FIX-10：原 .05 叠在卡片上只有 1.14:1，几乎看不见 → 提到 .07 */
+  --hover:rgba(255,255,255,.07);
+  /* FIX-9：破坏性动作 / 软边框 / 进度渐变都走令牌，别再硬编码 */
+  --danger:#ff453a; --danger-soft:rgba(255,69,58,.5); --ok-soft:rgba(48,209,88,.5);
+  --grad-progress:linear-gradient(90deg,var(--acc),var(--acc2));
   /* 字体栈把库里的 DM Sans / JetBrains Mono 放在最前（没装就自动回落系统栈，零外链不能引 CDN） */
   --sans:"DM Sans",-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;
   /* 页面底色与卡片底色分开：浅色下两者同色就只剩 1px 描边能区分 */
@@ -1156,11 +1164,13 @@ PAGE = r"""<!DOCTYPE html>
   --sub:#515c69; --faint:#697585;
   --acc:#4285f4; --acc2:#4285f4;
   --acc-solid:#1a73e8; --acc-solid-ink:#fff; --acc-solid-hover:#1765cc;
+  --acc-ink:#1a73e8;   /* FIX-5：亮色下当文字用 4.51:1 ✓ */
   /* 图表五色：亮色走"可识别的 Google 多彩"路线 */
   --chart-1:#4285f4; --chart-2:#ea4335; --chart-3:#fbbc05; --chart-4:#0043ad; --chart-5:#34a853;
   --destructive:#ef4444; --destructive-foreground:#ffffff;
   --chrome:rgba(255,255,255,.86); --toastbg:rgba(255,255,255,.98);
-  --hover:rgba(14,17,21,.04);
+  --hover:rgba(14,17,21,.06);   /* FIX-10：原 .04 → 1.08:1，太弱 */
+  --danger:#c5221f; --danger-soft:rgba(197,34,31,.45); --ok-soft:rgba(20,122,53,.45);
   /* 与暗色一致：8 档阴影全部透明（库的定义），纯平 */
   --shadow-2xs:0 3px 0 0 rgba(14,17,21,0);
   --shadow-xs:0 3px 0 0 rgba(14,17,21,0);
@@ -1321,7 +1331,7 @@ h2{font-family:var(--sans);font-size:20px;font-weight:600;letter-spacing:-.2px;m
 .msg{background:var(--d2);border:1px solid var(--line);border-radius:var(--radius-md);
   padding:12px 16px;font-size:12.5px;line-height:1.75;margin-bottom:14px;white-space:pre-wrap}
 .msg.ok{border-color:rgba(52,168,83,.45)}
-.msg.err{border-color:rgba(255,69,58,.5)}
+.msg.err{border-color:var(--danger-soft)}
 .textin{flex:1;min-width:240px;background:var(--d2);border:1px solid var(--line2);
   border-radius:var(--radius-md);padding:7px 13px;font-size:13px;color:var(--ink);outline:none;
   font-family:var(--sans)}
@@ -1369,6 +1379,11 @@ select,.formrow input[type=text]{background:var(--d2);border:1px solid var(--lin
   bottom:calc(-2px - var(--fext,0px));
   border:1px solid var(--line);border-radius:var(--radius-lg);
   pointer-events:none}
+/* FIX-5：蓝色小字走 --acc-ink，不直接吃 --acc。
+   ⚠️ 只改 color —— 不动 border-color / background：--acc 当描边在亮色是 3.56:1，
+   对 1px 线（判据 3:1）是够的，换了反而会把描边弄浅。 */
+.score,.foldbtn,.grpfoot,.lead .leadlink,.badge-new,
+.split-main .mmeta .bdg.src,.btn.txt{color:var(--acc-ink)}
 /* 搜索框和它的按钮是一组，必须贴在一起。⚠️ .listhead 是 space-between：
    直接把 input / button 当子元素放，会被均分到中间和最右（用户报的 bug）。 */
 .fgroup{display:flex;align-items:center;gap:8px;flex:1;justify-content:flex-end;min-width:0}
@@ -1513,7 +1528,7 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
 
 /* 顶部细进度条（长任务时出现） */
 #topbar{position:fixed;left:0;top:0;height:2px;width:0;z-index:99;
-  background:linear-gradient(90deg,#0a84ff,#30d158);transition:width .3s var(--ease),opacity .3s}
+  background:var(--grad-progress);transition:width .3s var(--ease),opacity .3s}
 #topbar.on{width:92%;opacity:1}
 #topbar.done{width:100%;opacity:0}
 
@@ -1525,7 +1540,7 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
   animation:toastIn .26s var(--ease) both;box-shadow:0 8px 26px rgba(0,0,0,.42)
 }
 .toast-item.ok{border-color:rgba(48,209,88,.5)}
-.toast-item.err{border-color:rgba(255,69,58,.55)}
+.toast-item.err{border-color:var(--danger-soft)}
 
 /* 加载骨架（列表区） */
 .skeleton{height:56px;border-radius:12px;margin-bottom:10px;
@@ -1543,7 +1558,10 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
 /* 卡片：hover 带主色描边，更强的层次 */
 .mem{border-radius:8px}
 /* 卡片 hover：规范 ui_kit 的做法是 border-color 变 --ring，不加抬升（阴影全平） */
-.mem:hover{border-color:var(--ring);box-shadow:none}
+/* FIX-4：hover 描边原来吃 --ring —— 暗色下 --ring 是纯白（14.91:1）、亮色才是蓝（3.56:1），
+   两个主题成了两种视觉语言；而且暗色下它与焦点环**同色同宽**，hover 和 focus 分不开。
+   规范第四节的口径是「hover 只动底色，不加描边」，所以改用底色表达，焦点仍走 outline。 */
+.mem:hover{background:var(--hover);border-color:var(--line);box-shadow:none}
 
 
 /* 进度条改用主色 → 辅色 */
@@ -1612,12 +1630,13 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
   cursor:pointer;background:transparent;border:0;width:100%;text-align:left;
   transition:background var(--duration-fast) var(--ease-out)}
 .stable .srow:hover{background:var(--hover)}
-/* ⚠️ 这里踩过一次：为了对比度把整块 opacity 去掉之后，已入库行**看不出和正常行的区别**，
-   用户以为"置灰失效、去重没生效"（其实勾选框是 disabled，只是看不出来）。
-   所以：用**淡底**表达"已完成"（一眼能分辨），文字再降一档，状态标签保持清楚。 */
-.stable .srow.indb{opacity:1;background:var(--d2)}
+/* FIX-6：状态不能只靠"淡淡的面"。实测亮色下 --d2 对卡片只有 1.05:1（暗色 1.24:1，
+   亮色差 5 倍）＝ 等于没有提示；行内文字落在 --faint 上暗色只有 3.93:1。
+   所以补一个**形状信号**（左侧 3px 条），底色提到 --d3，文字回到 --sub。
+   ⚠️ 用 inset 阴影而不是 border-left —— border 会改变行宽/行高。 */
+.stable .srow.indb{background:var(--d3);box-shadow:inset 3px 0 0 var(--line2);opacity:1}
 .stable .srow.indb .spath,
-.stable .srow.indb .cell{color:var(--faint)}
+.stable .srow.indb .cell{color:var(--sub)}
 .stable .srow.indb .bdg.state{color:var(--sub)}
 .stable .srow.indb .ck{opacity:.45}
 /* Agent 徽标：品牌色圆角方块 + 首字母（不用厂商 logo：零依赖 + 避免商标问题） */
@@ -1633,7 +1652,7 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
 
 /* 退出服务按钮：平时低调，悬停变警示色 */
 .quitbtn{color:var(--sub)}
-.quitbtn:hover{color:#ff453a;border-color:rgba(255,69,58,.5)}
+.quitbtn:hover{color:var(--danger);border-color:var(--danger-soft)}
 
 /* 关闭后的提示页 */
 .bye{display:grid;place-items:center;height:100vh;text-align:center;gap:14px;
@@ -1674,7 +1693,7 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
 .split-side{
   position:sticky;top:14px;background:var(--card);border:1px solid var(--line);
   border-radius:var(--radius-lg);padding:0;box-shadow:var(--shadow-2xs);
-  min-height:0;overflow:auto;
+  min-height:0;
   animation:cardIn .3s var(--ease) both
 }
 /* 详情卡头／体 —— 对齐 Trae 稿 .detail-header / .detail-body（均 20px 内边距，头下一条分隔线） */
@@ -1803,17 +1822,41 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
 /* ⚠️ opacity:0 依然占位 —— 实测这 115px 吃掉 meta 行 31% 宽，
    把「914 轮 · #81」压成一个「9」。改成悬浮在行尾，不占文档流。 */
 .split-main .mem.lrow{position:relative}
+/* ── FIX-1：行内三个操作改成**三个各自独立的框** ──
+   原来 .macts 自带一块 --card 不透明底 + padding-left，而里面三个按钮既无边框也无底色
+   （实测容器 127×16、底色 rgb(29,29,28)，按钮 border:0 / background:none / radius:0）
+   → 眼睛看到的必然是"一条"。现在容器彻底透明，每个 .del 自己是一张迷你卡片，
+   对齐库 Button 的 ghost/secondary 口径（"border-light action for table rows"）。 */
 .split-main .macts{position:absolute;right:var(--space-4);top:50%;
-  transform:translateY(-50%);margin:0;background:var(--card);
-  padding-left:var(--space-3);display:flex;gap:8px;
+  transform:translateY(-50%);margin:0;display:flex;gap:var(--space-2);
+  background:transparent;padding:0;
   opacity:0;pointer-events:none;transition:opacity var(--duration-fast) var(--ease-out)}
+/* ★ 选中态原来另有一条 --sel-bg 共享底 —— 也要关掉，否则选中那行仍然是"一条" */
+.split-main .mem.lrow.sel .macts{background:transparent}
 .split-main .mem.lrow:hover .macts,.split-main .mem.lrow.sel .macts{opacity:1;pointer-events:auto}
-.split-main .mem.lrow.sel .macts{background:var(--sel-bg)}
-/* hover / 选中时浮层会盖住右侧内容 —— 实测连 meta 行的「1041 轮 · #81」都被压住
-   （用户截图里能看到）。只给标题留位不够，得让**整行**避开：hover 时整行加右 padding，
-   浮层正好填进让出来的位置，谁也不压谁。只在 hover/sel 生效，平时行高一动不动。 */
+/* 每个操作 = 一张迷你卡片：--card 底 + --line 描边 + 6px 圆角（规范 2.3 按钮圆角）
+   24px 高 = WCAG 2.5.8 的最小点击目标；平时中性色，只有 hover 才出警示色 */
+.split-main .macts .del{display:inline-flex;align-items:center;justify-content:center;
+  height:24px;padding:0 var(--space-2);
+  border:1px solid var(--line);background:var(--card);
+  border-radius:var(--radius-md);
+  font-size:11px;line-height:1;color:var(--sub);white-space:nowrap}
+.split-main .macts .del:hover{color:var(--bad);border-color:var(--bad)}
+
+/* ── FIX-2：hover 时不再压断 meta 行 ──
+   上一版是"整行砍 150px"：实测 .mbody 从 348.8 掉到 214.8，而 meta 需要 267.2
+   → 差 52.4px，末尾两段被省略号切掉（用户截图里的「暂无…」「753 轮 ·…」就是这个）。
+   换算过：三个框要 169px，完整 meta 要 259.2px，加起来 428.2 > 可用的 348.8 → 不可能共存。
+   三条路里「叠上去」和「压成省略号」都被否了，只剩"让位"；让位的对象只能是那两个
+   次要标签（让掉 121.4px 后 137.8+169=306.8 ≤ 348.8，留 42px 净空）。 */
 .split-main .mem.lrow:hover,
-.split-main .mem.lrow.sel{padding-right:150px}
+.split-main .mem.lrow.sel{padding-right:var(--space-4)}      /* 恢复 16px，别再砍整行 */
+.split-main .mem.lrow:hover .mtitle,
+.split-main .mem.lrow.sel .mtitle{padding-right:177px}       /* 标题本来就 nowrap+省略号 */
+.split-main .mem.lrow:hover .mmeta,
+.split-main .mem.lrow.sel .mmeta{padding-right:169px}        /* 双保险，防 meta 溢出 */
+.split-main .mem.lrow:hover .mtags,
+.split-main .mem.lrow.sel .mtags{display:none}               /* 收起会被挤成半截的两个标签 */
 .split-main .mem.lrow.sel{background:var(--sel-bg);box-shadow:inset 3px 0 0 var(--sel-accent)}
 .split-main .mem.lrow.sel:hover{background:var(--sel-bg)}
 .split-main .mem.lrow.sel .mtitle{color:var(--sel-ink);font-weight:600}

@@ -3106,27 +3106,46 @@ function wrapPanels(viewId, keys){
 /* 给"页面级大标题"打上 .framed —— **只给不在任何卡片里的那些**。
    判断依据：往上找有没有 .panel / .split-main / .split-side —— 它们的边框已经是框了，
    再描一圈就是双重框（用户原话："本身就在框里面的，为什么要多此一举"）。 */
-/* 判断元素是不是"已经在某个带边框的容器里"。
-   ⚠️ 不要靠类名硬编码 —— 第一次写只认 .panel / .split-*，结果质检页的 7 个标题
-   全被加了框（它的容器不是这几个类）。改成通用判断：往上找，只要任何祖先自己
-   带边框或内阴影，就算"已经在框里"。 */
-function inFramed(el){
-  var p=el.parentElement;
-  while(p&&p!==document.body){
-    var cs=getComputedStyle(p);
-    if(parseFloat(cs.borderTopWidth)>0||(cs.boxShadow&&cs.boxShadow!=="none"))return true;
-    p=p.parentElement;
-  }
-  return false;
+/* ── 框线选择清单（**用户在 ?frames=1 里亲手点的，不是自动判断的**）──
+   40 处，1 = 要框，0 = 不要，未列出的 = 不加。
+   键的格式与标注模式的 keyOf() 完全一致：`页面/类名[该类在该页候选里的下标]`。
+   要改规则：地址后加 ?frames=1 重选一遍，点右上角浮条复制，贴回来即可。
+   ⚠️ 不要再用"在不在框里"去自动推断 —— 用户的选择跟这个不总一致（例如清理页
+   4 个 Panel 的标题他在框内也要框，而记忆包页 3 个在框内他偏不要）。 */
+var FRAME_SELECTION={
+  "agents/listhead[1]":0, "agents/listhead[2]":1, "agents/pagehead[0]":1,
+  "audit/listhead[1]":1, "audit/listhead[2]":1, "audit/listhead[3]":1,
+  "audit/listhead[4]":1, "audit/listhead[5]":1, "audit/listhead[6]":1,
+  "audit/listhead[7]":1, "audit/pagehead[0]":1,
+  "clean/listhead[1]":1, "clean/listhead[2]":1, "clean/listhead[3]":1,
+  "clean/listhead[4]":1, "clean/pagehead[0]":1,
+  "collect/listhead[1]":0, "collect/pagehead[0]":1,
+  "handoff/listhead[1]":0, "handoff/pagehead[0]":1,
+  "mem/dhead[2]":1, "mem/pagehead[0]":1, "mem/shead[1]":1,
+  "pack/listhead[1]":0, "pack/listhead[2]":0, "pack/listhead[3]":0, "pack/pagehead[0]":1,
+  "session/dhead[4]":0, "session/listhead[1]":0, "session/listhead[2]":1,
+  "session/pagehead[0]":1, "session/shead[3]":0,
+  "skill/grphead[3]":1, "skill/grphead[4]":1, "skill/grphead[5]":1,
+  "skill/grphead[6]":1, "skill/grphead[7]":1,
+  "skill/listhead[1]":1, "skill/pagehead[0]":1, "skill/shead[2]":1
+};
+var FRAME_SEL=".pagehead,.listhead,.shead,.dhead,.grphead";
+/* 与标注模式的 keyOf 必须逐字一致，否则清单对不上 */
+function frameKeyOf(e){
+  var sec=e.closest("section[id^='v-']");
+  var sid=sec?sec.id:"";
+  var peers=sec?Array.prototype.slice.call(sec.querySelectorAll(FRAME_SEL)):[];
+  var cls=String(e.className||"").replace(/\b(framed|want-frame|no-frame)\b/g,"")
+    .trim().split(/\s+/)[0]||e.tagName.toLowerCase();
+  return sid.replace(/^v-/,"")+"/"+cls+"["+peers.indexOf(e)+"]";
 }
 function frameTitles(){
   var n=0;
-  Array.prototype.forEach.call(
-    document.querySelectorAll(".pagehead,.listhead,.shead,.dhead"),
-    function(e){
-      if(inFramed(e))return;      // 已经在框里的绝不重复加（用户原话：多此一举）
-      e.classList.add("framed");n++;
-    });
+  Array.prototype.forEach.call(document.querySelectorAll(FRAME_SEL),function(e){
+    var on=(FRAME_SELECTION[frameKeyOf(e)]===1);
+    e.classList.toggle("framed",on);
+    if(on)n++;
+  });
   return n;
 }
 /* ── 框线标注模式 v2（用户要的"能自己点着选"）──

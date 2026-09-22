@@ -1989,7 +1989,7 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
             <input type="text" class="textin" id="arch-dir" placeholder="归档目录（可放在 D 盘 / 移动硬盘；留空 = 不启用）">
             <button class="btn" onclick="saveArchiveDir()">保存</button>
           </div>
-          <p class="hint">快照是<b>复制</b>当前记忆库，<b>不会移动或删除任何记忆</b>。为避免占用系统盘，默认不启用，
+          <p class="hint">数据库备份是<b>复制</b>当前记忆库，<b>不会移动或删除任何记忆</b>。为避免占用系统盘，默认不启用，
             选择位置后才开始自动备份（每次打开面板检查一次，每天最多一份，默认保留 30 份）。</p>
         </div>
 
@@ -4033,11 +4033,11 @@ async function loadArchive(){
     document.getElementById("arch-hint").textContent="建议选空间大的盘（如 D 盘或移动硬盘）；本机记忆库当前 " +
       (r.db||"") ;
   }else{
-    el.innerHTML='✅ 存档位置：<code>'+esc(cfg.dir)+'</code> ｜ 已有 <b>'+snaps.length+'</b> 份快照，共 '+
+    el.innerHTML='✅ 存档位置：<code>'+esc(cfg.dir)+'</code> ｜ 已有 <b>'+snaps.length+'</b> 份数据库备份，共 '+
       (r.total/1048576).toFixed(2)+' MB ｜ 保留最近 '+cfg.keep+' 份'+
       (cfg.auto?' ｜ 自动备份：开':' ｜ 自动备份：关');
     document.getElementById("arch-hint").textContent = snaps.length ?
-      ('最新一份：'+snaps[0].mtime+'（'+snaps[0].name+'）') : '还没有快照，点「立即备份」生成第一份。';
+      ('最新一份：'+snaps[0].mtime+'（'+snaps[0].name+'）') : '还没有数据库备份，点「立即备份」生成第一份。';
   }
   document.getElementById("arch-dir").value = cfg.dir||"";
 }
@@ -4066,8 +4066,8 @@ async function doSnapshot(){
   var r=await api("/api/archive/snapshot",{method:"POST",headers:{"Content-Type":"application/json"},
     body:JSON.stringify({force:true})});
   if(r.error){toast(r.error,"err");msg(r.error,"err");return}
-  toast("已生成快照","ok");
-  msg("快照完成："+r.path+"\n大小 "+(r.size/1048576).toFixed(2)+" MB ｜ 现有 "+r.count+" 份"+
+  toast("已生成数据库备份","ok");
+  msg("备份完成："+r.path+"\n大小 "+(r.size/1048576).toFixed(2)+" MB ｜ 现有 "+r.count+" 份"+
       (r.removed&&r.removed.length?("\n已按保留份数清理："+r.removed.join("、")):"")+
       "\n\n"+r.note,"ok");
   loadArchive();
@@ -4588,7 +4588,7 @@ def main():
         if hippo.load_archive_cfg().get("auto"):
             _r = hippo.do_archive_snapshot()
             if _r.get("ok") and not _r.get("skipped"):
-                print("  · 已生成今日快照：%s" % _r.get("path"))
+                print("  · 已生成今日数据库备份：%s" % _r.get("path"))
     except Exception:
         pass
     if a.open:

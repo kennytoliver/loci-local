@@ -2706,7 +2706,7 @@ def call_tool(name, args):
         return ("已设为常驻" if int(args.get("pinned", 1)) else "已取消常驻") + f"：记忆 #{args['id']}"
     return f"未知工具: {name}"
 
-# ---------- 归档快照（长期备份）----------
+# ---------- 归档备份（长期备份）----------
 # 设计原则（应要求）：① 默认不启用、不占系统盘；② 只复制不移动不删除；
 # ③ 用 SQLite 在线备份 API，WAL 下也不会拷到半截
 ARCHIVE_CFG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "archive.json")
@@ -2752,7 +2752,7 @@ def list_snapshots(d=""):
 
 
 def do_archive_snapshot(force=False):
-    """做一份快照。不移动、不删改任何记忆，只是复制当前库。"""
+    """做一份数据库备份。不移动、不删改任何记忆，只是复制当前库。"""
     cfg = load_archive_cfg()
     d = (cfg.get("dir") or "").strip()
     if not d:
@@ -2766,7 +2766,7 @@ def do_archive_snapshot(force=False):
     today = datetime.date.today().strftime("%Y%m%d")
     target = os.path.join(snap, "hippocampus-%s.db" % today)
     if os.path.exists(target) and not force:
-        return {"ok": True, "skipped": True, "path": target, "msg": "今天已有快照，跳过"}
+        return {"ok": True, "skipped": True, "path": target, "msg": "今天已有备份，跳过"}
     try:
         src = sqlite3.connect(DB_PATH, timeout=10)
         dst = sqlite3.connect(target, timeout=10)
@@ -2789,7 +2789,7 @@ def do_archive_snapshot(force=False):
     _sz = os.path.getsize(target) if os.path.exists(target) else 0
     return {"ok": True, "path": target, "size": _sz,
             "count": len(list_snapshots(d)), "removed": removed,
-            "note": "快照是复制出来的副本，原有记忆未被移动或删除"}
+            "note": "备份是复制出来的副本，原有记忆未被移动或删除"}
 
 
 # ---------- MCP stdio 协议 (JSON-RPC 2.0, 换行分隔) ----------

@@ -3147,7 +3147,8 @@ if(location.search.indexOf("frames")>=0){
         if(!e.querySelector(".frmtag")){
           var t=document.createElement("span");
           t.className="frmtag";
-          t.textContent="."+String(e.className||"").split(" ")[0]+(inCard?"（在框内）":"");
+          var nm=String(e.className||"").trim().split(" ")[0];
+          t.textContent="."+(nm||e.tagName.toLowerCase())+(inCard?"（在框内）":"");
           t.style.cssText=ST;t.style.top="-9px";t.style.left="2px";
           if(getComputedStyle(e).position==="static")e.style.position="relative";
           e.appendChild(t);

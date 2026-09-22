@@ -1668,6 +1668,15 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
   border-bottom-left-radius:var(--radius-sm)}
 .bub.raw{background:transparent;border:1px dashed var(--line);color:var(--sub);max-width:100%}
 
+/* 长文折叠（2026-09-22）：会话原文 / 记忆长内容 / 交接卡输出。
+   只有超过阈值才折（短内容不出现按钮），收起时按行截断，点「展开全文」看全。
+   —— 用户反馈：几百轮的会话原文一条条铺下来太长，页面拉不到底。 */
+.foldbody.folded{display:-webkit-box;-webkit-line-clamp:6;-webkit-box-orient:vertical;
+  overflow:hidden}
+.foldbtn{display:inline-block;margin:0 0 var(--space-2);font:inherit;font-size:12px;
+  color:var(--acc);background:transparent;border:0;padding:2px 0;cursor:pointer}
+.foldbtn:hover{text-decoration:underline}
+
 /* 会话页右栏装的是结构化 HTML（气泡 + 记忆芯片），不能继承 .handoff-out 的
    white-space:pre-wrap —— 那会把拼接 HTML 时留下的空白也渲染成空行。 */
 #s-view{white-space:normal}
@@ -2248,6 +2257,7 @@ function renderDetail(id){
         '<div class="dmeta">重复或过期项去「质检」页批量处理；要连源文件一起清掉去「清理」页。</div>'+
       '</div>'+
     '</div>';
+  foldAll();
 }
 function copyText(id){
   var r=(LASTROWS||[]).filter(function(x){return x.id===id})[0]; if(!r)return;
@@ -2384,7 +2394,9 @@ async function showContext(){
   const proj=document.getElementById("proj-filter").value;
   const r=await api("/api/context"+(proj?("?project="+encodeURIComponent(proj)):""));
   const el=document.getElementById("ctx-out");
-  el.style.display="block";el.textContent=r.markdown;
+  el.style.display="block";
+  el.innerHTML='<div class="foldbody">'+esc(r.markdown)+'</div>';
+  foldAll();
   el.scrollIntoView({behavior:"smooth"});
 }
 
@@ -2641,7 +2653,9 @@ async function doHandoff(){
   if(!proj){alert("先选一个项目");return}
   const r=await api("/api/handoff?project="+encodeURIComponent(proj));
   const el=document.getElementById("handoff");
-  el.style.display="block";el.textContent=r.markdown;
+  el.style.display="block";
+  el.innerHTML='<div class="foldbody">'+esc(r.markdown)+'</div>';
+  foldAll();
   document.getElementById("hf-copy").style.display="inline";
 }
 async function copyHandoff(){
@@ -3418,6 +3432,32 @@ async function importCands(){
    ⚠️ 踩过的坑：以前这里用 el.scrollIntoView()，结果点开一个会话，
    **整个页面**会被滚走（用户反馈"点开会话整页跑掉"）。右栏 .split-side
    本身就是滚动容器（overflow:auto），只动它自己的 scrollTop 就够了。 */
+/* ---------- 长文折叠（2026-09-22）----------
+   会话原文（几百轮铺下来特别长）/ 记忆详情正文 / 交接卡与常驻上下文输出，
+   超过阈值就按行截断，点「展开全文」看全。短内容不出现按钮 —— 免得满屏都是
+   「展开」，反而更吵。折叠的是视觉行数，DOM 里内容完好，搜索/复制不受影响。 */
+var FOLD_CHARS = 320;
+var FOLD_LINES = 6;
+var FOLD_SEL = "#s-view .bub, .dbody, .foldbody";
+function foldOne(el){
+  if(el.dataset.foldReady)return;
+  if((el.textContent||"").trim().length<=FOLD_CHARS)return;   // 太短，不折腾
+  el.dataset.foldReady="1";
+  el.style.webkitLineClamp=FOLD_LINES;
+  el.classList.add("foldbody","folded");
+  var btn=document.createElement("button");
+  btn.type="button";
+  btn.className="foldbtn";
+  btn.textContent="展开全文 ▾";
+  btn.onclick=function(ev){
+    ev.stopPropagation();                       // 卡片本身可点，别让点按钮触发选中
+    var nowFolded=el.classList.toggle("folded");
+    btn.textContent=nowFolded?"展开全文 ▾":"收起 ▴";
+  };
+  el.insertAdjacentElement("afterend",btn);
+}
+function foldAll(){document.querySelectorAll(FOLD_SEL).forEach(foldOne)}
+
 var LAST_SID=null, LAST_SES=null;
 
 function roleClass(r){return r==="user"?"me":(r==="assistant"?"ai":"raw")}
@@ -3489,6 +3529,7 @@ function renderSessionView(r){
   }
   el.innerHTML=html;
   el.style.display="block";
+  foldAll();
 }
 
 function clearSessionView(){

@@ -1360,10 +1360,14 @@ select,.formrow input[type=text]{background:var(--d2);border:1px solid var(--lin
    画法用绝对定位的 ::after，而不是 border / inset 阴影 —— 因为要支持"往下拉大"：
    框可以比元素本身高出 --fext 像素，把下面更多内容圈进来。两种画法都不占布局，
    尺寸不会因此变化。 */
-.framed{position:relative;background:var(--d2)}
+/* 质感必须对齐库里真正的卡片（.panel / .split-main）：--card 底 + --line 描边 +
+   --radius-lg(8px)。之前用的是 --d2（提示条底）+ --radius-md(6px) —— 跟原生卡片不是
+   一套东西，所以看着"质感不一样"（用户反馈"感觉跟原生本身的不太一样"）。
+   库 README 的口径：层级靠底色 + 描边 + 分区传达，阴影全透明。 */
+.framed{position:relative;background:var(--card)}
 .framed::after{content:"";position:absolute;left:-2px;right:-2px;top:-2px;
   bottom:calc(-2px - var(--fext,0px));
-  border:1px solid var(--line);border-radius:var(--radius-md);
+  border:1px solid var(--line);border-radius:var(--radius-lg);
   pointer-events:none}
 /* 搜索框和它的按钮是一组，必须贴在一起。⚠️ .listhead 是 space-between：
    直接把 input / button 当子元素放，会被均分到中间和最右（用户报的 bug）。 */
@@ -1805,9 +1809,11 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
   opacity:0;pointer-events:none;transition:opacity var(--duration-fast) var(--ease-out)}
 .split-main .mem.lrow:hover .macts,.split-main .mem.lrow.sel .macts{opacity:1;pointer-events:auto}
 .split-main .mem.lrow.sel .macts{background:var(--sel-bg)}
-/* hover 时浮层会盖住长标题尾部，给它留出位置 */
-.split-main .mem.lrow:hover .mtitle,
-.split-main .mem.lrow.sel .mtitle{padding-right:132px}
+/* hover / 选中时浮层会盖住右侧内容 —— 实测连 meta 行的「1041 轮 · #81」都被压住
+   （用户截图里能看到）。只给标题留位不够，得让**整行**避开：hover 时整行加右 padding，
+   浮层正好填进让出来的位置，谁也不压谁。只在 hover/sel 生效，平时行高一动不动。 */
+.split-main .mem.lrow:hover,
+.split-main .mem.lrow.sel{padding-right:150px}
 .split-main .mem.lrow.sel{background:var(--sel-bg);box-shadow:inset 3px 0 0 var(--sel-accent)}
 .split-main .mem.lrow.sel:hover{background:var(--sel-bg)}
 .split-main .mem.lrow.sel .mtitle{color:var(--sel-ink);font-weight:600}

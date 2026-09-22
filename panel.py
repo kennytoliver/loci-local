@@ -1351,6 +1351,17 @@ select,.formrow input[type=text]{background:var(--d2);border:1px solid var(--lin
 .listhead{display:flex;justify-content:space-between;align-items:center;
   margin:20px 0 12px}
 .listhead .t{font-family:var(--sans);font-size:14px;font-weight:600;letter-spacing:-.1px}
+/* ⚠️ .listhead 原本是 space-between；改成可折叠（.ghead）后多了一个箭头子元素，
+   三个子元素会被均分 → 按钮组跑到中间（用户报"文字未对齐"）。
+   改成三段式：标题靠左，按钮组和箭头一起顶到右边。 */
+.listhead.ghead>.t{flex-shrink:0;margin-right:auto}
+/* 区块标题栏统一加框（用户要求：十个大标题都该像"一块"）。
+   ⚠️ 硬约束：加框不得引入任何新 bug ——
+     ① 用 inset 阴影而不是 border（border 会撑高 2px、挤动整页布局，.bdg 踩过同一个坑）
+     ② 不动 padding / 字号，元素尺寸与改动前**完全一致**
+     ③ .shead/.dhead 原来靠 border-bottom 与内容分隔，加框后必须去掉，否则下沿双线 */
+.listhead,.grphead,.shead,.dhead{box-shadow:inset 0 0 0 1px var(--line)}
+.shead,.dhead{border-bottom-color:transparent}
 /* 搜索框和它的按钮是一组，必须贴在一起。⚠️ .listhead 是 space-between：
    直接把 input / button 当子元素放，会被均分到中间和最右（用户报的 bug）。 */
 .fgroup{display:flex;align-items:center;gap:8px;flex:1;justify-content:flex-end;min-width:0}

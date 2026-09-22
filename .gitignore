@@ -37,9 +37,16 @@ Thumbs.db
 # 数据库一律排除（含改名前的旧名）
 *.db
 hippohub.db
+# 数据库的时间戳备份（.bak-<时间戳>）：含真实记忆数据，绝不进版本库
+# （2026-09-22 踩坑：只写了 *.db，漏了带后缀的备份，30MB 真数据被误提交）
+hippocampus.db.bak-*
+*.db.bak-*
 
 # 本地备份一律不提交（通配符，避免又漏掉新的备份目录名）
 backup-*
 _*
 archive.json
 archive/
+
+# 损坏的 git 仓库副本（事故回退用，不属于项目）
+.git-broken-*/

@@ -30,16 +30,45 @@ except Exception as e:  # pragma: no cover
 
 RULES_BEGIN = "<!-- hippocampus:begin -->"
 RULES_END = "<!-- hippocampus:end -->"
+# 改名前留下的旧约定块。写入前必须先剔除 —— 否则新标记匹配不上旧标记时，
+# _write_rules() 会走"追加"分支，结果是同一个文件里并存两份约定：
+# 旧的（没有 session_save 那条）在前、新的在后，Agent 读到重复且互相矛盾的指令。
+# 品牌演进：MemHub → HippoHub → Hippocampus（.gitignore 里的 memhub.db / hippohub.db 是同一段历史的痕迹）
+LEGACY_RULES = (
+    ("<!-- hippohub:begin -->", "<!-- hippohub:end -->"),
+    ("<!-- memhub:begin -->", "<!-- memhub:end -->"),
+)
+
+
+def _strip_legacy(text):
+    """剔除历史品牌名留下的约定块（含其前后多余空行），返回清理后的文本"""
+    for b, e in LEGACY_RULES:
+        while b in text and e in text:
+            head, rest = text.split(b, 1)
+            if e in rest:
+                text = head.rstrip() + "\n" + rest.split(e, 1)[1].lstrip("\n")
+            else:
+                break
+    return text
+
+
 RULES_BODY = """{begin}
 ## Hippocampus 共享记忆（本机跨 Agent 记忆中枢）
 
-本项目/本机已接入 Hippocampus MCP 服务，请遵守以下约定：
+本项目/本机已接入 Hippocampus MCP 服务。它有**两层**：会话层存原话（给人看），记忆层存结论（给模型用）。请遵守以下约定：
 
 1. **对话开始时**：先调用 `memory_context`（可带 project 参数）拿到常驻记忆与近期重点，再开始工作。
 2. **出现新的决策 / 踩坑 / 用户偏好**：调用 `memory_save` 写入（类型选 decision / error / preference），不要只在对话里说。
 3. **需要历史背景**：用 `memory_search` 搜记忆、`session_recall` 搜历史对话原文；不要凭空猜测之前谈过什么。
-4. **切换项目或交接给别的 Agent**：调用 `memory_handoff` 生成交接卡。
-5. 记忆库是**本机共享**的：你在 WorkBuddy / Trae / ZCode 等任意一端写入的内容，其他 Agent 都能读到。
+4. **对话告一段落时**：调用 `session_save` 归档本次对话原文（会话层）。触发时机：用户说「存一下 / 归档 / 记录这次」、完成一个阶段性任务、或对话已超过 10 轮。
+   - `transcript` 必须**逐轮带说话人前缀**，每轮开头一行，例如：
+     我：用户的原话
+     AI：你的回复
+   - 前缀只用 `我：`（=用户）和 `AI：`（=你自己）；也可用 `用户：` / `助手：`。
+     **不要用具体人名**（如 `建勋：`、`COLE：`）—— 解析器认不出，整段会退化成一条没有轮次的原始记录，面板时间线就显示不出来。
+   - `title` 起一个日后能认出来的名字，`project` 填当前项目。同一段对话重复归档会被指纹自动拦截，不会写重。
+5. **切换项目或交接给别的 Agent**：调用 `memory_handoff` 生成交接卡。
+6. 记忆库是**本机共享**的：你在 WorkBuddy / Trae / ZCode / Claude Code / Codex 等任意一端写入的内容，其他 Agent 都能读到。
 {end}"""
 
 
@@ -61,14 +90,18 @@ def _write_rules(path):
     if os.path.exists(path):
         with open(path, encoding="utf-8") as f:
             old = f.read()
-    if RULES_BEGIN in old and RULES_END in old:
-        head = old.split(RULES_BEGIN)[0]
-        tail = old.split(RULES_END, 1)[1]
+    stripped = _strip_legacy(old)
+    if RULES_BEGIN in stripped and RULES_END in stripped:
+        head = stripped.split(RULES_BEGIN)[0]
+        tail = stripped.split(RULES_END, 1)[1]
         new = head + block + tail
         action = "已更新"
     else:
-        new = (old.rstrip() + "\n\n" + block + "\n") if old.strip() else (block + "\n")
+        new = (stripped.rstrip() + "\n\n" + block + "\n") if stripped.strip() else (block + "\n")
         action = "已写入"
+    # 顺带清掉旧品牌块：动作里标注出来，避免"已更新"却留下两份约定这种静默问题
+    if stripped != old:
+        action += "（并清理了旧品牌名残留）"
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         f.write(new)
@@ -80,12 +113,16 @@ def _remove_rules(path):
         return "不存在"
     with open(path, encoding="utf-8") as f:
         old = f.read()
-    if RULES_BEGIN not in old:
+    had = RULES_BEGIN in old or any(b in old for b, _ in LEGACY_RULES)
+    if not had:
         return "无约定内容"
-    head = old.split(RULES_BEGIN)[0].rstrip()
-    tail = old.split(RULES_END, 1)[1].lstrip("\n")
+    text = _strip_legacy(old)
+    if RULES_BEGIN in text:
+        head = text.split(RULES_BEGIN)[0].rstrip()
+        tail = text.split(RULES_END, 1)[1].lstrip("\n")
+        text = (head + "\n" + tail).strip() + "\n" if (head or tail.strip()) else ""
     with open(path, "w", encoding="utf-8") as f:
-        f.write((head + "\n" + tail).strip() + "\n" if (head or tail.strip()) else "")
+        f.write(text)
     return "已移除"
 
 

@@ -61,10 +61,16 @@ CREATE TABLE IF NOT EXISTS memories (
   agent TEXT DEFAULT '',
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
-  deleted INTEGER NOT NULL DEFAULT 0
+  deleted INTEGER NOT NULL DEFAULT 0,
+  -- 打通会话层：这条记忆是从哪段会话的第几轮产出的（0 = 无来源）
+  session_id INTEGER NOT NULL DEFAULT 0,
+  turn INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_mem_project ON memories(project);
 CREATE INDEX IF NOT EXISTS idx_mem_type ON memories(mtype);
+-- 注意：session_id 的索引**不能**写在这里。老库没有这一列时，下面的轻量迁移
+-- 才补列，而 executescript 是一次跑完的 —— 先建索引会直接抛错，整个 db() 挂掉。
+-- 它的创建语句在 db() 里、补列之后。踩过的坑，别再挪回来。
 
 -- 会话层：保存「对话原貌」本体（记忆层只存提炼后的结论，会话层存过程与原文）
 CREATE TABLE IF NOT EXISTS sessions (
@@ -108,29 +114,164 @@ def db():
     # 轻量迁移：老库自动补列，不会丢数据
     for tbl, col, decl in (("memories", "pinned", "INTEGER NOT NULL DEFAULT 0"),
                            ("memories", "superseded_by", "INTEGER NOT NULL DEFAULT 0"),
-                           ("memories", "source_path", "TEXT DEFAULT ''")):
+                           ("memories", "source_path", "TEXT DEFAULT ''"),
+                           # 打通会话层用：记忆记住自己的出处（0 = 无来源）
+                           ("memories", "session_id", "INTEGER NOT NULL DEFAULT 0"),
+                           ("memories", "turn", "INTEGER NOT NULL DEFAULT 0")):
         cols = [r[1] for r in conn.execute('PRAGMA table_info("%s")' % tbl)]
         if col not in cols:
             conn.execute('ALTER TABLE "%s" ADD COLUMN %s %s' % (tbl, col, decl))
+    # 必须在补列之后建（见 SCHEMA 里的说明）
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_mem_session ON memories(session_id)")
+    # 同源唯一（2026-09-22）：source_path 非空时不许重复 —— 同源 = 同一段会话。
+    #   配合 save_session 的同源幂等，双保险：即使代码路径有漏，DB 层也拦住重复。
+    #   用 try 包住：老库可能已堆了历史重复，建索引会直接失败；那种情况先跳过，
+    #   等合并脚本清干净后，随下次启动自动建上。
+    try:
+        conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_sess_src "
+                     "ON sessions(source_path) WHERE source_path <> ''")
+    except Exception:
+        pass
+    # 增量扫描台账：记下每个来源文件的 size+mtime。文件没变就不重复解析 ——
+    # 本机 WorkBuddy 的会话 jsonl 有 47MB，全量解析要 38 秒，而它大部分时候没变。
+    conn.execute("""CREATE TABLE IF NOT EXISTS scan_files(
+        path TEXT PRIMARY KEY, size INTEGER NOT NULL DEFAULT 0, mtime REAL NOT NULL DEFAULT 0,
+        sessions INTEGER NOT NULL DEFAULT 0, scanned_at TEXT DEFAULT '')""")
     conn.commit()
     return conn
 
 def now():
     return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-def save_memory(content, mtype="fact", importance=2, tags="", project="", agent="", source_path=""):
+
+def norm_time(v):
+    """把各种来源的时间戳统一成 "YYYY-MM-DD HH:MM:SS"；认不出来就返回 ""（不猜）。
+
+    为什么需要它：不同 Agent 的时间格式各不相同 ——
+      · ZCode：epoch **毫秒**整数（1789911190551），存在 session.time_created / message.time_created
+      · 有的写 ISO 串（2026-09-20T21:33:10Z / 带时区偏移）
+      · 有的直接就是 "YYYY-MM-DD HH:MM:SS"
+    以前这几个值一路透传到前端当字符串用，结果是"会话时间"显示成导入时间
+    （2026-09-21 发现：全表 10 个会话 started_at 都是空，UI 只能退回 created_at = 扫描时间）。
+
+    判据：>= 1e11 当毫秒、>= 1e9 当秒（1e11 ms ≈ 1973 年，1e9 s ≈ 2001 年，
+    两边都远早于本项目任何真实数据，不会误判）。负数 / 0 / 无法解析 → ""。
+    """
+    if v is None:
+        return ""
+    if isinstance(v, datetime.datetime):
+        return v.strftime("%Y-%m-%d %H:%M:%S")
+    s = str(v).strip()
+    if not s:
+        return ""
+    # 纯数字 → epoch（毫秒或秒）
+    if re.fullmatch(r"\d+(\.\d+)?", s):
+        try:
+            n = float(s)
+        except ValueError:
+            return ""
+        if n <= 0:
+            return ""
+        if n >= 1e11:       # 毫秒
+            n /= 1000.0
+        elif n < 1e9:       # 太小，不像是真实时间（避免把 0.5 之类当时间）
+            return ""
+        try:
+            return datetime.datetime.fromtimestamp(n).strftime("%Y-%m-%d %H:%M:%S")
+        except (ValueError, OSError, OverflowError):
+            return ""
+    # ISO 串：统一成 "YYYY-MM-DD HH:MM:SS"
+    m = re.match(r"(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})", s)
+    if m:
+        return "%s-%s-%s %s:%s:%s" % m.groups()
+    # 只给到日期
+    m = re.match(r"(\d{4})-(\d{2})-(\d{2})$", s)
+    if m:
+        return "%s-%s-%s 00:00:00" % m.groups()
+    return ""
+
+def save_memory(content, mtype="fact", importance=2, tags="", project="", agent="", source_path="",
+                session_id=0, turn=0):
+    """写一条记忆。
+
+    session_id / turn：这条记忆是从哪段会话的第几轮产出的。
+      0 = 无来源 —— Agent 直接手写的（走 MCP）、采集器扫来的、迁移前的老数据。
+      有来源的记忆能在面板里溯源回原话；没来源的只在检索视图里出现。
+    """
     if mtype not in TYPES:
         mtype = "fact"
     importance = max(1, min(4, int(importance)))
+    try:
+        session_id = int(session_id or 0)
+    except Exception:
+        session_id = 0
+    try:
+        turn = int(turn or 0)
+    except Exception:
+        turn = 0
     conn = db()
     t = now()
     cur = conn.execute(
-        "INSERT INTO memories (content, mtype, importance, tags, project, agent, source_path, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?)",
-        (content, mtype, importance, tags, project, agent, source_path, t, t))
+        "INSERT INTO memories (content, mtype, importance, tags, project, agent, source_path, session_id, turn, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        (content, mtype, importance, tags, project, agent, source_path, session_id, turn, t, t))
     conn.commit()
     mid = cur.lastrowid
     conn.close()
     return mid
+
+def memories_of_session(session_id):
+    """某段会话产出的记忆（按轮次排）—— 会话详情右栏用。"""
+    conn = db()
+    rows = conn.execute(
+        "SELECT * FROM memories WHERE session_id=? AND deleted=0 ORDER BY turn, id",
+        (int(session_id),)).fetchall()
+    conn.close()
+    return rows
+
+def with_session_title(rows):
+    """给记忆行补一个 session_title：它出处会话的**标题**。
+
+    面板上要给人类看「这段结论出自哪次对话」，标题能读，`#12` 读不了 ——
+    行号只配待在 tooltip 和详情里。无来源的（session_id=0）留空字符串。
+    """
+    out = [dict(r) for r in rows]
+    ids = sorted({r["session_id"] for r in out if r.get("session_id")})
+    if not ids:
+        return out
+    conn = db()
+    m = {r["id"]: r["title"] for r in conn.execute(
+        "SELECT id, title FROM sessions WHERE id IN (%s)" % ",".join("?" * len(ids)), ids)}
+    conn.close()
+    for r in out:
+        r["session_title"] = m.get(r.get("session_id") or 0) or ""
+    return out
+
+def backfill_memory_sessions():
+    """老库回填：把「会话抽取」产出的记忆按原文反查回 session_id / turn。
+
+    只在**能精确匹配到某条 message 的子串**时才填，匹配不上的一律留 0（无来源）。
+    绝不猜测 —— 溯源错了比没有溯源更糟。
+    """
+    conn = db()
+    todo = conn.execute(
+        "SELECT id, content FROM memories WHERE deleted=0 AND session_id=0 "
+        "AND tags LIKE '%会话抽取%'").fetchall()
+    filled = 0
+    for m in todo:
+        text = (m["content"] or "").strip()
+        if len(text) < 8:
+            continue
+        # 反查：哪条 message 的正文里含有这条记忆（LIKE 走子串，命中即视为同源）
+        hit = conn.execute(
+            "SELECT session_id, turn FROM messages WHERE content LIKE ? ORDER BY session_id DESC LIMIT 1",
+            ("%" + text + "%",)).fetchone()
+        if hit:
+            conn.execute("UPDATE memories SET session_id=?, turn=? WHERE id=?",
+                         (hit["session_id"], hit["turn"], m["id"]))
+            filled += 1
+    conn.commit()
+    conn.close()
+    return filled
 
 def search_memory(query, limit=5, mtype=None, project=None):
     conn = db()
@@ -318,23 +459,41 @@ def audit_memories(project=None, dup_th=0.66, contain_th=0.82, conflict_lo=0.28,
         if rx != ry:
             parent[ry] = rx
 
+    # 每条记忆的 bigram 集合只算一次。原来在每个配对上重新 tokenize 两个字符串，
+    # n 条要算 4*C(n,2) 次 tokenize（n=40 时是 3120 次）；预计算后降到 n 次。
+    # jac 与 con 共用同一次集合交集，结果与 similarity()/containment() 逐位等价 ——
+    # 由 tools/verify_audit_perf.py 对真实库比对校验。
+    toks = [set(tokenize(r["content"] or "")) for r in rows]
+    tsize = [len(t) for t in toks]
+    projs = [(r["project"] or "") for r in rows]
+    mtype = [r["mtype"] for r in rows]
+    chg = [any(w in (r["content"] or "") for w in CHANGE_WORDS) for r in rows]
+
     conflicts = []
     suspects = []
     for i in range(n):
+        sa, la = toks[i], tsize[i]
+        if not la:
+            continue
         for j in range(i + 1, n):
-            jac = similarity(rows[i]["content"], rows[j]["content"])
-            con = containment(rows[i]["content"], rows[j]["content"])
+            sb, lb = toks[j], tsize[j]
+            if not lb:
+                continue
+            inter = len(sa & sb)
+            if inter:
+                jac = inter / (la + lb - inter)
+                con = inter / (la if la < lb else lb)
+            else:
+                jac = con = 0.0
             if jac >= 0.50 or con >= 0.70:
                 union(i, j)
             else:
-                same_proj = (rows[i]["project"] or "") == (rows[j]["project"] or "")
-                a_chg = any(w in rows[i]["content"] for w in CHANGE_WORDS)
-                b_chg = any(w in rows[j]["content"] for w in CHANGE_WORDS)
-                if same_proj and a_chg != b_chg and jac >= 0.25:
+                same_proj = projs[i] == projs[j]
+                if same_proj and chg[i] != chg[j] and jac >= 0.25:
                     conflicts.append({"older": rows[i] if rows[i]["id"] < rows[j]["id"] else rows[j],
                                       "newer": rows[j] if rows[i]["id"] < rows[j]["id"] else rows[i],
                                       "similarity": round(max(jac, con * 0.9), 3)})
-                elif (same_proj and rows[i]["mtype"] == rows[j]["mtype"] and jac >= 0.25):
+                elif (same_proj and mtype[i] == mtype[j] and jac >= 0.25):
                     suspects.append({"a": rows[i], "b": rows[j], "similarity": round(jac, 3)})
     conflicts.sort(key=lambda x: -x["similarity"])
     suspects.sort(key=lambda x: -x["similarity"])
@@ -688,12 +847,21 @@ def audit_report(project=None):
     L.append("*本报告由 Hippocampus 质检模块生成，处理动作可在面板「质检」页执行。*")
     return "\n".join(L)
 
-def scan_zcode_db(db_path=None, include_subagent=True, max_sessions=60):
+def scan_zcode_db(db_path=None, include_subagent=True, max_sessions=60,
+                  known=None, seen=None, force=False, stats=None):
     """读 ZCode（智谱 GLM）的 SQLite 会话库，返回可导入的会话列表。
     库文件可能正被 ZCode 占用 → 复制副本再读，绝不改动原库。"""
     import shutil as _sh, tempfile as _tmp, sqlite3 as _sq
     src = db_path or os.path.join(os.path.expanduser("~"), ".zcode", "cli", "db", "db.sqlite")
     if not os.path.isfile(src):
+        return []
+    sig, key = _file_sig(src), _norm_key(src)
+    if seen is not None and sig is not None:
+        seen[key] = sig
+    st = stats if stats is not None else {}
+    st["files"] = st.get("files", 0) + 1
+    if not force and sig is not None and (known or {}).get(key) == sig:
+        st["unchanged"] = st.get("unchanged", 0) + 1
         return []
     work = os.path.join(_tmp.gettempdir(), "hippocampus-zcode-ro.sqlite")
     try:
@@ -705,7 +873,7 @@ def scan_zcode_db(db_path=None, include_subagent=True, max_sessions=60):
         conn = _sq.connect(work)
         conn.row_factory = _sq.Row
         rows = list(conn.execute(
-            "SELECT id, title, directory, time_created FROM session ORDER BY time_updated DESC LIMIT ?",
+            "SELECT id, title, directory, time_created, time_updated FROM session ORDER BY time_updated DESC LIMIT ?",
             (max_sessions,)))
         for sess in rows:
             sid = sess["id"]
@@ -713,7 +881,7 @@ def scan_zcode_db(db_path=None, include_subagent=True, max_sessions=60):
                 continue
             msgs = []
             for m in conn.execute(
-                    "SELECT id, data FROM message WHERE session_id=? ORDER BY sequence", (sid,)):
+                    "SELECT id, data, time_created FROM message WHERE session_id=? ORDER BY sequence", (sid,)):
                 try:
                     md = json.loads(m["data"] or "{}")
                 except Exception:
@@ -732,11 +900,17 @@ def scan_zcode_db(db_path=None, include_subagent=True, max_sessions=60):
                         texts.append(str(pd["text"]).strip())
                 body = "\n".join(t for t in texts if t).strip()
                 if body:
-                    msgs.append({"role": role, "content": body})
+                    # 每条消息带自己的时间（ZCode 存的是 epoch 毫秒）
+                    msgs.append({"role": role, "content": body,
+                                 "at": norm_time(m["time_created"])})
             if msgs:
+                # 会话级时间也带出来：started_at 取 time_created、ended_at 取 time_updated。
+                # 消息时间缺失时，这两个还能兜住会话本身的先后顺序。
                 out.append({"agent": "ZCode", "session": sid,
                             "title": sess["title"] or "", "dir": sess["directory"] or "",
-                            "at": sess["time_created"] or "", "messages": msgs})
+                            "at": norm_time(sess["time_created"]),
+                            "end": norm_time(sess["time_updated"]),
+                            "messages": msgs})
         conn.close()
     except Exception:
         return out
@@ -745,13 +919,74 @@ def scan_zcode_db(db_path=None, include_subagent=True, max_sessions=60):
             os.remove(work)
         except Exception:
             pass
+    st["sessions"] = st.get("sessions", 0) + len(out)
+    st.setdefault("file_sessions", {})[key] = len(out)
     return out
 
-def _scan_generic_jsonl(agent, root, subdirs=()):
-    """扫描 Claude Code / Codex 的 jsonl 会话文件"""
+# 落盘记录里这些 type 不是"对话正文"：推理块、工具调用、快照、标题行……
+# 2026-09-21 统计 WorkBuddy 的 9389 行：message 1377 / reasoning 1649 /
+# function_call 2618 / function_call_result 2609 / file-history-snapshot 1120。
+# 不过滤的话，会话里 85% 是工具噪音，"我问了什么、AI 答了什么"会被埋掉。
+_NON_DIALOG_TYPES = {
+    "reasoning", "thinking", "function_call", "function_call_result", "tool_call",
+    "tool_result", "tool", "meta", "system", "snapshot", "file-history-snapshot",
+    "file-history", "ai-title", "summary", "resend-fork-notice", "compact",
+}
+
+def _norm_key(p):
+    """路径归一化成台账主键（Windows 下大小写不敏感）"""
+    return os.path.normcase(os.path.abspath(p))
+
+def _file_sig(p):
+    """文件的 (size, mtime) 签名；读不到返回 None"""
+    try:
+        st = os.stat(p)
+        return (int(st.st_size), round(float(st.st_mtime), 3))
+    except Exception:
+        return None
+
+def _scan_ledger(conn=None):
+    """读增量台账 {路径: (size, mtime)}"""
+    try:
+        c = conn or db()
+        return {r["path"]: (r["size"], r["mtime"])
+                for r in c.execute("SELECT path,size,mtime FROM scan_files")}
+    except Exception:
+        return {}
+
+def _scan_ledger_write(seen, counts=None, conn=None):
+    """把本次见到的文件签名写回台账"""
+    if not seen:
+        return
+    counts = counts or {}
+    try:
+        c = conn or db()
+        c.executemany(
+            "INSERT OR REPLACE INTO scan_files(path,size,mtime,sessions,scanned_at) VALUES(?,?,?,?,?)",
+            [(k, v[0], v[1], counts.get(k, 0), now()) for k, v in seen.items()])
+        c.commit()
+    except Exception:
+        pass
+
+def _scan_generic_jsonl(agent, root, subdirs=(), known=None, seen=None, force=False, stats=None):
+    """扫一个 agent 的 jsonl 会话目录（Claude Code / Codex / WorkBuddy 通用）
+
+    比早期版本多做了三件事（都是为了 WorkBuddy，但对所有来源都有好处）：
+      ① 只收对话记录 —— 按 type 过滤掉工具调用/推理块，别把噪音当聊天
+      ② 顺手捡标题 —— WorkBuddy 的 `ai-title` 行、Claude Code 的 `summary` 行，
+         有就用它当会话标题。否则标题只能截首条消息，而首条常是系统注入块
+      ③ 带上时间 —— 每行自己的 timestamp 一路带到会话级，
+         以前这里恒为空，导进来的会话没有发生时间
+
+    增量：`known` 是 {文件路径: (size, mtime)} 台账（来自 scan_files 表）。
+    签名一致的文件直接跳过解析，`seen` 用于把本次见到的签名回写。
+    """
     home = os.path.expanduser("~")
-    base = os.path.join(home, root)
+    _root = os.path.expanduser(root) if str(root).startswith("~") else root
+    base = _root if os.path.isabs(_root) else os.path.join(home, _root)
     out = []
+    known = known or {}
+    st = stats if stats is not None else {}
     if not os.path.isdir(base):
         return out
     for dirpath, _, files in os.walk(base):
@@ -759,32 +994,200 @@ def _scan_generic_jsonl(agent, root, subdirs=()):
             if not fn.endswith(".jsonl"):
                 continue
             p = os.path.join(dirpath, fn)
+            sig = _file_sig(p)
+            if sig is None:
+                continue
+            key = _norm_key(p)
+            if seen is not None:
+                seen[key] = sig
+            st["files"] = st.get("files", 0) + 1
+            if not force and known.get(key) == sig:
+                st["unchanged"] = st.get("unchanged", 0) + 1
+                continue
             try:
                 text = io.open(p, encoding="utf-8", errors="replace").read()
             except Exception:
                 continue
-            msgs = parse_transcript(text)
-            real = [m for m in msgs if m.get("role") in ("user", "assistant")]
-            if len(real) >= 2:
-                out.append({"agent": agent, "session": fn[:-6], "title": "", "dir": dirpath,
-                            "at": "", "messages": real})
+            st["parsed"] = st.get("parsed", 0) + 1
+            title, msgs = "", []
+            for line in text.splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    o = json.loads(line)
+                except Exception:
+                    continue
+                if not isinstance(o, dict):
+                    continue
+                typ = str(o.get("type") or "").lower()
+                if typ == "ai-title":                       # WorkBuddy
+                    title = title or str(o.get("aiTitle") or o.get("title") or "").strip()
+                    continue
+                if typ == "summary":                        # Claude Code
+                    title = title or str(o.get("summary") or "").strip()
+                    continue
+                if typ in _NON_DIALOG_TYPES:
+                    continue
+                m = _record_to_msg(o)
+                if m:
+                    msgs.append(m)
+            if len(msgs) >= 2:
+                at = next((m["at"] for m in msgs if m.get("at")), "")
+                en = next((m["at"] for m in reversed(msgs) if m.get("at")), "")
+                out.append({"agent": agent, "session": fn[:-6], "title": title, "dir": dirpath,
+                            "at": at, "end": en, "messages": msgs})
+                st.setdefault("file_sessions", {})[key] = 1
+            else:
+                st.setdefault("file_sessions", {}).setdefault(key, 0)
+    st["sessions"] = st.get("sessions", 0) + len(out)
     return out
 
+# ---------- 本机对话来源：探测，而不是写死 ----------
+# 2026-09-21 改。之前 auto_scan_agents() 里写死三路：
+#     scan_zcode_db(...) + _scan_generic_jsonl("Claude Code", ...) + _scan_generic_jsonl("Codex", ...)
+# 后果：本机**主力**来源 WorkBuddy（~/.workbuddy/projects，8 会话 / 1377 条消息）
+# 一个字都没被扫到；而根本没装的 Claude Code / Codex 却挂在名单上，
+# 面板文案还照着写"正在扫描本机对话（ZCode / Claude Code / Codex）"。
+# 换台电脑这名单就是错的 —— 名单得从磁盘上问出来，不能靠作者当时装了啥。
+SCAN_SOURCES = (
+    {"agent": "WorkBuddy", "kind": "jsonl",
+     "root": os.path.join("~", ".workbuddy", "projects"),
+     "note": "WorkBuddy / CodeBuddy 桌面端会话"},
+    {"agent": "ZCode", "kind": "zcode_sqlite",
+     "root": os.path.join("~", ".zcode", "cli", "db", "db.sqlite"),
+     "note": "智谱 ZCode 会话库（SQLite）"},
+    {"agent": "Claude Code", "kind": "jsonl",
+     "root": os.path.join("~", ".claude", "projects"),
+     "note": "Claude Code 会话"},
+    {"agent": "Codex", "kind": "jsonl",
+     "root": os.path.join("~", ".codex", "sessions"),
+     "note": "OpenAI Codex 会话"},
+)
+
+def detect_conversation_sources():
+    """问磁盘：本机到底哪些 Agent 存了对话？
+
+    返回每个登记源的状态（found / empty / absent）。**没数据的也返回**，
+    并说明为什么没扫 —— 面板要能解释"名单为什么是这几个"，
+    而不是甩一份作者写死的产品列表出来。
+    """
+    out = []
+    for s in SCAN_SOURCES:
+        root = os.path.expanduser(s["root"])
+        info = {"agent": s["agent"], "kind": s["kind"], "root": root,
+                "note": s["note"], "state": "absent", "files": 0, "size": 0}
+        if s["kind"] == "jsonl":
+            if os.path.isdir(root):
+                files = []
+                for dp, _, fs in os.walk(root):
+                    files += [os.path.join(dp, f) for f in fs if f.endswith(".jsonl")]
+                info["files"] = len(files)
+                for f in files:
+                    try:
+                        info["size"] += os.path.getsize(f)
+                    except Exception:
+                        pass
+                info["state"] = "found" if files else "empty"
+        elif s["kind"] == "zcode_sqlite":
+            if os.path.isfile(root):
+                info["files"] = 1
+                try:
+                    info["size"] = os.path.getsize(root)
+                except Exception:
+                    pass
+                info["state"] = "found"
+        out.append(info)
+    return out
+
+def suggest_conversation_sources(max_depth=3):
+    """找"疑似存了对话、但没登记"的目录 —— 本机装了别的 Agent 时能自己冒出来。
+
+    只在 home 的一级点目录里找 .jsonl，且抽头部判断有没有 "role" 字段
+    （对话记录的特征）。**只建议，不自动扫** —— 万一是日志或数据文件，
+    乱导进去比漏导更烦人。
+    """
+    home = os.path.expanduser("~")
+    known = {os.path.normcase(os.path.expanduser(s["root"])) for s in SCAN_SOURCES}
+    hits = []
+    try:
+        tops = [os.path.join(home, d) for d in os.listdir(home)
+                if d.startswith(".") and os.path.isdir(os.path.join(home, d))]
+    except Exception:
+        return hits
+    for top in tops:
+        if any(os.path.normcase(top).startswith(k) or k.startswith(os.path.normcase(top))
+               for k in known):
+            continue
+        n, sample = 0, ""
+        for dp, dirs, fs in os.walk(top):
+            if dp[len(top):].count(os.sep) >= max_depth:
+                dirs[:] = []
+                continue
+            for f in fs:
+                if not f.endswith(".jsonl"):
+                    continue
+                p = os.path.join(dp, f)
+                try:
+                    head = io.open(p, encoding="utf-8", errors="replace").read(2048)
+                except Exception:
+                    continue
+                if '"role"' in head:
+                    n += 1
+                    if not sample:
+                        sample = dp
+            if n > 50:
+                break
+        if n:
+            hits.append({"dir": sample or top, "root": top, "files": n})
+    return hits
+
 def auto_scan_agents(include_subagent=True, import_new=True, extract=False,
-                     max_candidates=30, zcode_db=None):
-    """自动扫描本机各 Agent 的对话存储 → 去重归档 → 可选抽候选记忆"""
-    found = scan_zcode_db(zcode_db, include_subagent)
-    found += _scan_generic_jsonl("Claude Code", os.path.join(".claude", "projects"))
-    found += _scan_generic_jsonl("Codex", os.path.join(".codex", "sessions"))
+                     max_candidates=30, zcode_db=None, force=False):
+    """自动扫描本机各 Agent 的对话存储 → 去重归档 → 可选抽候选记忆
+
+    扫哪些来源由 detect_conversation_sources() 现场探测决定（见那里的注释）。
+    返回值里带上 `sources` / `used`，面板据此显示"这次到底扫了谁、为什么"。
+
+    `force=True` 忽略增量台账，强制重新解析所有文件（改了解析规则后用）。
+    """
+    sources = detect_conversation_sources()
+    seen, counts = {}, {}
+    try:
+        conn = db()
+        known = _scan_ledger(conn)
+    except Exception:
+        conn, known = None, {}
+    found = []
+    used = []
+    for s in sources:
+        if s["state"] != "found":
+            continue
+        stats = {}
+        if s["kind"] == "zcode_sqlite":
+            got = scan_zcode_db(zcode_db or s["root"], include_subagent, known=known,
+                                seen=seen, force=force, stats=stats)
+        else:
+            got = _scan_generic_jsonl(s["agent"], s["root"], known=known,
+                                      seen=seen, force=force, stats=stats)
+        found += got
+        counts.update(stats.get("file_sessions", {}))
+        used.append({"agent": s["agent"], "files": stats.get("files", 0),
+                     "parsed": stats.get("parsed", 0),
+                     "unchanged": stats.get("unchanged", 0),
+                     "sessions": len(got)})
     result = {"scanned": len(found), "imported": 0, "skipped": 0,
-              "sessions": [], "candidates": []}
+              "sessions": [], "candidates": [], "force": bool(force),
+              "sources": sources, "used": used,
+              "files_unchanged": sum(u["unchanged"] for u in used)}
     new_ids = []
     for item in found:
         if not import_new:
             continue
         title = item["title"] or (item["agent"] + "：" + item["messages"][0]["content"][:22])
         sid, created = save_session(title, item.get("dir") or "", item["agent"],
-                                    item["messages"], source_path="agent-scan://" + item["session"])
+                                    item["messages"], source_path="agent-scan://" + item["session"],
+                                    started_at=item.get("at", ""), ended_at=item.get("end", ""))
         if created:
             result["imported"] += 1
             result["sessions"].append({"id": sid, "title": title, "agent": item["agent"],
@@ -792,6 +1195,12 @@ def auto_scan_agents(include_subagent=True, import_new=True, extract=False,
             new_ids.append(sid)
         else:
             result["skipped"] += 1
+    _scan_ledger_write(seen, counts, conn)
+    try:
+        if conn is not None:
+            conn.close()
+    except Exception:
+        pass
     if extract and new_ids:
         for sid in new_ids[:8]:
             for c in extract_candidates(session_id=sid, limit=12):
@@ -810,13 +1219,18 @@ _EXTRACT_PATTERNS = (
     ("fact", re.compile(r"(\d+\s*(条|个|家|吨|万|元|天|小时|%|倍)|已(经)?(完成|扩|改|加|删|上线|接入))")),
 )
 
-def extract_candidates(session_id=None, project=None, limit=40):
-    """从已归档会话里按规则抽取候选记忆（零依赖，不用 LLM）"""
+def extract_candidates(session_id=None, project=None, limit=40, max_msgs=800):
+    """从已归档会话里按规则抽取候选记忆（零依赖，不用 LLM）
+
+    `max_msgs` 限制单次扫描的消息条数 —— 本机主力会话动辄 700+ 条，
+    全量扫一遍的收益远小于代价（候选还要人工勾选）。
+    """
     conn = db()
     base = ("SELECT m.*, s.project sproject, s.agent sagent, s.title stitle "
             "FROM messages m JOIN sessions s ON s.id=m.session_id")
     if session_id:
-        rows = conn.execute(base + " WHERE m.session_id=? ORDER BY m.turn", (int(session_id),)).fetchall()
+        rows = conn.execute(base + " WHERE m.session_id=? ORDER BY m.turn LIMIT ?",
+                            (int(session_id), int(max_msgs))).fetchall()
     else:
         args = []
         sql = base
@@ -826,6 +1240,12 @@ def extract_candidates(session_id=None, project=None, limit=40):
         rows = conn.execute(sql, args).fetchall()
     conn.close()
     existing = [dict(r) for r in list_memories(limit=10000)]
+    # 去重要拿候选片段跟 existing 逐条比 Jaccard（similarity 里是纯 Python 逐字符分词）。
+    # 以前每次比较都把片段和记忆**重新分词**——片段被分词几千遍、记忆被分词上万遍，
+    # 遇到刚导入的大会话（上千条消息 × 每条切几十段）直接把面板扫描拖到 2 分钟以上。
+    # 现在两边各分词一次；再用 Jaccard 的长度上界剪枝（下面那行 continue）。
+    ex_toks = [set(tokenize(e["content"] or "")) for e in existing]
+    ex_len = [len(t) for t in ex_toks]
     out = []
     for m in rows:
         for raw in re.split(r"[\n。！？!?；;]", m["content"]):
@@ -839,7 +1259,21 @@ def extract_candidates(session_id=None, project=None, limit=40):
                     break
             if not mtype:
                 continue
-            if any(similarity(s, e["content"]) > 0.7 for e in existing):
+            st = set(tokenize(s))
+            ls = len(st)
+            dup = False
+            for et, le in zip(ex_toks, ex_len):
+                if not ls or not le:
+                    continue
+                # Jaccard(A,B) ≤ min(|A|,|B|) / max(|A|,|B|) —— 这是个硬上界。
+                # 长度比都到不了 0.7 的一对，交集算了也过不了 0.7，直接跳过。
+                # 纯剪枝，不改结果（tools/verify_extract_perf.py 对真实库比对校验）。
+                if (ls if ls < le else le) / (ls if ls > le else le) <= 0.7:
+                    continue
+                if len(st & et) / len(st | et) > 0.7:
+                    dup = True
+                    break
+            if dup:
                 continue
             out.append({"text": s, "mtype": mtype,
                         "project": m["sproject"] or "", "agent": m["sagent"] or "",
@@ -885,6 +1319,922 @@ def export_skill(project, out_dir=None):
     with open(p, "w", encoding="utf-8") as f:
         f.write(md)
     return {"ok": True, "path": p, "name": name, "count": md.count("\n- ")}
+
+# ---------- 技能库：本机已有的 skill，跨 Agent 传递 ----------
+# 解决的问题：记忆传下去了，能力没传。换台机器/换个 Agent，skill 得手动翻目录找。
+# 这里只做两件事：① 把本机所有 skill 探出来（跨 Agent、跨作用域）；
+# ② 把一个 skill 复制到另一个 Agent 的 skills 目录。**不删源** —— "移植"是复制。
+
+_WORKBUDDY_SKILLS = os.path.join("~", ".workbuddy", "skills")
+
+def _fm_parse(text):
+    """解析 SKILL.md 头部的 --- 块。只认 name/description/agent_created 这类简单键值，
+    折行续写（YAML 的 >- 风格）拼成一行 —— 不引 yaml 依赖。"""
+    if not text.startswith("---"):
+        return {}
+    end = text.find("\n---", 3)
+    if end < 0:
+        return {}
+    out, key = {}, None
+    for line in text[3:end].splitlines():
+        if not line.strip():
+            continue
+        if line[:1].isspace() and key:          # 续行
+            out[key] = (out[key] + " " + line.strip()).strip()
+            continue
+        m = re.match(r"^([A-Za-z_][\w-]*)\s*:\s*(.*)$", line)
+        if not m:
+            continue
+        key, val = m.group(1), m.group(2).strip()
+        if val in (">-", ">", "|", "|-"):       # 块标量：正文在后面的缩进行
+            val = ""
+        out[key] = val.strip("\"'")
+    return out
+
+def workspaces(limit=12):
+    """本机的 WorkBuddy 工作区（项目级 skill 藏在各工作区里）。
+
+    工作区列表从会话 jsonl 的 cwd 字段读 —— 只读文件头，不解析整个会话。
+    目录名（c-Users-user-WorkBuddy-2026-09-21-13-44-31）里的 `-`
+    跟真实路径的 `-` 有歧义，反推不出来，所以必须读 cwd。
+    """
+    base = os.path.join(os.path.expanduser("~"), ".workbuddy", "projects")
+    out, seen = [], set()
+    if not os.path.isdir(base):
+        return out
+    for d in sorted(os.listdir(base), reverse=True)[:limit]:
+        p = os.path.join(base, d)
+        if not os.path.isdir(p):
+            continue
+        for f in sorted(os.listdir(p)):
+            if not f.endswith(".jsonl"):
+                continue
+            try:
+                head = io.open(os.path.join(p, f), encoding="utf-8", errors="replace").read(16384)
+            except Exception:
+                continue
+            m = re.search(r'"cwd"\s*:\s*"((?:[^"\\]|\\.)*)"', head)
+            if not m:
+                continue
+            cwd = m.group(1).replace("\\\\", "\\")
+            if cwd and os.path.isdir(cwd) and os.path.normcase(cwd) not in seen:
+                seen.add(os.path.normcase(cwd))
+                out.append(cwd)
+            break
+    return out
+
+def skill_sources():
+    """本机所有 skill 存放位置。存在的报 exists，不存在的也返回（说明为什么没扫）
+
+    `why` 直接给**人话**，由后端算 —— 前端各写一套判断必然会写歪：
+    第一版把"父目录不存在"一律说成"本机没装这个 Agent"，
+    于是 WorkBuddy 的项目级条目（父目录是工作区，不是产品安装目录）
+    也报"没装 WorkBuddy"，明显是错的。
+    """
+    home = os.path.expanduser("~")
+    roots = [
+        {"agent": "WorkBuddy", "scope": "用户级", "root": os.path.join(home, ".workbuddy", "skills")},
+        {"agent": "ZCode", "scope": "用户级", "root": os.path.join(home, ".zcode", "cli", "skills")},
+        {"agent": "CodeBuddy", "scope": "用户级", "root": os.path.join(home, ".codebuddy", "skills")},
+        {"agent": "Trae", "scope": "内置", "root": os.path.join(home, ".trae-cn", "builtin_skills")},
+        {"agent": "Claude Code", "scope": "用户级", "root": os.path.join(home, ".claude", "skills")},
+        {"agent": "Codex", "scope": "用户级", "root": os.path.join(home, ".codex", "skills")},
+    ]
+    for ws in workspaces():
+        roots.append({"agent": "WorkBuddy", "scope": "项目级",
+                      "root": os.path.join(ws, ".workbuddy", "skills"), "workspace": ws})
+    for r in roots:
+        r["exists"] = os.path.isdir(r["root"])
+        ws = r.get("workspace")
+        if ws:
+            # 项目级：容器是**工作区本身**。<ws>/.workbuddy 不存在不等于工作区没了 ——
+            # 第一版就是判了 <ws>/.workbuddy，于是把存在的工作区说成"已不在"。
+            r["parent_exists"] = os.path.isdir(ws)
+            r["anchor"] = ws
+        else:
+            r["parent_exists"] = os.path.isdir(os.path.dirname(r["root"]))
+            r["anchor"] = os.path.dirname(r["root"])
+        if r["exists"]:
+            r["why"] = ""
+        elif ws:
+            r["why"] = ("这个工作区还没建 skills 目录（往这儿传技能会自动建）"
+                        if r["parent_exists"] else "工作区目录已不在（临时目录被清过）")
+        else:
+            # 说人话：报**产品名**，不要报父目录名 ——
+            # 报 os.path.basename(anchor) 会输出 "cli 已在本机"（ZCode）、
+            # ".codebuddy 已在本机"（CodeBuddy），用户看不懂这是谁。
+            r["why"] = ("%s 已在本机，只是还没建 skills 目录（传技能过去会自动建）"
+                        % r["agent"]
+                        if r["parent_exists"] else "本机没有装这个 Agent")
+    return roots
+
+def list_local_skills():
+    """列出本机全部 skill（目录型：含 SKILL.md）
+
+    只读，不动任何文件。名字优先取 frontmatter 的 name。
+    """
+    out = []
+    for r in skill_sources():
+        root = r["root"]
+        if not r["exists"]:
+            continue
+        try:
+            names = sorted(os.listdir(root))
+        except Exception:
+            continue
+        for name in names:
+            p = os.path.join(root, name)
+            # 只跳过隐藏目录。**不按名字前缀过滤** —— Trae 的 `_shared` 是内部目录，
+            # 但它本来就没有 SKILL.md，靠下面那条判据就挡住了；
+            # 反过来，名字带下划线的真 skill 不该被名字误伤。
+            if name.startswith(".") or not os.path.isdir(p):
+                continue
+            md = os.path.join(p, "SKILL.md")
+            if not os.path.isfile(md):
+                continue
+            try:
+                text = io.open(md, encoding="utf-8", errors="replace").read()
+            except Exception:
+                continue
+            fm = _fm_parse(text)
+            files, size, latest = 0, 0, 0.0
+            for dp, _, fs in os.walk(p):
+                for f in fs:
+                    files += 1
+                    try:
+                        size += os.path.getsize(os.path.join(dp, f))
+                        latest = max(latest, os.path.getmtime(os.path.join(dp, f)))
+                    except Exception:
+                        pass
+            desc = re.sub(r"\s+", " ", (fm.get("description") or "")).strip()
+            out.append({
+                "name": fm.get("name") or name,
+                "dir": name,
+                "desc": desc,
+                "agent": r["agent"],
+                "scope": r["scope"],
+                "workspace": r.get("workspace", ""),
+                "path": p,
+                "md": md,
+                "files": files,
+                "size": size,
+                "lines": text.count("\n") + 1,
+                "mtime": (datetime.datetime.fromtimestamp(latest).strftime("%Y-%m-%d %H:%M")
+                          if latest else ""),
+                "agent_created": str(fm.get("agent_created", "")).lower() in ("true", "yes", "1"),
+            })
+    out.sort(key=lambda x: (x["agent"], x["scope"], x["name"]))
+    return out
+
+# ── 本机内容清单：配置文件 / MCP ──────────────────────────────────────────
+# 表里**只填本机实测过的路径**。这条规矩是被用户骂出来的：
+# 上一版凭印象列了 22 个产品的路径，用户一句"什么 Roo/Factory/Goose/Amp，我没听过"
+# 就全废了 —— 本机 13 个候选产品一个都没装，写进去的全是无法验证的死代码。
+# 现在：加产品 = 加一行，但加之前先用 tools/probe_inventory.py 验一遍真假。
+#
+# 四种 MCP schema 靠表里**声明**，不靠嗅探（嗅探会把别的同名键吃进来）：
+#   mcpServers        WorkBuddy / Trae（也是最常见的约定）
+#   mcp.servers       ZCode —— 双层嵌套，路径写 "mcp.servers"
+#   mcp               Kilo / OpenCode 系（本机没装，先按约定留着见下方注释）
+#   servers           VS Code 系（同上）
+
+CONTENT_SOURCES = (
+    {"agent": "WorkBuddy",
+     "configs": ["~/.workbuddy/mcp.json", "~/.workbuddy/settings.json",
+                 "~/.workbuddy/models.json"],
+     "mcp": [("~/.workbuddy/mcp.json", "mcpServers")]},
+    {"agent": "ZCode",
+     "configs": ["~/.zcode/cli/config.json", "~/.zcode/v2/config.json",
+                 "~/.zcode/v2/provider_config.json", "~/.zcode/v2/setting.json",
+                 "~/.zcode/v2/credentials.json"],
+     "mcp": [("~/.zcode/cli/config.json", "mcp.servers")]},
+    {"agent": "Trae",
+     "configs": ["~/.trae-cn/mcp.json", "~/.trae-cn/plugin-config.json",
+                 "~/.trae-cn/installed-plugins.json", "~/.trae-cn/argv.json"],
+     "mcp": [("~/.trae-cn/mcp.json", "mcpServers")]},
+    {"agent": "Copilot",
+     "configs": ["~/.copilot/config.json"],
+     "mcp": []},
+    # CodeBuddy 本机只有 diagnostics/logs，一个配置文件都没有 ——
+    # 照样留一行空表，好让面板能如实说"这个产品没东西可清算"，
+    # 而不是像没扫过一样悄悄消失。
+    {"agent": "CodeBuddy",
+     "configs": [], "mcp": []},
+    # ~/.agents/AGENTS.md 是**跨 Agent 共享的规则文件**（本机 5 个 Agent 都读它），
+    # 不属于任何单一产品，所以 agent 名就写"共享规则"。
+    # 它是 Markdown 不是 JSON —— 按扩展名走文本模式，不做 JSON 脱敏
+    # （规则文件是用户自己写的，本来就该能看全文）。
+    {"agent": "共享规则",
+     "configs": ["~/.agents/AGENTS.md"],
+     "mcp": []},
+)
+
+# 非 JSON 的配置文件按扩展名走文本模式（不解析、不脱敏）
+_TEXT_EXTS = (".md", ".txt", ".yaml", ".yml", ".toml", ".ini", ".conf")
+
+
+def _content_fmt(path):
+    # 备份文件名形如 `models.json.bak-20260921-211853` / `AGENTS.md.bak-...`
+    # —— 取原扩展名才能判对，否则 `.bak-*` 把 `.md`/`.json` 接走，会误判成 JSON
+    # 然后在 backup_detail 里走错分支（文本备份被当 JSON 解析失败 → is_backup 漏标）。
+    low = str(path).lower()
+    for _ in range(2):
+        i = low.rfind(".bak")
+        if i > 0 and (i + 4 == len(low) or low[i + 4] == "-"):
+            low = low[:i]
+            continue
+        break
+    return "text" if low.endswith(_TEXT_EXTS) else "json"
+
+# 值一律不读的键名（大小写不敏感，命中即隐去）
+_SECRET_KEY_HINTS = ("token", "secret", "password", "passwd", "apikey", "api_key",
+                     "credential", "authorization", "jwt", "cookie", "private_key")
+
+# 整份文件都不读值的文件名特征
+_SECRET_FILE_HINTS = ("credential", "secret", "token", ".key", ".pem")
+
+# 键名里"整段是标识符"的形状：UUID、纯 hex 串、或 60 位以上的超长 blob。
+# 阈值为什么是 60 而不是 18/40：ZCode 的 setting.json 里有一堆 40 多位的
+# **正常驼峰键名**（desktopChromiumHardwareAccelerationEnabled 等 4 个），
+# 按长度一刀切会把它们也压成 `…` —— 而键名是这类敏感文件里唯一的信息。
+_KEYNAME_BLOB = re.compile(
+    r"^(?:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+    r"|[0-9a-fA-F]{32,}"
+    r"|[A-Za-z0-9+/=_\-]{60,})$")
+
+
+def _is_secret_file(path):
+    """这个文件整份都不该读值。**按文件名判，宁可误判成敏感。**"""
+    b = os.path.basename(path).lower()
+    return b.startswith(".env") or any(h in b for h in _SECRET_FILE_HINTS)
+
+
+def _mask_keyname(k):
+    """键名里**像标识符的整段**压成一撮，其余原样保留。
+
+    报键名是为了让用户认得出"这是什么"（oauth:zai:access_token），
+    不是为了把账号标识甩出来（…:account:a683fe91-7b35-…:api-key）。
+
+    判据只认"整段是 UUID / 超长 blob"，**不按长度一刀切** ——
+    第一版写成"≥18 字符就压"，结果 `enable-crash-reporter`、
+    `modelProviderFamilySelectedKeys` 这些正常键名也被压成 `…`，
+    等于把键名这条唯一的信息也弄丢了。
+    """
+    parts = []
+    for seg in str(k).split(":"):
+        parts.append("…" if _KEYNAME_BLOB.match(seg) else seg)
+    return ":".join(parts)
+
+
+def _mask_json(obj, depth=0):
+    """把 JSON 里像密钥的值换成占位符，其余原样保留。
+
+    两条规则，缺一不可：
+      ① 键名命中敏感词（API_KEY / TOKEN / SECRET…）→ 值隐去；
+      ② 键名就是 env / environment → **只留键名**，值全隐去 ——
+         MCP 的 env 块经常塞 API Key，而键名本身（FOO_BASE_URL）也可能是变量，
+         分不清就一律隐去值。
+    """
+    if depth > 10:
+        return "…"
+    if isinstance(obj, dict):
+        out = {}
+        for k, v in obj.items():
+            kl = str(k).lower()
+            if isinstance(v, str) and any(h in kl for h in _SECRET_KEY_HINTS):
+                out[k] = "••••••（已隐去）"
+            elif kl in ("env", "environment") and isinstance(v, dict):
+                out[k] = dict((ik, "••••••（已隐去）") for ik in v)
+            else:
+                out[k] = _mask_json(v, depth + 1)
+        return out
+    if isinstance(obj, list):
+        return [_mask_json(x, depth + 1) for x in obj]
+    return obj
+
+
+def _jsonc_to_json(text):
+    """JSONC（带 // 注释、/* */ 块注释、尾逗号）→ 能解析的 JSON。
+
+    被咬过一次：~/.copilot/config.json 带 `//` 注释，裸 json.load 直接抛异常，
+    上一版探针读出来是 None，看着像"这文件是空的"。
+    **逐字符扫，不用正则**：正则替换会把 "https://x" 里的 // 也当注释切掉。
+    """
+    out = []
+    i, n = 0, len(text)
+    in_str, esc = False, False
+    while i < n:
+        c = text[i]
+        if in_str:
+            out.append(c)
+            if esc:
+                esc = False
+            elif c == "\\":
+                esc = True
+            elif c == '"':
+                in_str = False
+            i += 1
+            continue
+        if c == '"':
+            in_str, i = True, i + 1
+            out.append('"')
+            continue
+        if c == "/" and i + 1 < n and text[i + 1] == "/":
+            while i < n and text[i] not in "\r\n":
+                i += 1
+            continue
+        if c == "/" and i + 1 < n and text[i + 1] == "*":
+            end = text.find("*/", i + 2)
+            i = n if end < 0 else end + 2
+            continue
+        if c == ",":
+            j = i + 1
+            while j < n and text[j] in " \t\r\n":
+                j += 1
+            if j < n and text[j] in "}]":
+                i += 1          # 尾逗号：丢掉
+                continue
+        out.append(c)
+        i += 1
+    return "".join(out)
+
+
+def _read_json_file(path):
+    """读 JSON，失败就按 JSONC 再试一次。返回 (data, note)；note 说明走了哪条路。"""
+    try:
+        raw = io.open(path, encoding="utf-8", errors="replace").read()
+    except Exception as e:
+        return None, "读取失败：%s" % e
+    try:
+        return json.loads(raw), ""
+    except Exception:
+        pass
+    try:
+        return json.loads(_jsonc_to_json(raw)), "含注释（JSONC），已容错解析"
+    except Exception as e:
+        return None, "解析失败：%s" % e
+
+
+def _dig(obj, keypath):
+    """按 "a.b.c" 取嵌套值，中途不是 dict 就返回 None。"""
+    cur = obj
+    for k in str(keypath or "").split("."):
+        if not isinstance(cur, dict) or k not in cur:
+            return None
+        cur = cur[k]
+    return cur
+
+
+def _content_paths():
+    """表里声明过的全部文件绝对路径（读详情时的白名单）。"""
+    out = []
+    for s in CONTENT_SOURCES:
+        for x in list(s["configs"]) + [p for p, _ in s["mcp"]]:
+            out.append(os.path.abspath(os.path.expanduser(x)))
+    return out
+
+
+def _read_text_file(path):
+    try:
+        return io.open(path, encoding="utf-8", errors="replace").read(), ""
+    except Exception as e:
+        return None, "读取失败：%s" % e
+
+
+def list_configs():
+    """本机各 Agent 的配置文件清单（只读；敏感文件只报存在与键名）"""
+    out = []
+    for src in CONTENT_SOURCES:
+        for rel in src["configs"]:
+            path = os.path.expanduser(rel)
+            if not os.path.isfile(path):
+                continue
+            secret = _is_secret_file(path)
+            fmt = _content_fmt(path)
+            try:
+                st = os.stat(path)
+                size, mt = st.st_size, st.st_mtime
+            except Exception:
+                size, mt = 0, 0
+            item = {
+                "kind": "config",
+                "name": os.path.basename(path),
+                # rel 用来区分同名文件：ZCode 有 cli/config.json 和 v2/config.json 两个
+                # config.json，只报 basename 的话列表里两行长得一模一样。
+                "rel": rel,
+                "agent": src["agent"],
+                "path": path,
+                "exists": True,
+                "dir": os.path.dirname(path),
+                "size": size,
+                "mtime": (datetime.datetime.fromtimestamp(mt).strftime("%Y-%m-%d %H:%M")
+                          if mt else ""),
+                "secret": secret,
+                "note": "",
+                "keys": [],
+                "fmt": fmt,
+                "backups": len(_backup_paths_for(path)),
+            }
+            if fmt == "text":
+                text, note = _read_text_file(path)
+                item["note"] = note
+                item["lines"] = (text.count("\n") + 1) if text else 0
+                out.append(item)
+                continue
+            data, note = _read_json_file(path)
+            item["note"] = note
+            if secret:
+                # 敏感文件：连"看起来没问题"的值也不读出来，只报键名。
+                if isinstance(data, dict):
+                    item["keys"] = [_mask_keyname(k) for k in list(data.keys())]
+                item["note"] = "敏感文件：只报存在与键名，值一律不读"
+            elif isinstance(data, dict):
+                item["keys"] = [_mask_keyname(k) for k in list(data.keys())]
+            out.append(item)
+    out.sort(key=lambda x: (x["agent"], x["name"]))
+    return out
+
+
+def list_mcp_servers():
+    """本机各 Agent 挂了哪些 MCP（schema 由来源表声明，不嗅探）
+
+    env 块只回**键名**，值一律不回 —— 里面经常就是 API Key。
+    """
+    out = []
+    for src in CONTENT_SOURCES:
+        for rel, keypath in src["mcp"]:
+            path = os.path.expanduser(rel)
+            if not os.path.isfile(path):
+                continue
+            data, note = _read_json_file(path)
+            if not isinstance(data, dict):
+                continue
+            servers = _dig(data, keypath)
+            if not isinstance(servers, dict):
+                continue
+            for name, spec in servers.items():
+                spec = spec if isinstance(spec, dict) else {}
+                if spec.get("command"):
+                    transport = "stdio"
+                elif spec.get("url"):
+                    transport = "http"
+                else:
+                    transport = "未知"
+                args = spec.get("args") or []
+                env = spec.get("env") or {}
+                out.append({
+                    "kind": "mcp",
+                    "name": name,
+                    "rel": rel,
+                    "agent": src["agent"],
+                    "path": path,
+                    "dir": os.path.dirname(path),
+                    "keypath": keypath,
+                    "transport": transport,
+                    "command": str(spec.get("command") or ""),
+                    "args": [str(a) for a in (args if isinstance(args, list) else [args])],
+                    "url": str(spec.get("url") or ""),
+                    "env_keys": sorted(str(k) for k in env) if isinstance(env, dict) else [],
+                    "disabled": bool(spec.get("disabled")),
+                    "note": note,
+                })
+    out.sort(key=lambda x: (x["agent"], x["name"]))
+    return out
+
+
+def content_sources():
+    """给前端报"为什么这个产品没有内容" —— 每个产品一行，含空表。"""
+    rows = []
+    for src in CONTENT_SOURCES:
+        cfgs = [os.path.expanduser(x) for x in src["configs"]]
+        found = [p for p in cfgs if os.path.isfile(p)]
+        if not cfgs:
+            why = "表里没给这个产品声明配置文件路径（本机实测：它只有日志目录）"
+        elif not found:
+            why = "声明的 %d 个路径在本机都不存在" % len(cfgs)
+        else:
+            why = ""
+        rows.append({"agent": src["agent"], "declared": len(cfgs),
+                     "found": len(found), "why": why})
+    return rows
+
+
+def content_detail(path, max_chars=20000):
+    """读一个配置文件的（已脱敏）正文。**只认表里声明过的路径。**"""
+    p = os.path.abspath(path or "")
+    allowed = set(os.path.normcase(x) for x in _content_paths())
+    if os.path.normcase(p) not in allowed:
+        return {"error": "不在已知的配置文件清单里，拒绝读取"}
+    if not os.path.isfile(p):
+        return {"error": "文件不存在：%s" % p}
+    try:
+        size = os.path.getsize(p)
+    except Exception:
+        size = 0
+    backups = _backup_paths_for(p)
+    # 非 JSON（AGENTS.md 这类规则文件）：直接回原文 —— 是用户自己写的规则，
+    # 本来就该能看全文，不做 JSON 脱敏（也解析不了）。
+    if _content_fmt(p) == "text":
+        text, note = _read_text_file(p)
+        if text is None:
+            return {"ok": True, "path": p, "secret": False, "size": size, "note": note,
+                    "keys": [], "text": "", "backups": backups,
+                    "why": "读不出来：%s" % note}
+        return {"ok": True, "path": p, "secret": False, "size": size, "note": note,
+                "keys": [], "fmt": "text", "backups": backups,
+                "text": text[:max_chars], "truncated": len(text) > max_chars, "why": ""}
+    data, note = _read_json_file(p)
+    if _is_secret_file(p):
+        keys = [_mask_keyname(k) for k in data.keys()] if isinstance(data, dict) else []
+        return {"ok": True, "path": p, "secret": True, "size": size, "note": note,
+                "keys": keys, "text": "", "backups": backups,
+                "why": "敏感文件（%s）：只报存在与键名，值一律不读" % os.path.basename(p)}
+    if data is None:
+        # 解析失败也不回原文 —— 回原文等于绕过脱敏
+        return {"ok": True, "path": p, "secret": False, "size": size, "note": note,
+                "keys": [], "text": "", "backups": backups,
+                "why": "这个文件读不出来（%s），且不回原文：原文未经脱敏" % (note or "格式未知")}
+    text = json.dumps(_mask_json(data), ensure_ascii=False, indent=2)
+    return {"ok": True, "path": p, "secret": False, "size": size, "note": note,
+            "keys": [_mask_keyname(k) for k in data.keys()] if isinstance(data, dict) else [],
+            "text": text[:max_chars], "truncated": len(text) > max_chars, "why": "",
+            "backups": backups}
+
+
+# ── 插件 / 本地历史版本 ──────────────────────────────────────────────────
+# "历史版本"这块竞品是放在**云端**的（它的"炉子"），用户明确不要云端产品理念。
+# 本机实测发现：我们要的东西**本来就躺在本地磁盘上**，一个字节都不用上云 ——
+#   · 插件旧版本：~/.workbuddy/plugins/cache/<市场>/<插件>/<版本>/ 共 123 个版本目录，
+#     已装 48 个 → **75 个旧版本**还在磁盘上（5.5.3 / 5.5.4 / 5.5.6 三代同堂）
+#   · 配置备份：<配置文件名>.bak-<时间戳>，本机 5 个（AGENTS.md / mcp.json /
+#     models.json ×2 / cli-config.json）
+# 所以这里做的是「就地清算」，不是「云端归档」。
+#
+# ⚠ 本文件里插件路径一律**以已装清单为准**，不靠扫目录猜：
+#    从 installPath 反推插件目录再列版本。扫目录会把 `<市场>/plugins/` 这种
+#    容器目录当成插件名（实测扫出来过一个 `cb_teams_marketplace/plugins`）。
+
+PLUGIN_SOURCES = (
+    # WorkBuddy：值形如 [{"scope","installPath","version","installedAt","lastUpdated"}]
+    {"agent": "WorkBuddy",
+     "file": "~/.workbuddy/plugins/installed_plugins.json",
+     "keypath": "plugins", "style": "installed_v2", "sep": "@"},
+    # ZCode：值就是 bool（启用/停用），没有版本、没有路径
+    {"agent": "ZCode",
+     "file": "~/.zcode/cli/config.json",
+     "keypath": "plugins.enabledPlugins", "style": "enabled_map", "sep": "@"},
+    # Trae：值是 {"user_enabled":bool,"app_origin_enabled":bool}，分隔符是**冒号**
+    # （`trae-remote-official:browser`，registry 在前）—— 跟另两家相反
+    {"agent": "Trae",
+     "file": "~/.trae-cn/plugin-config.json",
+     "keypath": "plugins", "style": "config_map", "sep": ":"},
+)
+
+# ⚠ Trae 的 installed-plugins.json **不是**已装清单，是**市场目录**
+#   （{"runtime","generated_at","marketplaces":[{"marketplace","page","plugins"}]}）。
+#   名字叫 installed 但装的是市场快照 —— 照名字取会把它当插件列表用。
+#   已装的看 plugin-config.json。这条注释是踩过一次留下的（见设计规范 6.9）。
+
+
+def _plugin_split(pid, sep="@"):
+    """`name@marketplace` / `registry:name` → (name, marketplace)
+
+    两种分隔符方向相反，所以分隔符由来源表声明，不猜。
+    """
+    s = str(pid)
+    if sep and sep in s:
+        a, b = s.split(sep, 1)
+        return (b, a) if sep == ":" else (a, b)
+    return s, ""
+
+
+def _plugin_versions(install_path):
+    """从 installPath 反推插件目录，列出磁盘上所有版本。
+
+    只认 ~/.workbuddy/plugins/ 底下的路径（白名单），别的一律不碰。
+    """
+    root = os.path.join(os.path.expanduser("~"), ".workbuddy", "plugins")
+    p = os.path.abspath(install_path or "")
+    if not p or not os.path.normcase(p).startswith(os.path.normcase(os.path.abspath(root))):
+        return []
+    plug_dir = os.path.dirname(p)          # .../cache/<市场>/<插件>
+    cur_ver = os.path.basename(p)
+    if not os.path.isdir(plug_dir):
+        return []
+    out = []
+    try:
+        names = sorted(os.listdir(plug_dir))
+    except Exception:
+        return []
+    for v in names:
+        vp = os.path.join(plug_dir, v)
+        # 版本目录名以数字开头；顺手挡掉 .bak / 隐藏目录
+        if not os.path.isdir(vp) or not re.match(r"^\d", v) or v.startswith("."):
+            continue
+        try:
+            mt = os.path.getmtime(vp)
+        except Exception:
+            mt = 0
+        has_skill = os.path.isfile(os.path.join(vp, "SKILL.md"))
+        try:
+            entries = len(os.listdir(vp))
+        except Exception:
+            entries = 0
+        out.append({
+            "version": v,
+            "path": vp,
+            "mtime": (datetime.datetime.fromtimestamp(mt).strftime("%Y-%m-%d %H:%M")
+                      if mt else ""),
+            "mtime_ts": mt,
+            "is_current": v == cur_ver,
+            "has_skill": has_skill,
+            "entries": entries,
+        })
+    # 时间倒序：最近的排最前（同批安装的 mtime 一样，再用版本号兜底）
+    out.sort(key=lambda x: (-x["mtime_ts"], x["version"]), reverse=False)
+    out.sort(key=lambda x: x["mtime_ts"], reverse=True)
+    return out
+
+
+def list_plugins():
+    """本机各 Agent 装了哪些插件（只读）
+
+    三种 schema 各写一个分支，不强行抽象成一套 —— 它们的字段本来就不同，
+    硬统一只会把某家的信息丢掉（ZCode 就没有版本和路径）。
+    """
+    out = []
+    for src in PLUGIN_SOURCES:
+        path = os.path.expanduser(src["file"])
+        if not os.path.isfile(path):
+            continue
+        data, note = _read_json_file(path)
+        if not isinstance(data, dict):
+            continue
+        node = _dig(data, src["keypath"])
+        if not isinstance(node, dict):
+            continue
+        for pid, spec in node.items():
+            name, market = _plugin_split(pid, src["sep"])
+            item = {
+                "kind": "plugin",
+                "id": pid,
+                "name": name,
+                "marketplace": market,
+                "agent": src["agent"],
+                "version": "",
+                "enabled": True,
+                "installed_at": "",
+                "updated_at": "",
+                "path": "",
+                "dir": "",
+                "version_count": 0,
+                "old_count": 0,
+                "note": note,
+                "source_file": path,
+            }
+            if src["style"] == "installed_v2":
+                it = spec[0] if isinstance(spec, list) and spec else (
+                    spec if isinstance(spec, dict) else {})
+                item["path"] = str(it.get("installPath") or "")
+                # dir 是给前端"打开所在文件夹"用的（openCurDir 读的是 .dir）。
+                # 插件的 path 是**版本目录**（...\<插件>\5.5.6），要打开的是它上一层。
+                item["dir"] = os.path.dirname(item["path"]) if item["path"] else ""
+                item["version"] = str(it.get("version") or "")
+                item["installed_at"] = str(it.get("installedAt") or "")[:19].replace("T", " ")
+                item["updated_at"] = str(it.get("lastUpdated") or "")[:19].replace("T", " ")
+                vers = _plugin_versions(item["path"])
+                item["version_count"] = len(vers)
+                item["old_count"] = sum(1 for v in vers if not v["is_current"])
+            elif src["style"] == "enabled_map":
+                item["enabled"] = bool(spec)
+                item["note"] = "这个产品只记了启用开关，不记版本与安装路径"
+            elif src["style"] == "config_map":
+                if isinstance(spec, dict):
+                    item["enabled"] = bool(spec.get("user_enabled", True))
+                    item["note"] = ("用户已启用" if spec.get("user_enabled")
+                                    else "用户已停用")
+                if market:
+                    item["marketplace"] = market
+                item["note"] = "这个产品只记了启用开关，不记版本与安装路径"
+            out.append(item)
+    # 排序：**本地留的旧版本多的排前面**。
+    # 不按 agent 字母序 —— 那样 ZCode/Trae 这 7 个"只记了启用开关"的会霸占最前，
+    # 把真正有旧版本历史可看的插件挤出屏幕（它们才是这一页的重点）。
+    # 同分再按 agent / name，保证顺序稳定。
+    out.sort(key=lambda x: (-(x["old_count"]), x["agent"], x["name"]))
+    return out
+
+
+def plugin_versions(agent, plugin_path):
+    """某个插件在本机磁盘上留了几个版本（详情页用）"""
+    vers = _plugin_versions(plugin_path)
+    return {
+        "ok": True,
+        "versions": vers,
+        "current": next((v["version"] for v in vers if v["is_current"]), ""),
+        "old": [v for v in vers if not v["is_current"]],
+        "why": ("" if vers else
+                "本机没有留下这个插件的版本目录（可能是别的产品装的，或已清理）"),
+    }
+
+
+# ── 配置文件的历史版本（.bak-<时间戳>） ─────────────────────────────────
+# 只认 CONTENT_SOURCES 里声明过的文件的备份 —— 不扫全盘。
+# 实测全盘扫会捞出一堆噪音（Internet Explorer\brndlog.bak、
+# AppData\Local\Temp\panel.bak.py），那是系统临时文件，不是"历史版本"。
+
+def _backup_paths_for(path):
+    """这个文件的本地备份（同目录、同名前缀 + .bak/.backup）。"""
+    d = os.path.dirname(path)
+    b = os.path.basename(path)
+    out = []
+    if not os.path.isdir(d):
+        return out
+    try:
+        names = os.listdir(d)
+    except Exception:
+        return out
+    for f in names:
+        low = f.lower()
+        if not (low.startswith(b.lower() + ".bak") or low.startswith(b.lower() + ".backup")):
+            continue
+        fp = os.path.join(d, f)
+        if not os.path.isfile(fp):
+            continue
+        try:
+            st = os.stat(fp)
+        except Exception:
+            continue
+        out.append({"path": fp, "name": f, "size": st.st_size, "mtime_ts": st.st_mtime,
+                    "dir": d,
+                    "mtime": datetime.datetime.fromtimestamp(st.st_mtime).strftime("%Y-%m-%d %H:%M:%S"),
+                    "of": b})
+    out.sort(key=lambda x: x["mtime_ts"], reverse=True)
+    return out
+
+
+def content_backups(cfgs=None):
+    """全部配置文件的备份，按时间倒序（列表用）
+
+    允许传入已经读好的 cfgs —— `/api/content` 同时要 configs 和 backups，
+    不传的话 list_configs() 会被读两遍（每个文件都重新解析一次）。
+    """
+    out = []
+    for c in (cfgs if cfgs is not None else list_configs()):
+        for bk in _backup_paths_for(c["path"]):
+            bk["agent"] = c["agent"]
+            bk["kind"] = "backup"
+            out.append(bk)
+    out.sort(key=lambda x: x["mtime_ts"], reverse=True)
+    return out
+
+
+def backup_detail(path, max_chars=20000):
+    """读一个配置备份的（已脱敏）正文。
+
+    ⚠ 备份**必须走同一套脱敏**，不能因为是备份就跳过 —— 本机的
+    `models.json.bak-*` 里就是**明文 API Key**，这条要是漏了，
+    整个脱敏设计就形同虚设（相当于给了个"看原文"的后门）。
+    """
+    p = os.path.abspath(path or "")
+    allowed = set()
+    for bk in content_backups():
+        allowed.add(os.path.normcase(os.path.abspath(bk["path"])))
+    if os.path.normcase(p) not in allowed:
+        return {"error": "这个文件不是已知配置文件的备份，拒绝读取"}
+    if not os.path.isfile(p):
+        return {"error": "文件不存在：%s" % p}
+    try:
+        size = os.path.getsize(p)
+    except Exception:
+        size = 0
+    # 备份也可能是 Markdown（AGENTS.md.bak-*）
+    if _content_fmt(p) == "text":
+        text, note = _read_text_file(p)
+        return {"ok": True, "path": p, "secret": False, "size": size, "note": note,
+                "keys": [], "fmt": "text", "is_backup": True,
+                "text": (text or "")[:max_chars],
+                "truncated": bool(text) and len(text) > max_chars, "why": ""}
+    data, note = _read_json_file(p)
+    if data is None:
+        return {"ok": True, "path": p, "secret": False, "size": size, "note": note,
+                "keys": [], "text": "",
+                "why": "这个备份读不出来（%s），且不回原文：原文未经脱敏" % (note or "格式未知"),
+                "is_backup": True}
+    text = json.dumps(_mask_json(data), ensure_ascii=False, indent=2)
+    return {"ok": True, "path": p, "secret": False, "size": size, "note": note,
+            "keys": [_mask_keyname(k) for k in data.keys()] if isinstance(data, dict) else [],
+            "text": text[:max_chars], "truncated": len(text) > max_chars, "why": "",
+            "is_backup": True}
+
+
+def local_skill_detail(path, max_chars=20000):
+    """读一个 skill 的 SKILL.md 正文（面板上预览用）"""
+    p = os.path.abspath(path or "")
+    known = [os.path.abspath(s["root"]) for s in skill_sources()]
+    inside = any(os.path.normcase(p).startswith(os.path.normcase(k)) for k in known)
+    md = os.path.join(p, "SKILL.md") if os.path.isdir(p) else p
+    if not os.path.isfile(md):
+        return {"error": "找不到 SKILL.md"}
+    if not inside:
+        return {"error": "不在已知的 skill 目录里，拒绝读取"}
+    try:
+        text = io.open(md, encoding="utf-8", errors="replace").read()
+    except Exception as e:
+        return {"error": "读取失败：%s" % e}
+    return {"ok": True, "path": md, "text": text[:max_chars],
+            "truncated": len(text) > max_chars, "size": len(text)}
+
+def skill_copy_targets():
+    """能把这个 skill 传到哪 —— 只列本机真实存在的容器目录
+
+    判据是**父目录存在**（说明那个 Agent 装过），而不是"这个目录当前有没有内容"。
+    目标目录不存在会自动建（传 skill 本来就该能建目录）。
+    """
+    home = os.path.expanduser("~")
+    out = []
+    for agent, scope, root in (
+            ("WorkBuddy", "用户级", os.path.join(home, ".workbuddy", "skills")),
+            ("ZCode", "用户级", os.path.join(home, ".zcode", "cli", "skills")),
+            ("CodeBuddy", "用户级", os.path.join(home, ".codebuddy", "skills")),
+            ("Trae", "用户级", os.path.join(home, ".trae-cn", "skills")),
+            ("Claude Code", "用户级", os.path.join(home, ".claude", "skills")),
+            ("Codex", "用户级", os.path.join(home, ".codex", "skills"))):
+        parent = os.path.dirname(root)
+        out.append({"agent": agent, "scope": scope, "root": root,
+                    "ready": os.path.isdir(parent),
+                    "why": "" if os.path.isdir(parent) else "本机没装这个 Agent（父目录 %s 不存在）" % parent})
+    for ws in workspaces():
+        root = os.path.join(ws, ".workbuddy", "skills")
+        out.append({"agent": "WorkBuddy", "scope": "项目级", "root": root,
+                    "ready": os.path.isdir(ws), "workspace": ws, "why": ""})
+    return out
+
+def plan_skill_copy(src_path, target_root, as_name=""):
+    """预览迁移：从哪到哪、几个文件、会不会撞名。**不写盘。**"""
+    src = os.path.abspath(src_path or "")
+    tgt_root = os.path.abspath(target_root or "")
+    known_src = [os.path.abspath(s["root"]) for s in skill_sources()]
+    if not any(os.path.normcase(src).startswith(os.path.normcase(k)) for k in known_src):
+        return {"error": "源不在已知 skill 目录里"}
+    allowed = {os.path.normcase(os.path.abspath(t["root"])) for t in skill_copy_targets()}
+    if os.path.normcase(tgt_root) not in allowed:
+        return {"error": "目标目录不在白名单里"}
+    if not os.path.isdir(src):
+        return {"error": "源 skill 目录不存在"}
+    # 名字只允许字母数字下划线中日文点和横杠 —— 挡住 ..\..\ 这类穿越
+    name = re.sub(r"[^\w\u4e00-\u9fff.-]", "_", (as_name or "").strip())
+    if not name:
+        name = os.path.basename(src.rstrip("\\/"))
+    if name in (".", "..") or name.startswith("."):
+        return {"error": "目标名字不合法"}
+    dst = os.path.join(tgt_root, name)
+    if os.path.normcase(src) == os.path.normcase(dst):
+        return {"error": "源和目标是同一个目录"}
+    files, size = 0, 0
+    for dp, _, fs in os.walk(src):
+        for f in fs:
+            files += 1
+            try:
+                size += os.path.getsize(os.path.join(dp, f))
+            except Exception:
+                pass
+    return {"ok": True, "src": src, "dst": dst, "name": name,
+            "files": files, "size": size,
+            "dst_exists": os.path.exists(dst),
+            "target_root": tgt_root}
+
+def copy_skill_to(src_path, target_root, overwrite=False, as_name=""):
+    """执行迁移（复制，不删源）。
+
+    撞名默认不覆盖 —— 让人先看清楚。要覆盖时也不直接删旧目录，
+    而是先改名成 `.bak-<时间戳>` 留在原地，出问题能倒回去。
+    """
+    plan = plan_skill_copy(src_path, target_root, as_name=as_name)
+    if plan.get("error"):
+        return plan
+    if plan["dst_exists"] and not overwrite:
+        return {"error": "目标已存在同名 skill（%s）。确认要覆盖再说。" % plan["dst"], "plan": plan}
+    import shutil as _sh
+    backup = ""
+    try:
+        os.makedirs(plan["target_root"], exist_ok=True)
+        if plan["dst_exists"]:
+            backup = plan["dst"] + ".bak-" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+            os.rename(plan["dst"], backup)
+        _sh.copytree(plan["src"], plan["dst"])
+    except Exception as e:
+        # 复制失败：把备份改回来，别让人丢了原来那份
+        if backup and not os.path.exists(plan["dst"]):
+            try:
+                os.rename(backup, plan["dst"])
+            except Exception:
+                pass
+        return {"error": "复制失败：%s" % e, "plan": plan}
+    return {"ok": True, "dst": plan["dst"], "files": plan["files"],
+            "size": plan["size"], "overwrote": bool(plan["dst_exists"]),
+            "backup": backup}
+
 
 def handoff(project, limit=50):
     """项目交接卡：按类型分组输出 markdown，可直接贴给下一个 Agent"""
@@ -940,8 +2290,35 @@ def _msg_text(content):
         return str(content.get("text") or content.get("content") or "")
     return str(content)
 
+# 宿主会往首条 user 消息前面插一段环境注入块（`<system-reminder data-role="user-context">`
+# 里塞 OS 版本、当前时间、连接器状态等）。它是给模型看的，不是人说的话 ——
+# 直接入库会让会话标题变成 "<system-reminder data-role=..." 这种鬼东西，
+# 也会把"人到底说了什么"淹掉。2026-09-21 接 WorkBuddy 来源时发现。
+_INJECT_RE = re.compile(r"<system-reminder\b[^>]*>[\s\S]*?</system-reminder>", re.I)
+_INJECT_OPEN_RE = re.compile(r"<system-reminder\b[^>]*>[\s\S]*$", re.I)
+_INJECT_TAG_RE = re.compile(r"</?system-reminder\b[^>]*>", re.I)
+# WorkBuddy 把用户输入包在 <user_query> 里（单纯是个信封，剥掉不损失内容）
+_WRAP_TAG_RE = re.compile(r"</?user_query\b[^>]*>", re.I)
+
+def _strip_injected(text):
+    """剥掉宿主注入块和信封标签，只留人真正打的字。剥完为空则返回空串（调用方丢弃该条）"""
+    if not text:
+        return text
+    t = text
+    if "system-reminder" in t.lower():
+        t = _INJECT_RE.sub("", t)
+        t = _INJECT_OPEN_RE.sub("", t)      # 未闭合的尾巴
+        t = _INJECT_TAG_RE.sub("", t)
+    if "user_query" in t.lower():
+        t = _WRAP_TAG_RE.sub("", t)
+    return t.strip()
+
 def _record_to_msg(obj):
-    """把一条落盘记录转成 {role, content}，不是消息则返回 None"""
+    """把一条落盘记录转成 {role, content[, at]}，不是消息则返回 None
+
+    `at` = 这条记录自己的时间（能认出来才带）。以前不带时间，
+    所以除了 ZCode 以外的来源导进来全是空时间。
+    """
     if not isinstance(obj, dict):
         return None
     role = obj.get("role") or obj.get("author") or obj.get("speaker") or ""
@@ -953,7 +2330,7 @@ def _record_to_msg(obj):
         content = inner.get("content")
     if content is None and obj.get("text"):
         content = obj.get("text")
-    text = _msg_text(content).strip()
+    text = _strip_injected(_msg_text(content).strip())
     if not text:
         return None
     # 过滤非对话记录（摘要、工具调用等），但保留有正文的
@@ -963,7 +2340,12 @@ def _record_to_msg(obj):
     role = str(role).lower()
     if role not in ("user", "assistant", "system", "tool"):
         role = "assistant" if inner else (role or "unknown")
-    return {"role": role, "content": text}
+    out = {"role": role, "content": text}
+    at = norm_time(obj.get("timestamp") or obj.get("time") or obj.get("at")
+                   or obj.get("created_at") or obj.get("createdAt"))
+    if at:
+        out["at"] = at
+    return out
 
 def _parse_structured(text):
     """尝试 JSONL（每行一条）或 JSON 数组/对象"""
@@ -1035,43 +2417,108 @@ def parse_transcript(text):
     return [{"role": "raw", "content": text}]
 
 # ---------- 会话存储 ----------
-def save_session(title="", project="", agent="", messages=None, source_path="", summary="", allow_dup=False):
-    """保存一次会话（含原文）。同一内容重复导入会被指纹拦截，返回 (sid, created)"""
+def save_session(title="", project="", agent="", messages=None, source_path="", summary="", allow_dup=False,
+                 started_at="", ended_at=""):
+    """保存一次会话（含原文）。同一内容重复导入会被指纹拦截，返回 (sid, created)
+
+    时间从哪来（2026-09-21 修）：
+      以前只从**消息**里读 at（msgs[0].get("at")），但没有任何调用方往消息里塞过 at，
+      于是 started_at / ended_at 永远是空串 —— 全表 0/10 有值。UI 拿不到会话时间，
+      只能退回 created_at（= 导入那一下的 now()），所以"9 月 20 日的 10 段对话"
+      全都显示成同一个扫描时刻。
+      现在两层都收：显式传进来的 started_at/ended_at 优先；没传就退回消息自带的 at。
+      传进来的值一律过 norm_time()，epoch 毫秒 / ISO 串都能收。
+    """
     msgs = messages or []
     if not msgs:
         return None, False
     fp = hashlib.md5(("\n".join(f"{m.get('role','')}:{m.get('content','')}" for m in msgs)).encode("utf-8")).hexdigest()
-    conn = db()
-    if not allow_dup:
-        row = conn.execute("SELECT id FROM sessions WHERE fingerprint=?", (fp,)).fetchone()
-        if row:
-            conn.close()
-            return row["id"], False
     t = now()
     n = len(msgs)
     if not title:
         first = next((m["content"] for m in msgs if m.get("role") == "user"), msgs[0].get("content", ""))
         title = (first[:24] + "…") if len(first) > 24 else (first or "未命名会话")
+    # 会话时间：显式参数 > 首/末条消息自带的 at > 空（不编造）
+    # 消息自带时间两个键都认：扫描器写 "at"，导出包写 "created_at"（见 panel.py 的 pack 导出）
+    def _mat(seq):
+        if not seq or not isinstance(seq[0], dict):
+            return ""
+        return seq[0].get("at") or seq[0].get("created_at") or ""
+    st = norm_time(started_at) or norm_time(_mat(msgs[:1]))
+    en = norm_time(ended_at) or norm_time(_mat(msgs[-1:]))
+    conn = db()
+    # ---- 同源幂等（2026-09-22 修）----
+    # 症状：一段 WorkBuddy 对话被反复采集，同一个 source_path 堆了 62 条 sessions
+    #   （msg_count 692→767 一路递增），messages 表被灌到 4 万条；会话列表里
+    #   同一段对话重复几十行，用户直接问"为什么不能合并"。
+    # 根因：旧去重只按"整段消息的 md5"，而每次扫描对话都更长 → 指纹次次不同 → 次次新建。
+    # 现在：source_path 非空 = 同一段会话的又一次快照 —— 原地更新保留的那条
+    #   （只有内容变多才重写正文），并清掉同源的其余快照（记忆出处迁移到保留的那条），
+    #   保证"一个来源恒为一条会话"。保留原 id，所以记忆里的"出处"链接不断。
+    if source_path:
+        dup = conn.execute(
+            "SELECT id, msg_count FROM sessions WHERE source_path=? "
+            "ORDER BY msg_count DESC, id DESC", (source_path,)).fetchall()
+        if dup:
+            keep = dup[0]["id"]
+            if len(dup) > 1:
+                dead = [r["id"] for r in dup[1:]]
+                conn.executemany("UPDATE memories SET session_id=? WHERE session_id=?",
+                                 [(keep, d) for d in dead])
+                conn.executemany("DELETE FROM messages WHERE session_id=?", [(d,) for d in dead])
+                conn.executemany("DELETE FROM sessions WHERE id=?", [(d,) for d in dead])
+            if n > (dup[0]["msg_count"] or 0):
+                conn.execute("DELETE FROM messages WHERE session_id=?", (keep,))
+                conn.executemany(
+                    "INSERT INTO messages (session_id,turn,role,content,created_at) VALUES (?,?,?,?,?)",
+                    [(keep, i, m.get("role", "unknown"), m.get("content", ""),
+                      norm_time(m.get("at") or m.get("created_at") or "") or t)
+                     for i, m in enumerate(msgs, 1)])
+                try:
+                    conn.execute(
+                        "UPDATE sessions SET title=?,project=?,agent=?,msg_count=?,summary=?,fingerprint=?,"
+                        "started_at=COALESCE(NULLIF(?,''),started_at),"
+                        "ended_at=COALESCE(NULLIF(?,''),ended_at) WHERE id=?",
+                        (title, project, agent, n, summary, fp, st, en, keep))
+                except sqlite3.IntegrityError:
+                    # 新指纹撞了另一条会话（内容完全一致）：保留旧指纹，别让保存整个失败
+                    conn.execute(
+                        "UPDATE sessions SET title=?,project=?,agent=?,msg_count=?,summary=?,"
+                        "started_at=COALESCE(NULLIF(?,''),started_at),"
+                        "ended_at=COALESCE(NULLIF(?,''),ended_at) WHERE id=?",
+                        (title, project, agent, n, summary, st, en, keep))
+            conn.commit()
+            conn.close()
+            return keep, False
+    if not allow_dup:
+        row = conn.execute("SELECT id FROM sessions WHERE fingerprint=?", (fp,)).fetchone()
+        if row:
+            conn.close()
+            return row["id"], False
     cur = conn.execute(
         "INSERT INTO sessions (title,project,agent,source_path,started_at,ended_at,msg_count,summary,fingerprint,created_at)"
         " VALUES (?,?,?,?,?,?,?,?,?,?)",
-        (title, project, agent, source_path, msgs[0].get("at", ""), msgs[-1].get("at", ""),
-         n, summary, fp, t))
+        (title, project, agent, source_path, st, en, n, summary, fp, t))
     sid = cur.lastrowid
+    # 每条消息也尽量用它自己的时间；没有就退回导入时刻
     conn.executemany(
         "INSERT INTO messages (session_id,turn,role,content,created_at) VALUES (?,?,?,?,?)",
-        [(sid, i, m.get("role", "unknown"), m.get("content", ""), t) for i, m in enumerate(msgs, 1)])
+        [(sid, i, m.get("role", "unknown"), m.get("content", ""),
+          norm_time(m.get("at") or m.get("created_at") or "") or t) for i, m in enumerate(msgs, 1)])
     conn.commit()
     conn.close()
     return sid, True
 
 def list_sessions(limit=50, project=None):
     conn = db()
-    sql = "SELECT * FROM sessions"
+    # mem_n：这段会话产出了几条记忆。列表里直接给出来，"哪段对话有产出"一眼可见
+    # ——这是会话层和记忆层之间的那条线，别删。（走 idx_mem_session，成本可忽略）
+    sql = ("SELECT s.*, (SELECT COUNT(*) FROM memories m "
+           "WHERE m.session_id=s.id AND m.deleted=0) mem_n FROM sessions s")
     args = []
     if project:
-        sql += " WHERE project=?"; args.append(project)
-    sql += " ORDER BY id DESC LIMIT ?"
+        sql += " WHERE s.project=?"; args.append(project)
+    sql += " ORDER BY s.id DESC LIMIT ?"
     args.append(limit)
     rows = conn.execute(sql, args).fetchall()
     conn.close()
@@ -1145,7 +2592,9 @@ TOOLS = [
          "importance": {"type": "integer", "description": "重要度1-4"},
          "tags": {"type": "string", "description": "逗号分隔标签"},
          "project": {"type": "string", "description": "所属项目名"},
-         "agent": {"type": "string", "description": "写入方 Agent 名"}},
+         "agent": {"type": "string", "description": "写入方 Agent 名"},
+         "session_id": {"type": "integer", "description": "可选：这条结论出自哪段已归档会话（面板「会话」页的编号）。填了就能在面板里溯源回原话"},
+         "turn": {"type": "integer", "description": "可选：出自该会话的第几轮"}},
         "required": ["content"]}},
     {"name": "memory_search", "description": "语义检索本地记忆库（中文 bigram + 英文混合检索）",
      "inputSchema": {"type": "object", "properties": {
@@ -1197,7 +2646,9 @@ def call_tool(name, args):
         mid = save_memory(args.get("content", ""), args.get("type", "fact"),
                           args.get("importance", 2), args.get("tags", ""),
                           args.get("project", ""),
-                          args.get("agent") or DEFAULT_AGENT)
+                          args.get("agent") or DEFAULT_AGENT,
+                          session_id=args.get("session_id", 0),
+                          turn=args.get("turn", 0))
         return f"已保存记忆 #{mid}"
     if name == "memory_search":
         rs = search_memory(args.get("query", ""), args.get("limit", 5),

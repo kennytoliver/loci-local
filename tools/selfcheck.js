@@ -195,6 +195,22 @@ function ck(name, cond, extra) {
     ck(v + ' 页能打开', okp);
   }
 
+  // ---------- 页面隔离（逐页查：这条是补的，之前漏检 → 串页 bug 没被发现）----------
+  console.log('\n[页面隔离]');
+  const IDS = ['mem', 'session', 'skill', 'collect', 'clean', 'audit', 'agents', 'pack', 'handoff'];
+  const badPage = [];
+  for (const v of IDS) {
+    await page.evaluate((n) => window.show(n), v);
+    await wait(700);
+    const seen = await page.evaluate((all) => all.filter((x) => {
+      const el = document.getElementById('v-' + x);
+      return el && el.offsetParent !== null;   // display:none 时 offsetParent 为 null
+    }), IDS);
+    if (seen.length !== 1 || seen[0] !== v) badPage.push(v + '→[' + seen.join(',') + ']');
+  }
+  ck('逐页切换都不串页（9 页各查一次）', badPage.length === 0,
+     badPage.join(' | ') || '每页都只显示自己 ✓');
+
   console.log('\n[总体]');
   ck('全程无 JS 报错', errs.length === 0, errs.slice(0, 3).join(' | '));
   console.log(`\n自检结果：${OUT.length - fails}/${OUT.length} 项通过${fails ? '，' + fails + ' 项失败' : ' ✅'}`);

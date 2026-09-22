@@ -1409,7 +1409,11 @@ select,.formrow input[type=text]{background:var(--d2);border:1px solid var(--lin
 .grpfoot:hover{background:var(--hover)}
 /* 会话页：第一眼该看「已归档会话」（列表 + 原文），「归档新会话」表单排到最后。
    顺序只用 order 调，DOM 不动 —— 免得搬一大块 HTML 出错。 */
-#v-session{display:flex;flex-direction:column}
+/* ⚠️⚠️ 必须带 :not([hidden])！
+   裸写 `display:flex` 会盖掉 [hidden] 的 `display:none` —— 这个 section 就永远可见，
+   内容串到别的页面上（实测踩坑：记忆页里能同时看到会话页和本机内容页）。
+   切换页面靠的是 JS 设 hidden 属性，CSS 绝不能把它顶掉。 */
+#v-session:not([hidden]){display:flex;flex-direction:column}
 #v-session>.pagehead{order:1}
 #v-session>.lead{order:2}
 #v-session>#scan-msg{order:3}
@@ -1419,7 +1423,8 @@ select,.formrow input[type=text]{background:var(--d2);border:1px solid var(--lin
 #v-session>.panel{order:7}
 /* 本机内容页同理：第一眼该看「清算结果」（几个技能 / MCP / 插件），
    「本机来源探测」排到最后并**默认收起**。 */
-#v-skill{display:flex;flex-direction:column}
+/* ⚠️ 同 #v-session：必须带 :not([hidden])，否则会顶掉 hidden 的 display:none */
+#v-skill:not([hidden]){display:flex;flex-direction:column}
 #v-skill>.pagehead{order:1}
 #v-skill>.lead{order:2}
 #v-skill>.split{order:3}
@@ -4727,7 +4732,28 @@ def main():
     global IDLE_EXIT_SEC
     IDLE_EXIT_SEC = max(0, a.idle_exit)
     url = f"http://127.0.0.1:{a.port}"
-    srv = ThreadingHTTPServer(("127.0.0.1", a.port), Handler)
+    # 端口已被占：给一句人话，别抛栈。
+    # 之前这里没有任何防护 —— 点两次快捷方式就会看到满屏红色 Traceback，
+    # 让人以为程序坏了，其实只是开了第二个实例（Windows 下 SO_REUSEADDR
+    # 还允许两个进程绑同一端口，更容易撞上）。
+    import socket as _sock
+    _probe = _sock.socket()
+    _probe.settimeout(0.4)
+    _busy = (_probe.connect_ex(("127.0.0.1", a.port)) == 0)
+    _probe.close()
+    if _busy:
+        print()
+        print("  [Hippocampus] 端口 %d 上已经有面板在运行了。" % a.port)
+        print("  浏览器直接打开：%s" % url)
+        print("  确实要再开一个：python panel.py --port 9000")
+        return 1
+    try:
+        srv = ThreadingHTTPServer(("127.0.0.1", a.port), Handler)
+    except OSError as _e:
+        print()
+        print("  [Hippocampus] 端口 %d 起不来：%s" % (a.port, _e))
+        print("  换个端口试试：python panel.py --port 9000")
+        return 1
     if IDLE_EXIT_SEC > 0:
         print("Hippocampus 管理面板已启动: %s" % url)
         print("  · 关掉浏览器页面后，%d 分钟内无访问会自动退出（不占后台）"

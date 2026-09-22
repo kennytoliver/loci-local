@@ -122,6 +122,12 @@ function apiKeySamples(raw) {
         '#sk-list .mem[onclick*="pickPlugin"] .content' +
         '{padding:20px 20px 48px!important;overflow-y:auto!important}';
       document.head.appendChild(s);
+      // (d) 假装分组折叠被改坏：拆掉 .gbody 外壳，段头就不能再收起内容
+      document.querySelectorAll('#sk-list .gbody').forEach((g) => {
+        const h = g.previousElementSibling;
+        while (g.firstChild) h.parentNode.insertBefore(g.firstChild, g);
+        g.remove();
+      });
     }, CRED_RAW + '\n' + MODELS_RAW);
   }
 
@@ -132,6 +138,9 @@ function apiKeySamples(raw) {
     withver: PLUGINS.filter((p) => p.version_count > 0).length,
     secrets: CFGS.filter((c) => c.secret).length,
     groups: [...document.querySelectorAll('#sk-list .grphead .gt')].map((e) => e.textContent),
+    gns: [...document.querySelectorAll('#sk-list .grphead .gn')].map((e) => e.textContent),
+    foldHeads: document.querySelectorAll('#sk-list .grphead.ghead').length,
+    foldBodies: document.querySelectorAll('#sk-list .gbody').length,
     count: (document.getElementById('sk-count') || {}).textContent || '',
   }));
 
@@ -148,10 +157,14 @@ function apiKeySamples(raw) {
   ok('配到了已装插件（至少 1 个）', shape.plugins > 0, '只有 ' + shape.plugins + ' 个');
   ok('配到了配置备份（至少 1 份）', shape.backups > 0, '只有 ' + shape.backups + ' 份');
   ok('来源表把没内容的产品也报出来了（≥4 行）', shape.csrc >= 4, '只有 ' + shape.csrc + ' 行');
-  ok('抬头计数五类都写了',
-     /配置文件/.test(shape.count) && /MCP/.test(shape.count) &&
-     /插件/.test(shape.count) && /本地历史版本/.test(shape.count),
-     '实际：' + shape.count);
+  // 用户明确说标题栏那串长小字太乱、要去掉（"40 个技能 ｜ 14 个配置文件 ｜ …"），
+  // 数量改由每一段的段头自己写 —— 所以断言也从查 #sk-count 改成查段头。
+  ok('每个分组头都写了数量',
+     shape.gns.length === 5 && shape.gns.every((t) => /\d+\s*个/.test(t)),
+     JSON.stringify(shape.gns));
+  ok('每个分组头都能折叠（.ghead 与 .gbody 成对）',
+     shape.foldHeads === 5 && shape.foldBodies === 5,
+     'ghead=' + shape.foldHeads + ' gbody=' + shape.foldBodies);
   ok('技能排在列表最前（技能是唯一能"传过去"的类别）',
      (shape.groups[0] || '') === '技能', shape.groups[0]);
 

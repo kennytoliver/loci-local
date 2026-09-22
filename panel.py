@@ -1363,7 +1363,11 @@ select,.formrow input[type=text]{background:var(--d2);border:1px solid var(--lin
   margin:18px 0 10px;padding:0 2px}
 .grphead:first-child{margin-top:2px}
 .grphead .gt{font-family:var(--sans);font-size:12.5px;font-weight:600;color:var(--sub)}
-.grphead .gn{font-size:11.5px;color:var(--faint)}
+.grphead .gn{font-size:11.5px;color:var(--faint);margin-left:auto}
+/* 段头改成可折叠（加 .ghead）后，flex 的 space-between 会把新插的箭头甩到中间，
+   所以计数用 margin-left:auto 顶到右边，箭头紧贴标题。 */
+.grphead.ghead{gap:6px}
+.grphead.ghead .cv{cursor:pointer}
 .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .hint{font-size:12px;color:var(--faint);line-height:1.7;margin-top:10px}
 /* 本机对话来源列表 —— 让"这次到底扫了谁、为什么"看得见
@@ -2860,6 +2864,32 @@ function grp(title,n,note){
   return '<div class="grphead"><span class="gt">'+esc(title)+'</span>'+
     '<span class="gn">'+n+' 个'+(note?' ｜ '+esc(note):'')+'</span></div>';
 }
+/* 把左栏的每个 .grphead 段落变成**可折叠的独立分组**（用户要的：
+   "每一类单独一个框，能整块收起来"）。做法是后处理而不是改渲染代码 ——
+   段数和顺序会随探测结果变，直接改拼接字符串容易漏一处。
+   包好之后直接复用记忆页那套 toggleGroup：段头点一下，.gbody 整块 display:none。 */
+function wrapGroups(root){
+  if(!root)return;
+  var heads=Array.prototype.slice.call(root.querySelectorAll(".grphead"));
+  heads.forEach(function(h,i){
+    if(h.dataset.wrapped)return;
+    h.dataset.wrapped="1";
+    var key="skg"+i;
+    h.classList.add("ghead");
+    h.id="gh-"+key;
+    h.onclick=function(){toggleGroup(key)};
+    if(!h.querySelector(".cv"))h.insertAdjacentHTML("afterbegin",'<span class="cv">▼</span>');
+    var body=document.createElement("div");
+    body.className="gbody";body.id="g-"+key;
+    var n=h.nextSibling;
+    while(n&&!(n.nodeType===1&&n.classList&&n.classList.contains("grphead"))){
+      var nx=n.nextSibling;
+      body.appendChild(n);
+      n=nx;
+    }
+    h.parentNode.insertBefore(body,h.nextSibling);
+  });
+}
 /* 列表里只放主版本号。
    WorkBuddy 的版本串是 `5.5.6-wb.38337834.g5f969292.h7826dc9400fd`（44 字符），
    全量塞进列表会把 top 行挤到换行、卡片高一大截 —— 规范第 5 条：
@@ -2941,10 +2971,9 @@ async function loadSkills(){
     }
     se.innerHTML=html;
   }
-  document.getElementById("sk-count").textContent=
-    SKILLS.length+" 个技能 ｜ "+CFGS.length+" 个配置文件 ｜ "+MCPS.length+" 条 MCP ｜ "+
-    PLUGINS.length+" 个插件 ｜ 本地历史版本 "+OLDVER+" 个 ｜ "+
-    SKTGT.filter(function(t){return t.ready}).length+" 个可传目标";
+  // 标题栏那串长小字（"40 个技能 ｜ 14 个配置文件 ｜ …"）太挤，去掉 ——
+  // 每一类的数量已经在各自段头上写了，不重复占地方（用户反馈）。
+  document.getElementById("sk-count").textContent="";
   if(!SKILLS.length && !CFGS.length && !MCPS.length && !PLUGINS.length){
     box.innerHTML='<div class="empty">什么都没探到（本机的 Agent 都没建这些目录）</div>';return
   }
@@ -3020,6 +3049,7 @@ async function loadSkills(){
       '</strong> 个插件旧版本躺在磁盘上，在上面「插件」里点开任一个就能看到它的全部版本'+
       '（含"当前 / 旧"标记和各自的时间）。这些是装机时留下的，可清理 —— '+
       '面板只报，不动手删。</div>'):'');
+  wrapGroups(box);
 }
 /* 点开一个 skill：右侧详情
    ⚠ 这一版修的是一个真 bug —— 上一版详情区是我手搓的 div，还塞了个

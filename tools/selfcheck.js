@@ -43,6 +43,16 @@ function ck(name, cond, extra) {
   ck('搜索框 + 检索按钮都在同一组（.fgroup）', sess.hasQ && sess.hasBtn);
   ck('左栏「会话列表」可折叠', sess.listFold);
   ck('右栏「原文时间线」可折叠', sess.headFold);
+  const ordS = await page.evaluate(() => {
+    const s = document.querySelector('#v-session > .split');
+    const p = document.querySelector('#v-session > .panel');
+    return { sy: s ? Math.round(s.getBoundingClientRect().top) : -1,
+             py: p ? Math.round(p.getBoundingClientRect().top) : -1,
+             folded: !!document.querySelector('#v-session > .panel .gbody.hide') };
+  });
+  ck('会话页：已归档会话排在「归档新会话」之前',
+     ordS.sy >= 0 && ordS.sy < ordS.py, 'split@' + ordS.sy + ' → panel@' + ordS.py);
+  ck('「归档新会话」默认收起', ordS.folded);
   // 打开第一个会话
   await page.evaluate(() => {
     const el = document.querySelector('#s-list .mem[onclick*="openSession"]');
@@ -111,6 +121,16 @@ function ck(name, cond, extra) {
     const hid = b.classList.contains('hide'); const t1 = f.textContent; f.click();
     return { border, t0, t1, t2: f.textContent, hid };
   });
+  const ordK = await page.evaluate(() => {
+    const s = document.querySelector('#v-skill > .split');
+    const p = document.querySelector('#v-skill > .panel');
+    return { sy: s ? Math.round(s.getBoundingClientRect().top) : -1,
+             py: p ? Math.round(p.getBoundingClientRect().top) : -1,
+             folded: !!document.querySelector('#v-skill > .panel .gbody.hide') };
+  });
+  ck('本机内容：清算结果排在「来源探测」之前',
+     ordK.sy >= 0 && ordK.sy < ordK.py, 'split@' + ordK.sy + ' → panel@' + ordK.py);
+  ck('「本机来源探测」默认收起', ordK.folded);
   ck('分组是一个带边框的框', grp2 && grp2.border !== '0px', grp2 ? grp2.border : '无');
   ck('分组内容下方有「收起」按钮', grp2 && /收起/.test(grp2.t0 || ''), grp2 ? grp2.t0 : '无');
   ck('点下方按钮能收起且文字翻转',

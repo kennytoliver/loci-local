@@ -1074,8 +1074,14 @@ PAGE = r"""<!DOCTYPE html>
      这里按用户要求调亮：常规 1.44:1、控件 1.90:1（暗色要更高，低亮度下人眼分辨更差）。
      控件描边取库里 --sidebar-border 的暗色族（#404040）再提一档，不是凭空编的。 */
   --line:#383838; --line2:#4a4a4a;
-  --ink:#eff1f4; --sub:#949494; --faint:#6e6e6e;
+  --ink:#eff1f4; --sub:#949494;
+  /* --faint 提一档：卡片上 3.31:1 → 4.89:1（输入框占位符 2.66 → 3.93）。
+     --sub 5.56:1 已合格，不动。 */
+  --faint:#8a8a8a;
   --acc:#8ab4f8; --acc2:#2dccd3; --ok:#34a853; --warn:#fbbc05; --bad:#f1204a;
+  /* 实心主按钮专用填充色：--acc 是「表面上的亮色」，拿它当填充面会出现
+     白字压浅蓝（深色实测 2.11:1，不达标）。取色来自现有 --sidebar-primary。 */
+  --acc-solid:#0065fd; --acc-solid-ink:#fff; --acc-solid-hover:#0052cc;
   /* 数据可视化五色（库的 --chart-1..5，暗色刻意更"电"）——
      规范原话：图表是整个系统里颜色能量最强的地方，其余表面要保持安静 */
   --chart-1:#2dccd3; --chart-2:#f1204a; --chart-3:#edbbe8; --chart-4:#fbeb35; --chart-5:#baf6f0;
@@ -1144,8 +1150,12 @@ PAGE = r"""<!DOCTYPE html>
      所以两个主题一起提到"一眼能看清"的量级（对比度写进 audit_tokens.js 的断言）：
      常规描边 1.37:1、控件描边 1.57:1（暗色要更高，低亮度下人眼分辨更差） */
   --line:#dcdcdc; --line2:#cccfd4;
-  --ink:#0e1115; --sub:#7f8d9f; --faint:#a0aab5;
+  --ink:#0e1115;
+  /* 亮色弱化文字整体比深色弱一档（浅灰压在浅灰底上就没了），两档都提：
+     --sub 3.38 → 6.81:1 ；--faint 2.36 → 4.68:1 */
+  --sub:#515c69; --faint:#697585;
   --acc:#4285f4; --acc2:#4285f4;
+  --acc-solid:#1a73e8; --acc-solid-ink:#fff; --acc-solid-hover:#1765cc;
   /* 图表五色：亮色走"可识别的 Google 多彩"路线 */
   --chart-1:#4285f4; --chart-2:#ea4335; --chart-3:#fbbc05; --chart-4:#0043ad; --chart-5:#34a853;
   --destructive:#ef4444; --destructive-foreground:#ffffff;
@@ -1248,8 +1258,8 @@ h2{font-family:var(--sans);font-size:20px;font-weight:600;letter-spacing:-.2px;m
              color var(--duration-fast) var(--ease-out)}
 .btn:hover{background:var(--d3);border-color:var(--acc)}
 /* .pri = 该页面的主行动（保存 / 归档 / 生成 / 导出…），实心主色 */
-.btn.pri{background:var(--acc);border-color:var(--acc);color:#fff}
-.btn.pri:hover{background:var(--primary-hover);border-color:var(--primary-hover);color:#fff}
+.btn.pri{background:var(--acc-solid);border-color:var(--acc-solid);color:var(--acc-solid-ink)}
+.btn.pri:hover{background:var(--acc-solid-hover);border-color:var(--acc-solid-hover);color:var(--acc-solid-ink)}
 .btn:disabled{opacity:.5;cursor:wait}
 .btn.txt{color:var(--acc);border:none;background:none;padding:8px 4px}
 .btn.txt:hover{text-decoration:underline;background:none;border:none}
@@ -1281,7 +1291,9 @@ h2{font-family:var(--sans);font-size:20px;font-weight:600;letter-spacing:-.2px;m
      会话 151.5→83.5 ／ 清理 183→115 ／ 质检 639.3→548.5 ／ 本机内容 298.5→206
    那几页是用户已签字的排版，换个 pass 再动，别顺手改（见设计规范 2.5 已知偏差）。 */
 #sk-list .mem .content{font-size:14px;line-height:1.75;padding:0;overflow:visible;flex:none}
-.mem.indb{opacity:.42}
+/* 同 P0-3：记忆列表里已作废的条目也别整块半透明 */
+.mem.indb{opacity:1}
+.mem.indb .content,.mem.indb .meta{color:var(--faint)}
 /* 复选框用更饱和的蓝，暗色下那条极细的原生框才看得见 */
 .ck{width:14px;height:14px;accent-color:var(--sidebar-primary);cursor:pointer;flex-shrink:0}
 .mem .meta{display:flex;justify-content:space-between;align-items:center;
@@ -1370,15 +1382,48 @@ select,.formrow input[type=text]{background:var(--d2);border:1px solid var(--lin
 .grphead.ghead .cv{cursor:pointer}
 /* 每一类单独成一个「框」（用户要的"一块一片区域"）：框头 + 框体各自有边框，
    折叠后框体消失、框头留着。 */
-#sk-list .grphead.ghead{border:1px solid var(--line);border-radius:var(--radius-md);
+/* P2-1：组头 + 组体原来是两块各自带边框、中间还留 2px 缝，看着像"两块"。
+   并成一块：组头保上圆角去下边框，组体保下圆角、去掉上间距。 */
+#sk-list .grphead.ghead{border:1px solid var(--line);border-bottom:0;
+  border-radius:var(--radius-md) var(--radius-md) 0 0;
   padding:var(--space-2) var(--space-3);background:var(--d2);margin-top:var(--space-3)}
-#sk-list .gbody{border:1px solid var(--line);border-radius:var(--radius-md);
-  padding:var(--space-2);margin-top:2px}
+#sk-list .gbody{border:1px solid var(--line);
+  border-radius:0 0 var(--radius-md) var(--radius-md);
+  padding:var(--space-2);margin-top:0}
+/* 亮色主题下组头底色与卡片的面差只有 1.05:1 —— 分组条等于消失了。换深一档。 */
+:root[data-theme="light"] #sk-list .grphead.ghead{background:var(--d3)}
+/* 左栏条目不是太挤、是太松：单条实测 206px 高，插件组五十几条 → 上万 px，
+   而右栏同时是空的。描述压到 3 行（206 → 128.5px，技能组体 1828 → 1341px）。
+   ⚠️ line-clamp 必须配 display:-webkit-box + -webkit-box-orient:vertical ——
+   只写 clamp 的话 getComputedStyle 会读回"3"骗你，但高度一动不动。 */
+#sk-list .gbody .mem{padding:var(--space-3) var(--space-4);margin-bottom:2px}
+#sk-list .gbody .mem .content{display:-webkit-box;-webkit-box-orient:vertical;
+  -webkit-line-clamp:3;overflow:hidden}
 /* 分组内容下方的收起按钮（用户要求放在下面，而不是去点标题） */
+/* 组体可能 1800+px 高，收起按钮会离组头很远（实测 1834px）——
+   sticky 让它吸附在滚动容器底部，人在哪儿都够得着。 */
 .grpfoot{display:block;width:100%;margin-top:4px;padding:4px 0;font:inherit;font-size:12px;
-  color:var(--acc);background:transparent;border:1px dashed var(--line);
-  border-radius:var(--radius-md);cursor:pointer}
+  color:var(--acc);background:var(--card);border:1px dashed var(--line);
+  border-radius:var(--radius-md);cursor:pointer;
+  position:sticky;bottom:0;z-index:2}
 .grpfoot:hover{background:var(--hover)}
+/* 会话页：第一眼该看「已归档会话」（列表 + 原文），「归档新会话」表单排到最后。
+   顺序只用 order 调，DOM 不动 —— 免得搬一大块 HTML 出错。 */
+#v-session{display:flex;flex-direction:column}
+#v-session>.pagehead{order:1}
+#v-session>.lead{order:2}
+#v-session>#scan-msg{order:3}
+#v-session>#scan-out{order:4}
+#v-session>.listhead{order:5}
+#v-session>.split{order:6}
+#v-session>.panel{order:7}
+/* 本机内容页同理：第一眼该看「清算结果」（几个技能 / MCP / 插件），
+   「本机来源探测」排到最后并**默认收起**。 */
+#v-skill{display:flex;flex-direction:column}
+#v-skill>.pagehead{order:1}
+#v-skill>.lead{order:2}
+#v-skill>.split{order:3}
+#v-skill>.panel{order:4}
 .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .hint{font-size:12px;color:var(--faint);line-height:1.7;margin-top:10px}
 /* 本机对话来源列表 —— 让"这次到底扫了谁、为什么"看得见
@@ -1386,7 +1431,10 @@ select,.formrow input[type=text]{background:var(--d2);border:1px solid var(--lin
 .srclist{display:flex;flex-direction:column;gap:var(--space-2)}
 .srcrow{display:flex;align-items:center;gap:10px;padding:7px 11px;
   border-radius:var(--radius-md);background:var(--d2);font-size:12.5px;color:var(--sub)}
-.srcrow.on{background:var(--d3);color:var(--ink)}
+/* 「扫到了 / 没扫到」原来只靠一个 7px 圆点区分（面差深色 1.16:1、亮色 1.08:1）。
+   补一条左侧色条。用 inset 阴影而不是 border-left —— border 会把这行顶高 2px
+   （项目里 .bdg 已经踩过同一个坑）。 */
+.srcrow.on{background:var(--d3);color:var(--ink);box-shadow:inset 3px 0 0 var(--ok)}
 .srcrow .sdot{width:7px;height:7px;border-radius:50%;background:var(--faint);flex:0 0 7px}
 .srcrow.on .sdot{background:var(--ok)}
 .srcrow .sname{font-weight:600;color:var(--ink);flex:0 0 auto;min-width:78px}
@@ -1427,7 +1475,9 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
 .btn,.mini,.del,.nav{transition:transform .12s var(--ease),background .16s var(--ease),color .16s var(--ease)}
 .btn:active,.mini:active,.del:active{transform:scale(.965)}
 /* 键盘焦点可见环：亮色蓝 / 暗色白（规范 --ring） */
-.btn:focus-visible,.nav:focus-visible,.mini:focus-visible,.del:focus-visible{
+.btn:focus-visible,.nav:focus-visible,.mini:focus-visible,.del:focus-visible,
+.foldbtn:focus-visible,.grpfoot:focus-visible,
+.ghead:focus-visible,[data-secfold]:focus-visible{
   outline:2px solid var(--ring);outline-offset:2px}
 .nav:active{transform:scale(.985)}
 
@@ -1531,7 +1581,7 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
 .stable .shead-row>span,.stable .srow>span{min-width:0;overflow:hidden;
   text-overflow:ellipsis;white-space:nowrap}
 .stable .shead-row,.stable .srow{
-  display:grid;grid-template-columns:26px minmax(0,1fr) 58px 116px 92px 74px;
+  display:grid;grid-template-columns:26px minmax(0,1fr) 56px 156px 76px 62px;
   gap:var(--space-3);align-items:center}
 .stable .shead-row{padding:0 var(--space-4) var(--space-2);font-size:11px;font-weight:600;
   letter-spacing:.06em;text-transform:uppercase;color:var(--sub)}
@@ -1539,7 +1589,13 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
   cursor:pointer;background:transparent;border:0;width:100%;text-align:left;
   transition:background var(--duration-fast) var(--ease-out)}
 .stable .srow:hover{background:var(--hover)}
-.stable .srow.indb{opacity:.5}
+/* 已完成的行：不用整块半透明 —— 那会把状态色一起压到 2.37:1。
+   改成逐部分降色：降级的是信息，不是整块画面。 */
+.stable .srow.indb{opacity:1}
+.stable .srow.indb .spath,
+.stable .srow.indb .cell,
+.stable .srow.indb .bdg.state{color:var(--faint)}
+.stable .srow.indb .ck{opacity:.4}
 .stable .srow .spath{font-size:13px;color:var(--sub);overflow:hidden;
   text-overflow:ellipsis;white-space:nowrap}
 .stable .srow:hover .spath{color:var(--ink)}
@@ -1621,6 +1677,25 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
 #sk-text{background:var(--background);border:1px solid var(--line);
   border-radius:var(--radius-md);padding:var(--space-4);font-size:13px;line-height:1.7;
   white-space:pre-wrap;word-break:break-word}
+/* 正文里的 `# 标题` 行原本被当成普通文字 —— 实测有 28 个现成的分段点全浪费了。
+   由 JS 变成真标题，再在顶部给一条**横向**小节条：不占阅读宽度（不做右侧悬浮目录，
+   797px 的右栏再切 180px 出去，中文一行会短到难读），对长文更友好。 */
+#sk-text .sk-h{display:block;font-size:13px;font-weight:600;color:var(--ink);
+  margin:var(--space-5) 0 var(--space-2);scroll-margin-top:80px}
+#sk-text .sk-h:first-child{margin-top:0}
+.sk-toc{display:flex;flex-wrap:wrap;align-items:center;gap:6px;
+  margin:0 0 var(--space-3);padding-bottom:var(--space-3);
+  border-bottom:1px solid var(--line);font-size:11.5px}
+.sk-toc b{color:var(--faint);font-weight:500;flex-shrink:0}
+.sk-toc a{color:var(--acc);text-decoration:none;border-bottom:1px dashed var(--acc)}
+.sk-toc a:hover{color:var(--ink)}
+/* 回到顶部：跟着真正的滚动容器 .content 走 */
+#backtop{position:fixed;right:22px;bottom:22px;z-index:60;display:none;
+  width:36px;height:36px;align-items:center;justify-content:center;
+  background:var(--card);border:1px solid var(--line);border-radius:999px;
+  color:var(--sub);cursor:pointer}
+#backtop.on{display:flex}
+#backtop:hover{color:var(--ink);border-color:var(--acc)}
 .split-side .dmeta{font-size:12px;color:var(--sub);line-height:1.9;word-break:break-all}
 .split-side .dacts{display:flex;gap:8px;flex-wrap:wrap;margin:0;flex-shrink:0}
 .mem.sel{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc),0 8px 26px rgba(138,180,248,.22)}
@@ -1696,9 +1771,18 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
 .split-main .mmeta .bdg{max-width:120px}
 .split-main .mtags{overflow:hidden;text-overflow:ellipsis;min-width:0;color:var(--faint)}
 /* 行内操作按钮：平时不占视线，hover / 选中才出现（同样的动作右侧详情里也有） */
-.split-main .macts{margin-left:auto;display:flex;gap:8px;flex-shrink:0;
-  opacity:0;transition:opacity var(--duration-fast) var(--ease-out)}
-.split-main .mem.lrow:hover .macts,.split-main .mem.lrow.sel .macts{opacity:1}
+/* ⚠️ opacity:0 依然占位 —— 实测这 115px 吃掉 meta 行 31% 宽，
+   把「914 轮 · #81」压成一个「9」。改成悬浮在行尾，不占文档流。 */
+.split-main .mem.lrow{position:relative}
+.split-main .macts{position:absolute;right:var(--space-4);top:50%;
+  transform:translateY(-50%);margin:0;background:var(--card);
+  padding-left:var(--space-3);display:flex;gap:8px;
+  opacity:0;pointer-events:none;transition:opacity var(--duration-fast) var(--ease-out)}
+.split-main .mem.lrow:hover .macts,.split-main .mem.lrow.sel .macts{opacity:1;pointer-events:auto}
+.split-main .mem.lrow.sel .macts{background:var(--sel-bg)}
+/* hover 时浮层会盖住长标题尾部，给它留出位置 */
+.split-main .mem.lrow:hover .mtitle,
+.split-main .mem.lrow.sel .mtitle{padding-right:132px}
 .split-main .mem.lrow.sel{background:var(--sel-bg);box-shadow:inset 3px 0 0 var(--sel-accent)}
 .split-main .mem.lrow.sel:hover{background:var(--sel-bg)}
 .split-main .mem.lrow.sel .mtitle{color:var(--sel-ink);font-weight:600}
@@ -1726,8 +1810,16 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
 /* 长文折叠（2026-09-22）：会话原文 / 记忆长内容 / 交接卡输出。
    只有超过阈值才折（短内容不出现按钮），收起时按行截断，点「展开全文」看全。
    —— 用户反馈：几百轮的会话原文一条条铺下来太长，页面拉不到底。 */
-.foldbody.folded{display:-webkit-box;-webkit-line-clamp:6;-webkit-box-orient:vertical;
-  overflow:hidden}
+/* P2-7：正文块的标签原来是 11px / uppercase / --sub，比它标注的 13px 正文还小 ——
+   最大的一块内容配了最小的标签。回正到正文之上。（uppercase 对中文也没意义） */
+.split-side .dsec-t{font-size:12.5px;letter-spacing:0;text-transform:none;
+  color:var(--sub);font-weight:600}
+/* P2-3：CSS 的 6 是死值，JS 里另有 FOLD_LINES=4 覆盖它。让 CSS 成为唯一真值。 */
+.foldbody.folded{display:-webkit-box;-webkit-box-orient:vertical;
+  -webkit-line-clamp:var(--fold-lines,4);overflow:hidden}
+/* P2-2：区域收起后，栏头那条 border-bottom 会留成一条孤线 */
+.split-main:has(.sbody.hide) .shead,
+.split-side:has(.dmain.hide) .dhead{border-bottom-color:transparent}
 .foldbtn{display:inline-block;margin:0 0 var(--space-2);font:inherit;font-size:12px;
   color:var(--acc);background:transparent;border:0;padding:2px 0;cursor:pointer}
 .foldbtn:hover{text-decoration:underline}
@@ -1800,6 +1892,7 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
       <a class="nav" data-v="handoff"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="6" width="17" height="12" rx="3"/><path d="M8 11h8M8 14h5"/></svg><span>交接卡</span></a>
     </nav>
     <div class="sfoot">v0.2.0 · 本地运行</div>
+    <button id="backtop" onclick="backTop()" title="回到顶部" aria-label="回到顶部">↑</button>
   </aside>
 
   <main class="main">
@@ -1894,12 +1987,17 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
         <div class="msg" id="scan-msg" style="display:none"></div>
         <div id="scan-out"></div>
 
-        <!-- 骨架 C：归档表单 -->
+        <!-- 骨架 C：归档表单
+             用户要求：进会话页第一眼要看的是「已归档会话」（列表 + 原文），
+             所以这块挪到页面最下方（顺序由 CSS order 排，DOM 不动），
+             并且**默认收起** —— 要导入时点标题展开。 -->
         <div class="panel">
-          <div class="listhead">
+          <div class="listhead ghead collapsed" id="gh-sessarc" onclick="toggleGroup('sessarc')">
             <span class="t">归档新会话</span>
             <span class="hint" style="margin:0">支持「我: / AI:」聊天文本、JSONL、JSON 数组</span>
+            <span class="cv">▼</span>
           </div>
+          <div class="gbody hide" id="g-sessarc">
           <div class="row">
             <input class="textin" id="s-title" placeholder="会话标题（留空自动取首句）">
           </div>
@@ -1916,6 +2014,7 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
             <button class="btn pri" id="s-save" disabled onclick="sessionSave()">确认归档</button>
           </div>
           <p class="hint" id="s-info">先点「解析预览」确认说话人识别无误，再点「确认归档」。内容重复的会话会自动跳过。</p>
+          </div>
         </div>
 
         <!-- 骨架 A：左会话列表 + 右原文时间线 -->
@@ -2098,11 +2197,14 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
           全部只读；配置文件里的密钥一律不读值。传递＝复制，源目录不会被删。</p>
 
         <div class="panel">
-          <div class="listhead">
+          <div class="listhead ghead collapsed" id="gh-skillsrc" onclick="toggleGroup('skillsrc')">
             <span class="t">本机来源探测</span>
             <span class="hint" style="margin:0">结果随机器变，不是写死的名单</span>
+            <span class="cv">▼</span>
           </div>
-          <div id="sk-src" class="srclist"><span class="hint">正在探测…</span></div>
+          <div class="gbody hide" id="g-skillsrc">
+            <div id="sk-src" class="srclist"><span class="hint">正在探测…</span></div>
+          </div>
         </div>
 
         <div class="split">
@@ -2656,9 +2758,13 @@ function toggleGroup(key){
   var head = document.getElementById('gh-' + key);
   if(!body) return;
   var nowHidden = body.classList.toggle('hide');
-  if(head) head.classList.toggle('collapsed', nowHidden);
+  if(head){
+    head.classList.toggle('collapsed', nowHidden);
+    head.setAttribute('aria-expanded', nowHidden?'false':'true');
+    if(!head.hasAttribute('role')){head.tabIndex=0;head.setAttribute('role','button')}
+  }
   var foot = document.getElementById('gf-' + key);   // 内容下方那个按钮也跟着翻字
-  if(foot) foot.textContent = nowHidden ? '展开 ▾' : '收起 ▴';
+  if(foot) foot.textContent = nowHidden ? '展开本组 ▾' : '收起本组 ▴';
 }
 
 async function loadList(){
@@ -2916,7 +3022,7 @@ function wrapGroups(root){
     // 用户要"收起按钮放在下面"：内容下方给一个明确的按钮（收起后翻成"展开"）
     var foot=document.createElement("button");
     foot.type="button";foot.className="grpfoot";foot.id="gf-"+key;
-    foot.textContent="收起 ▴";
+    foot.textContent="收起本组 ▴";   // 「收起 ▴」在长文截断里另有所指，这里说清是"整组"
     foot.onclick=function(ev){ev.stopPropagation();toggleGroup(key)};
     body.parentNode.insertBefore(foot,body.nextSibling);
   });
@@ -3082,6 +3188,45 @@ async function loadSkills(){
       '面板只报，不动手删。</div>'):'');
   wrapGroups(box);
 }
+/* 把正文里的 `# xxx` 行变成真标题，并生成一条小节条。
+   少于 2 节就别加 —— 不然又是一种视觉噪音。返回要插在正文前的 HTML（或空串）。 */
+function skOutline(t){
+  var lines=(t.textContent||"").split("\n"), html="", toc=[], n=0;
+  lines.forEach(function(ln){
+    n++;
+    var m=ln.match(/^(#{1,4})\s+(.+)$/);
+    if(m){
+      var id="skh"+n; toc.push({id:id,t:m[2]});
+      html+='<span class="sk-h" id="'+id+'">'+esc(m[2])+'</span>\n';
+    }else html+=esc(ln)+"\n";
+  });
+  if(toc.length<2)return "";
+  t.innerHTML=html;
+  return '<div class="sk-toc"><b>小节</b>'+toc.map(function(o){
+    return '<a href="#'+o.id+'" onclick="event.preventDefault();skJump(\''+o.id+'\')">'+
+      esc(o.t)+'</a>';
+  }).join("")+'</div>';
+}
+/* 跳到某个小节。⚠️ 不要用 scrollIntoView —— 它会把外层容器一起滚走
+   （项目踩过，见会话页 scrollSide 那段的注释）。只动真正的滚动容器。 */
+function skJump(id){
+  var el=document.getElementById(id); if(!el)return;
+  var sc=scrollerOf(el)||document.querySelector(".content");
+  if(!sc)return;
+  sc.scrollTop += el.getBoundingClientRect().top - sc.getBoundingClientRect().top - 70;
+}
+function backTop(){
+  var sc=document.querySelector(".content");
+  if(sc)sc.scrollTo({top:0,behavior:"smooth"});
+}
+/* 滚过一屏才显示「回到顶部」 */
+(function(){
+  var sc=document.querySelector(".content"); if(!sc)return;
+  var b=document.getElementById("backtop");
+  sc.addEventListener("scroll",function(){
+    if(b)b.classList.toggle("on", sc.scrollTop>800);
+  });
+})();
 /* 点开一个 skill：右侧详情
    ⚠ 这一版修的是一个真 bug —— 上一版详情区是我手搓的 div，还塞了个
    `max-height:46vh;overflow:auto` 的**内层滚动框**。实测后果：
@@ -3130,6 +3275,7 @@ async function pickSkill(i){
     '</div>';
   var t=document.getElementById("sk-text");
   t.textContent=r.text+(r.truncated?"\n\n…（已截断）":"");
+  var toc=skOutline(t); if(toc) t.insertAdjacentHTML("beforebegin",toc);
   foldAll();secApply();
 }
 /* 配置文件详情：正文一定是**后端脱敏过**的那份。
@@ -3550,11 +3696,11 @@ function foldOne(el){
   var btn=document.createElement("button");
   btn.type="button";
   btn.className="foldbtn";
-  btn.textContent="展开全文 ▾";
+  btn.textContent="展开全文";   // 不带箭头：箭头留给"折叠整块区域"用，避免一词两义
   btn.onclick=function(ev){
     ev.stopPropagation();                       // 卡片本身可点，别让点按钮触发选中
     var nowFolded=el.classList.toggle("folded");
-    btn.textContent=nowFolded?"展开全文 ▾":"收起 ▴";
+    btn.textContent=nowFolded?"展开全文":"收起全文";
   };
   el.insertAdjacentElement("afterend",btn);
 }
@@ -3586,6 +3732,14 @@ function secApply(){
     // 否则 secApply 改 DOM → 触发 observer → 再 secApply，会自激成死循环。
     if(body.classList.contains("hide")!==on)body.classList.toggle("hide",on);
     if(head.classList.contains("sec-collapsed")!==on)head.classList.toggle("sec-collapsed",on);
+    // 折叠控件是 div，默认 Tab 不到、读屏也不知道开合状态 —— 补上（只做一次）
+    if(!head.hasAttribute("role")){
+      head.tabIndex=0;head.setAttribute("role","button");
+      head.addEventListener("keydown",function(e){
+        if(e.key==="Enter"||e.key===" "){e.preventDefault();head.click();}
+      });
+    }
+    head.setAttribute("aria-expanded", on?"false":"true");
     var one=head.querySelector(".sec-1");
     if(on){
       if(!one){one=document.createElement("span");one.className="sec-1";head.appendChild(one)}

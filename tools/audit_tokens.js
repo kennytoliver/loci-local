@@ -39,7 +39,9 @@ const SPEC = {
     '--popover': '#f9f9fa', '--popover-foreground': '#0e1115',
     '--primary': '#4285f4', '--primary-foreground': '#ffffff',
     '--secondary': '#dbeafe', '--secondary-foreground': '#333942',
-    '--muted': '#eff1f4', '--muted-foreground': '#7f8d9f',
+    /* 亮色 --sub / --muted-foreground 提对比度：3.38:1 → 6.81:1
+       （UI 评审 P1-2，刻意动的一档，与面板 --sub 同步） */
+    '--muted': '#eff1f4', '--muted-foreground': '#515c69',
     '--accent': '#dbeafe', '--accent-foreground': '#003e8f',
     '--destructive': '#ef4444',
     '--border': '#ebebeb', '--input': '#e2e3e4', '--ring': '#4285f4',

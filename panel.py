@@ -1884,17 +1884,25 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
 .split-main .mem.lrow.sel .mmeta{color:var(--sel-ink);opacity:.8}
 .split-main .mem.lrow.sel .mdot{box-shadow:0 0 0 2px var(--sel-bg)}
 
-/* ── 选中底统一（2026-09-23 用户报的 bug）──
-   现象：黑夜下点列表项，只有**记忆页**有蓝色选中底（`--sel-bg`）；会话页和本机内容页
-   点下去只剩 hover 的那层淡灰，像"没有反馈"。
-   根因：`.sel` 只由 `selectMem()` 打在 `#memcard-*` 上，另外两个页面从来没人打过标记
-   （JS 侧已用 `markRowSel` 的委托监听补齐）。
-   CSS 侧：会话行本身就是 `.mem.lrow`，上面那组规则已经覆盖；这里只补**本机内容页**的
-   "卡片行"（`.mem` 不带 `.lrow`），并且复用**同一套令牌**，不另发明颜色。 */
-#sk-list .mem.sel,#sk-list .mem.sel:hover{
-  background:var(--sel-bg);box-shadow:inset 3px 0 0 var(--sel-accent)}
-#sk-list .mem.sel .content b,#sk-list .mem.sel .proj,#sk-list .mem.sel .score{
+/* ── 选中底统一（2026-09-23，用户先后报了两次同一件事）──
+   第 1 次：黑夜下点列表项，只有**记忆页**有蓝色选中底（`--sel-bg`）；会话页和本机内容页
+     点下去只剩 hover 的那层淡灰，像"没有反馈"。根因：`.sel` 只由 `selectMem()` 打在
+     `#memcard-*` 上，别的页从来没人打过标记。
+   第 2 次：**质检页**（`#audit-out`）和**清理页**（`#sf-list` / `#cm-list` / `#bk-list`）
+     点下去连 hover 停留感都很弱（只有那一层 0.18s 的动画），那三个容器压根不在
+     `.split-main` 里 —— 所以第一版只写在 `#sk-list` 上的规则完全没覆盖到它们。
+   现在：JS 侧 `markRowSel` 的委托监听已覆盖全部列表容器；CSS 这里用**同一套令牌**
+   （`--sel-bg` / `--sel-accent` / `--sel-ink`）统一，不再按页写死选择器。
+   ⚠️ `:not(.lrow)` 是有意的：主从页的紧凑行（`.mem.lrow`）自己有上面那组规则
+   （还带 hover 让位、隐藏标签等联动），这里只管"卡片行"（质检 / 清理 / 本机内容 / 采集）。 */
+.mem.sel:not(.lrow),.mem.sel:not(.lrow):hover{
+  background:var(--sel-bg);border-color:transparent;
+  box-shadow:inset 3px 0 0 var(--sel-accent)}
+.mem.sel:not(.lrow) .content,.mem.sel:not(.lrow) .content b,
+.mem.sel:not(.lrow) .meta,.mem.sel:not(.lrow) .proj,
+.mem.sel:not(.lrow) .score,.mem.sel:not(.lrow) .accent{
   color:var(--sel-ink)}
+.mem.sel:not(.lrow) .ttag,.mem.sel:not(.lrow) .top{color:var(--sel-ink)}
 
 /* 右栏里的内容卡（会话页的抽取候选）—— 套规范 ui_kit 的 .mini-card：
    用 --background 而不是 --card，避免"卡里再套一张卡"看着发糊 */
@@ -2468,21 +2476,31 @@ function escAttr(t){return esc(t).replace(/"/g,"&quot;")}
 
 /* -- 主从详情面板 -- */
 var LASTROWS=[], SELID=null;
-/* 选中底统一（2026-09-23 用户报的 bug）：原先只有记忆页的 `#memcard-*` 会被打上 .sel
-   （只因为 selectMem() 里顺手加了），会话页的行（走 openSession）和本机内容页的条目
-   （走 pickSkill / pickCfg / pickMcp / pickPlugin / pickBackupRow）**从来没被标记过**
-   → 黑夜下点它们只剩 hover 那层淡灰，看着像"点不动"。
-   这里用一个委托监听把标记补齐：不改各页的 onclick、不加任何 HTML。
-   ⚠️ 行内那三个操作（抽记忆 / 查看原文 / 删除）自己 stopPropagation，不会命中这里。 */
+/* 选中底统一（2026-09-23，用户先后报了两次同一件事）：
+   ① 原先只有记忆页的 `#memcard-*` 会被打上 .sel（只因为 selectMem() 里顺手加了）；
+      会话页的行（走 openSession）、本机内容页的条目（走 pickSkill / pickCfg / pickMcp /
+      pickPlugin / pickBackupRow）**从来没被标记过** → 黑夜下点它们只剩 hover 那层淡灰，
+      看着像"点不动"。
+   ② 后来又发现质检页（#audit-out）和清理页（#sf-list / #cm-list / #bk-list）连容器都
+      不在 .split-main 里，第一版只认 `.split-main .mem`，所以那两页仍然没反馈。
+   做法：一个委托监听覆盖**所有列表容器**，不改各页的 onclick、不加任何 HTML。
+   ⚠️ 右栏的详情卡 / 抽取候选卡（`.split-side`、`#detail`）是"内容"不是"列表项"，排除。
+   ⚠️ 点行内的动作按钮（合并 / 作废 / 拆分 / 续期…）不标记 —— 那是动作，不是选择。 */
+var SEL_SCOPE="#audit-out,#sf-list,#cm-list,#bk-list,#scan-out,#s-list,#list,.split-main";
 function markRowSel(el){
-  document.querySelectorAll(".split-main .mem.sel").forEach(function(x){x.classList.remove("sel")});
+  /* 清除范围限定在"同一个列表容器"内：清理页有三个列表，点 A 列表不该把 B 的选中抹掉 */
+  var root=(el&&el.closest)?el.closest(SEL_SCOPE):null;
+  (root||document).querySelectorAll(".mem.sel").forEach(function(x){x.classList.remove("sel")});
   if(el)el.classList.add("sel");
 }
 document.addEventListener("click",function(e){
   var t=e.target;
   if(!t||!t.closest)return;
-  var row=t.closest(".split-main .mem");
-  if(row)markRowSel(row);
+  if(t.closest("button,a"))return;              /* 动作按钮 / 链接不算选择 */
+  var row=t.closest(".mem");
+  if(!row)return;
+  if(row.closest(".split-side,#detail"))return; /* 右栏详情 / 候选卡不是列表项 */
+  markRowSel(row);
 });
 function selectMem(id){
   SELID=id; renderDetail(id);

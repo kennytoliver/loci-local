@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 /*
- * 验「点列表项有没有选中底」在三个主从页 × 两个主题下是否一致。
+ * 验「点列表项有没有选中底」在六个列表 × 两个主题下是否一致。
  *
- * 为什么需要它（2026-09-23 用户报的 bug）：
- *   黑夜下只有记忆页点一条有蓝色底（--sel-bg），会话页 / 本机内容页点下去只剩 hover 的淡灰。
- *   根因是 .sel 只由 selectMem() 打在 #memcard-* 上，另外两页从来没被标记过。
+ * 为什么需要它（2026-09-23 用户先后报了两次同一个 bug）：
+ *   ① 黑夜下只有记忆页点一条有蓝色底（--sel-bg），会话页 / 本机内容页点下去只剩 hover 的淡灰。
+ *      根因是 .sel 只由 selectMem() 打在 #memcard-* 上，另外两页从来没被标记过。
+ *   ② 质检页（#audit-out）与清理页（#sf-list / #cm-list）点下去也没有蓝底 ——
+ *      这三个容器不在 .split-main 里，第一版委托监听的选择器够不到。
  *   光看代码判断不了"点完到底有没有底色"，也判断不了"鼠标移开后还在不在" —— 只能真点。
  *
  * 判据：点一下 → 把鼠标挪到空白处（脱离 :hover）→ 仍必须读到 --sel-bg 的解析值。
@@ -35,11 +37,16 @@ if (!CHROME) {
 const argv = process.argv.slice(2);
 const url = argv.find((a) => !a.startsWith('--')) || 'http://127.0.0.1:8799';
 
-/* 三个主从页：导航名 / 列表容器 / 行选择器 / 中文名 */
+/* 六个列表：导航名 / 列表容器 / 行选择器 / 中文名 / 渲染前的准备代码
+   后三个是 2026-09-23 第二次报的（质检页 + 清理页两个列表）——
+   它们的容器不在 .split-main 里，第一版委托监听够不到，所以必须单独盯着。 */
 const PAGES = [
   { v: 'mem', box: '#list', row: '#list .mem', label: '记忆' },
   { v: 'session', box: '#s-list', row: '#s-list .mem', label: '会话' },
   { v: 'skill', box: '#sk-list', row: '#sk-list .mem', label: '本机内容' },
+  { v: 'audit', box: '#audit-out', row: '#audit-out .mem', label: '质检', setup: 'runAudit()' },
+  { v: 'clean', box: '#sf-list', row: '#sf-list .mem', label: '清理·源文件', setup: 'loadSourceFiles()' },
+  { v: 'clean', box: '#cm-list', row: '#cm-list .mem', label: '清理·记忆', setup: 'loadMemPick()' },
 ];
 
 (async () => {
@@ -64,6 +71,12 @@ const PAGES = [
     await page.evaluate((t) => { document.documentElement.dataset.theme = t; }, theme);
     for (const p of PAGES) {
       await page.evaluate((v) => window.show(v), p.v);
+      /* 质检 / 清理页的列表要手动触发才渲染（runAudit / loadSourceFiles / loadMemPick） */
+      if (p.setup) {
+        try { await page.evaluate((code) => eval(code), p.setup); } catch (e) {
+          out.push({ theme, ...p, note: '渲染失败：' + String(e.message).slice(0, 60) }); continue;
+        }
+      }
       let ok = true;
       try {
         await page.waitForFunction(
@@ -74,13 +87,23 @@ const PAGES = [
       /* 等布局落定再量 —— 不等的话 boundingBox 可能取到上一帧的位置，点空就没有 .sel（踩过） */
       await new Promise((r) => setTimeout(r, 350));
 
+      /* 先把这一行滚进视口 —— 清理页的两个列表在第③④块，不滚的话 boundingBox 的 y
+         落在视口外，elementFromPoint 直接返回 null（踩过：报「点击点没落在行上（命中 null）」） */
+      const rowEl = await page.$(p.row);
+      await rowEl.evaluate((e) => e.scrollIntoView({ block: 'center' }));
+      await new Promise((r) => setTimeout(r, 250));
+
       /* 真点：第一行的中心（用 page.click 走 CDP 真鼠标，addStyleTag 伪造 class 量不出 :hover） */
-      const box = await (await page.$(p.row)).boundingBox();
+      const box = await rowEl.boundingBox();
       const cx = box.x + Math.min(120, box.width / 2);
       const cy = box.y + box.height / 2;
       const hit = await page.evaluate((x, y) => {
         const t = document.elementFromPoint(x, y);
-        return t ? (t.closest('.split-main .mem') ? 'row' : t.tagName) : 'null';
+        if (!t) return 'null';
+        if (t.closest('button,a')) return 'btn:' + t.tagName;
+        const row = t.closest('.mem');
+        if (row && !row.closest('.split-side,#detail')) return 'row';
+        return t.tagName;
       }, cx, cy);
       if (hit !== 'row') { out.push({ theme, ...p, note: '点击点没落在行上（命中 ' + hit + '）' }); continue; }
       await page.mouse.click(cx, cy);

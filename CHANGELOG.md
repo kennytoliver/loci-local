@@ -36,23 +36,41 @@
   换成 `--danger` / `--danger-soft` / `--grad-progress`
 - **hover 反馈提亮**：暗色 `.05 → .07`、亮色 `.04 → .06`（原对比度 1.14 / 1.08 基本看不见）
 
-### 修复 · 点列表项没反馈（用户实测报的 bug）
+### 修复 · 点列表项没反馈（用户实测连报两轮）
+
+**第一轮**（会话页 / 本机内容页）
 
 - **现象**：黑夜下点会话页 / 本机内容页的列表项，只有 hover 那层淡灰；而记忆页点一条
   有蓝色选中底 —— 同一套列表，三种反馈
 - **根因**：`.sel` 只由 `selectMem()` 顺手打在 `#memcard-*` 上，会话行（走 `openSession`）
   和本机内容条目（走 `pickSkill/Cfg/Mcp/Plugin/BackupRow`）**从来没被标记过**
-- **改法**：JS 侧加一个委托监听 `markRowSel()` 统一打标（不改各页 `onclick`、不加 HTML，
-  行内那三个操作自带 `stopPropagation` 不会误命中）；CSS 侧给本机内容页那类"卡片行"
-  补上**同一套令牌**（`--sel-bg` / `--sel-accent` / `--sel-ink`），不另发明颜色
-- 实测：三页 × 暗亮两主题，点一下再把鼠标移开，底色都等于 `--sel-bg`（暗 `rgb(0,38,107)` /
-  亮 `rgb(219,234,254)`）
+- **改法**：JS 侧加一个委托监听 `markRowSel()` 统一打标（不改各页 `onclick`、不加 HTML）
+
+**第二轮**（质检页 / 清理页）—— 同一个 bug 的另一半，第一轮漏了
+
+- **现象**：质检页（`#audit-out`）和清理页（`#sf-list` / `#cm-list` / `#bk-list`）点下去
+  连蓝底都没有，只有一层 0.18s 的 hover 动画
+- **根因**：第一轮的委托监听写的是 `.split-main .mem`，而这三个容器**压根不在 `.split-main`
+  里** —— 选择器够不到，CSS 那版也只写在 `#sk-list` 上，同样没覆盖
+- **改法**：JS 委托监听放开到**全部列表容器**（`SEL_SCOPE` 常量统一登记），
+  并排除两类误命中：① 右栏详情/候选卡（`.split-side` / `#detail`）是"内容"不是"列表项"；
+  ② 行内动作按钮（合并 / 作废 / 拆分 / 续期）是"动作"不是"选择"
+- **顺带**：清除范围从"全页面"收窄到"同一个列表容器"——清理页有三个列表，
+  在 A 列表点一行不该把 B 列表的选中抹掉
+- **CSS**：选择器从 `#sk-list .mem.sel` 放开成 `.mem.sel:not(.lrow)`，复用**同一套令牌**
+  （`--sel-bg` / `--sel-accent` / `--sel-ink`），不另发明颜色；`:not(.lrow)` 是有意的 ——
+  主从页的紧凑行（`.mem.lrow`）自己那组规则还带 hover 让位、隐藏标签等联动，不能被覆盖
+
+- 实测：**六个列表 × 暗亮两主题 = 12/12**，点一下再把鼠标移开，底色都等于
+  `--sel-bg`（暗 `rgb(0,38,107)` / 亮 `rgb(219,234,254)`）
 
 ### 工程
 
-- 新增闸门 `verify_sel_feedback`（三页 × 两主题，真鼠标点击 + 移开鼠标后复读 computed style，
-  防"hover 冒充选中"）；已挂进 `tools/run_gates.sh`（归入重型集）
-- 新增出图工具 `tools/shot_sel_feedback`（改前/改后对照截图，`docs/shots/sel-session-*.png`）
+- 闸门 `verify_sel_feedback` 从 3 个列表扩到 **6 个**（新增质检 / 清理·源文件 / 清理·记忆），
+  仍走"真鼠标点击 + 移开鼠标后复读 computed style"，防"hover 冒充选中"；
+  已挂进 `tools/run_gates.sh`（重型集）
+- 出图工具 `tools/shot_sel_feedback` 同步扩到 3 个场景
+  （`docs/shots/sel-{session,audit,clean}-{dark,light}-{before,after}.png`）
 
 ## [0.2.2] - 2026-09-22
 

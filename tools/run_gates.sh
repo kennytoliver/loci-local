@@ -35,6 +35,7 @@ GATES=(
   "check_design|$PY tools/check_design.py panel.py"
   "test_mcp|$PY test_mcp.py"
   "test_panel|$PY test_panel.py"
+  "verify_conn_drop|$PY tools/verify_conn_drop.py"
   "verify_session_flow|$PY tools/verify_session_flow.py"
   "verify_session_time|$PY tools/verify_session_time.py"
   "verify_session_dedup|$PY tools/verify_session_dedup.py"

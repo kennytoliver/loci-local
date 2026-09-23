@@ -4788,14 +4788,54 @@ f.onload=function(){
 
 
 class Handler(BaseHTTPRequestHandler):
+    # ── 响应出口（唯一一处真正往 socket 写字节的地方）──
+    # 2026-09-23 用户报的日志噪声：浏览器**刷新 / 切走标签 / 关页面**时，正好赶上服务端
+    # 在写响应，Windows 会抛 ConnectionAbortedError [WinError 10053]（对端中止了连接）。
+    # 这不是故障 —— 但默认没人接，socketserver 会把整个 traceback 打到 stderr：
+    #       panel.py:4885 do_GET → panel.py:4783 _json → panel.py:4780 _send
+    #   → 功能不受影响，可日志脏到"看着像面板崩了"，真出问题时会埋在这堆噪声里。
+    # 所以这里只吞**"对端没了"这一类**（ConnectionError 覆盖 WinError 10053/10054/32）；
+    # 其它异常照常往外抛 —— 别把真 bug 一起吞掉。
+    # 想排查连接问题时设 HIPPOCAMPUS_LOG_CONN=1，会打一行短提示。
+    _conn_drop = 0
+
+    def _note_conn_drop(self):
+        Handler._conn_drop += 1
+        if os.environ.get("HIPPOCAMPUS_LOG_CONN"):
+            sys.stderr.write(
+                "[panel] 客户端提前断开（第 %d 次，已忽略）\n" % Handler._conn_drop)
+
+    def _raw(self, code, headers, data):
+        """写完整响应：状态行 + 头 + 体。对端提前断开时静默（见上面说明）。"""
+        try:
+            self.send_response(code)
+            for k, v in headers:
+                self.send_header(k, v)
+            self.end_headers()
+            self.wfile.write(data)
+        except ConnectionError:
+            self._note_conn_drop()
+
+    def handle(self):
+        """最外层兜底：把「对端提前断开」挡在 socketserver 之前。
+
+        为什么 _raw 里已经 try 了还要来这一层 —— 实测（tools/verify_conn_drop.py）发现
+        异常不止从 wfile.write 出来：stdlib 的 handle_one_request() **末尾还有一次
+        self.wfile.flush()**（把缓冲真正推出去），那一下撞上断连会抛
+        ConnectionResetError [WinError 10054]，完全不在 _raw 的作用域里。
+        断连时"回不了话"是必然的，吞掉它，别让它变成一屏 traceback。"""
+        try:
+            super().handle()
+        except ConnectionError:
+            self._note_conn_drop()
+
     def _send(self, code, body, ctype="application/json; charset=utf-8"):
         data = body.encode("utf-8") if isinstance(body, str) else body
-        self.send_response(code)
-        self.send_header("Content-Type", ctype)
-        self.send_header("Cache-Control", "no-store")
-        self.send_header("Content-Length", str(len(data)))
-        self.end_headers()
-        self.wfile.write(data)
+        self._raw(code, [
+            ("Content-Type", ctype),
+            ("Cache-Control", "no-store"),
+            ("Content-Length", str(len(data))),
+        ], data)
 
     def _json(self, obj):
         self._send(200, json.dumps(obj, ensure_ascii=False))
@@ -4869,12 +4909,11 @@ class Handler(BaseHTTPRequestHandler):
             if os.path.isfile(_ico):
                 with open(_ico, "rb") as _f:
                     _d = _f.read()
-                self.send_response(200)
-                self.send_header("Content-Type", "image/png")
-                self.send_header("Content-Length", str(len(_d)))
-                self.send_header("Cache-Control", "no-store")
-                self.end_headers()
-                self.wfile.write(_d)
+                self._raw(200, [
+                    ("Content-Type", "image/png"),
+                    ("Content-Length", str(len(_d))),
+                    ("Cache-Control", "no-store"),
+                ], _d)
             else:
                 self.send_error(404)
         elif u.path == "/api/scan-roots":
@@ -4956,14 +4995,13 @@ class Handler(BaseHTTPRequestHandler):
             fname = "hippocampus-pack.json"
             if proj:
                 fname = f"hippocampus-pack-{quote(proj)}.json"
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
-            self.send_header("Cache-Control", "no-store")
-            self.send_header("Content-Disposition",
-                             f"attachment; filename*=UTF-8''{quote(fname)}")
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
+            self._raw(200, [
+                ("Content-Type", "application/json; charset=utf-8"),
+                ("Cache-Control", "no-store"),
+                ("Content-Disposition",
+                 f"attachment; filename*=UTF-8''{quote(fname)}"),
+                ("Content-Length", str(len(body))),
+            ], body)
         else:
             self._send(404, '{"error":"not found"}')
 

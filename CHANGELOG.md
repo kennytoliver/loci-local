@@ -64,8 +64,23 @@
 - 实测：**六个列表 × 暗亮两主题 = 12/12**，点一下再把鼠标移开，底色都等于
   `--sel-bg`（暗 `rgb(0,38,107)` / 亮 `rgb(219,234,254)`）
 
+### 修复 · 浏览器中途断开不再往日志喷 traceback（用户从后台日志里捡到的）
+
+- **现象**：刷新页面 / 切走标签时，stderr 出现整段 traceback ——
+  `ConnectionAbortedError: [WinError 10053] 你的主机中的软件中止了一个已建立的连接`，
+  落点在 `do_GET → _json → _send`。功能不受影响，但日志很脏，真问题会被埋掉
+- **根因**：`BaseHTTPRequestHandler` 在 `handle_one_request()` 收尾还会做一次
+  `wfile.flush()`，这一步**不在** `_send` 的 try 里 —— 所以只包 `wfile.write()`
+  是白包，探针能稳定触发 10054
+- **改法**：抽出 `_raw()` 做统一出口，只吞 `ConnectionError` / `BrokenPipeError`
+  （断连的正常表现），记一行短日志并 `close_connection = True`；其它异常照常抛。
+  三处写响应（JSON / PNG / 附件下载）全部收口到它
+- 实测：`tools/verify_conn_drop.py` 用裸 socket 发一半就掐 —— 确认①服务端确实走到
+  "吞掉"那条路、②stderr 既无 `Traceback` 也无 `WinError 10053`、③正常页面/接口仍 200
+
 ### 工程
 
+- 新增闸门 `verify_conn_drop`（断连静默），已挂进 `tools/run_gates.sh`（常规集）
 - 闸门 `verify_sel_feedback` 从 3 个列表扩到 **6 个**（新增质检 / 清理·源文件 / 清理·记忆），
   仍走"真鼠标点击 + 移开鼠标后复读 computed style"，防"hover 冒充选中"；
   已挂进 `tools/run_gates.sh`（重型集）

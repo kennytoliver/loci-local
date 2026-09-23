@@ -1096,6 +1096,16 @@ PAGE = r"""<!DOCTYPE html>
   /* FIX-9：破坏性动作 / 软边框 / 进度渐变都走令牌，别再硬编码 */
   --danger:#ff453a; --danger-soft:rgba(255,69,58,.5); --ok-soft:rgba(48,209,88,.5);
   --grad-progress:linear-gradient(90deg,var(--acc),var(--acc2));
+  /* FIX-3：语义色 / 数据色令牌化 —— 这些 hex 原来硬编码在 JS 里，**只有暗色主题成立**：
+     亮色下 #ffd60a 1.41:1、#30d158 2.02:1、#f9ab00 1.93:1、#09b6a2 2.55:1 全看不见；
+     反过来 #5f6368 在暗色只有 2.79:1。（判据 3:1 —— 这些是 7px 圆点，属非文字图形）
+     内联样式可以直接吃 CSS 变量，所以 JS 侧只换字符串，不用加取值逻辑。 */
+  --data-fact:#0a84ff; --data-decision:#ffd60a; --data-preference:#bf5af2;
+  --data-skill:#30d158; --data-error:#ff453a; --data-context:#8e8e93;
+  --data-me:#0a84ff; --data-ai:#30d158;
+  --data-agent-a:#0a84ff; --data-agent-b:#ea4335; --data-agent-c:#f9ab00;
+  --data-agent-d:#30d158; --data-agent-e:#007acc; --data-agent-f:#5f6368;
+  --data-agent-g:#09b6a2;
   /* 字体栈把库里的 DM Sans / JetBrains Mono 放在最前（没装就自动回落系统栈，零外链不能引 CDN） */
   --sans:"DM Sans",-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;
   /* 页面底色与卡片底色分开：浅色下两者同色就只剩 1px 描边能区分 */
@@ -1171,6 +1181,13 @@ PAGE = r"""<!DOCTYPE html>
   --chrome:rgba(255,255,255,.86); --toastbg:rgba(255,255,255,.98);
   --hover:rgba(14,17,21,.06);   /* FIX-10：原 .04 → 1.08:1，太弱 */
   --danger:#c5221f; --danger-soft:rgba(197,34,31,.45); --ok-soft:rgba(20,122,53,.45);
+  /* FIX-3：亮色下的数据色 —— 全部按 3:1 挑过，替换掉那些"在亮色下消失"的 iOS 系统色 */
+  --data-fact:#0b57d0; --data-decision:#8a5300; --data-preference:#7b2ff7;
+  --data-skill:#147a35; --data-error:#c5221f; --data-context:#5f6368;
+  --data-me:#0b57d0; --data-ai:#147a35;
+  --data-agent-a:#0b57d0; --data-agent-b:#c5221f; --data-agent-c:#8a5300;
+  --data-agent-d:#147a35; --data-agent-e:#005a9e; --data-agent-f:#5f6368;
+  --data-agent-g:#0f766e;
   /* 与暗色一致：8 档阴影全部透明（库的定义），纯平 */
   --shadow-2xs:0 3px 0 0 rgba(14,17,21,0);
   --shadow-xs:0 3px 0 0 rgba(14,17,21,0);
@@ -1775,11 +1792,15 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
    所以布局真的跟着收缩（.split 是 align-items:start，栏内一变矮那一栏就矮）。
    箭头用伪元素画在标题文字前，不额外占 DOM。 */
 [data-secfold]{cursor:pointer;user-select:none}
-[data-secfold] .t::before,[data-secfold] h3::before{content:"▼";display:inline-block;
-  font-size:9px;color:var(--sub);margin-right:6px;vertical-align:middle;
+/* FIX-8：箭头统一**放右侧** —— 原先是 `::before` 左前缀，而 .grphead 用右后缀，
+   同一个东西两套位置（同类名 .ghead 在记忆页箭头在左、在本机内容页在右）。
+   改用 ::after 追加到标题末尾。⚠️ [data-secfold] 只落在 .shead / .dhead 上，
+   而它们内部只有 .t / h3 一个文本节点，所以 ::after 不会插到别的东西中间。 */
+[data-secfold] .t::after,[data-secfold] h3::after{content:"▼";display:inline-block;
+  font-size:10px;color:var(--sub);margin-left:var(--space-2);vertical-align:middle;
   transition:transform .15s ease}
-[data-secfold].sec-collapsed .t::before,
-[data-secfold].sec-collapsed h3::before{content:"▶"}
+[data-secfold].sec-collapsed .t::after,
+[data-secfold].sec-collapsed h3::after{content:"▶"}
 .shead[data-secfold]{border-radius:var(--radius-sm)}
 .shead[data-secfold]:hover{background:var(--hover)}
 /* 收起后在标题栏右侧补一条"内容第一行"，让收起态也有信息 */
@@ -1862,6 +1883,18 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
 .split-main .mem.lrow.sel .mtitle{color:var(--sel-ink);font-weight:600}
 .split-main .mem.lrow.sel .mmeta{color:var(--sel-ink);opacity:.8}
 .split-main .mem.lrow.sel .mdot{box-shadow:0 0 0 2px var(--sel-bg)}
+
+/* ── 选中底统一（2026-09-23 用户报的 bug）──
+   现象：黑夜下点列表项，只有**记忆页**有蓝色选中底（`--sel-bg`）；会话页和本机内容页
+   点下去只剩 hover 的那层淡灰，像"没有反馈"。
+   根因：`.sel` 只由 `selectMem()` 打在 `#memcard-*` 上，另外两个页面从来没人打过标记
+   （JS 侧已用 `markRowSel` 的委托监听补齐）。
+   CSS 侧：会话行本身就是 `.mem.lrow`，上面那组规则已经覆盖；这里只补**本机内容页**的
+   "卡片行"（`.mem` 不带 `.lrow`），并且复用**同一套令牌**，不另发明颜色。 */
+#sk-list .mem.sel,#sk-list .mem.sel:hover{
+  background:var(--sel-bg);box-shadow:inset 3px 0 0 var(--sel-accent)}
+#sk-list .mem.sel .content b,#sk-list .mem.sel .proj,#sk-list .mem.sel .score{
+  color:var(--sel-ink)}
 
 /* 右栏里的内容卡（会话页的抽取候选）—— 套规范 ui_kit 的 .mini-card：
    用 --background 而不是 --card，避免"卡里再套一张卡"看着发糊 */
@@ -2371,7 +2404,11 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
 
 <script>
 const TL={fact:"事实",decision:"决策",preference:"偏好",skill:"经验",error:"踩坑",context:"背景",summary:"摘要"};
-const TC={fact:"#0a84ff",decision:"#ffd60a",preference:"#bf5af2",skill:"#30d158",error:"#ff453a",context:"#8e8e93",summary:"#8e8e93"};
+/* FIX-3：改成主题感知令牌 —— 内联样式可以直接吃 CSS 变量，所以这里只换字符串，
+   不用加任何取值逻辑。暗色令牌值 = 原来的 hex，观感零变化。 */
+const TC={fact:"var(--data-fact)",decision:"var(--data-decision)",preference:"var(--data-preference)",
+  skill:"var(--data-skill)",error:"var(--data-error)",context:"var(--data-context)",
+  summary:"var(--data-context)"};
 let searching=false;
 
 /* 视图切换 */
@@ -2431,6 +2468,22 @@ function escAttr(t){return esc(t).replace(/"/g,"&quot;")}
 
 /* -- 主从详情面板 -- */
 var LASTROWS=[], SELID=null;
+/* 选中底统一（2026-09-23 用户报的 bug）：原先只有记忆页的 `#memcard-*` 会被打上 .sel
+   （只因为 selectMem() 里顺手加了），会话页的行（走 openSession）和本机内容页的条目
+   （走 pickSkill / pickCfg / pickMcp / pickPlugin / pickBackupRow）**从来没被标记过**
+   → 黑夜下点它们只剩 hover 那层淡灰，看着像"点不动"。
+   这里用一个委托监听把标记补齐：不改各页的 onclick、不加任何 HTML。
+   ⚠️ 行内那三个操作（抽记忆 / 查看原文 / 删除）自己 stopPropagation，不会命中这里。 */
+function markRowSel(el){
+  document.querySelectorAll(".split-main .mem.sel").forEach(function(x){x.classList.remove("sel")});
+  if(el)el.classList.add("sel");
+}
+document.addEventListener("click",function(e){
+  var t=e.target;
+  if(!t||!t.closest)return;
+  var row=t.closest(".split-main .mem");
+  if(row)markRowSel(row);
+});
 function selectMem(id){
   SELID=id; renderDetail(id);
   document.querySelectorAll('.mem').forEach(function(el){el.classList.remove('sel')});
@@ -2611,7 +2664,7 @@ function cardHtml(r,score,idx){
     +(proj?(" · 项目 "+proj):"")+(tags.length?(" · 标签 "+tags.join("/")):"");
   return `<div class="mem lrow" id="memcard-${r.id}" style="--i:${idx||0}" title="${escAttr(tip)}"
       onclick="selectMem(${r.id})">
-    <span class="mdot" style="background:${TC[r.mtype]||"#8e8e93"}"></span>
+    <span class="mdot" style="background:${TC[r.mtype]||"var(--data-context)"}"></span>
     <div class="mbody">
       <div class="mtitle">${esc(t)}</div>
       <div class="mmeta">
@@ -2700,7 +2753,7 @@ async function loadMemPick(){
      MPICK.map(function(m,i){
       return '<div class="mem"><div class="top">'+
         '<input type="checkbox" class="cmck" data-i="'+i+'">'+
-        '<span class="ttag"><i style="background:'+(TC[m.mtype]||"#8e8e93")+'"></i>'+(TL[m.mtype]||m.mtype)+'</span>'+
+        '<span class="ttag"><i style="background:'+(TC[m.mtype]||"var(--data-context)")+'"></i>'+(TL[m.mtype]||m.mtype)+'</span>'+
         (m.project?('<span class="proj">'+esc(m.project)+'</span>'):"")+
         '<span class="score">#'+m.id+' · '+esc(m.agent||"")+' · '+m.created_at.slice(0,10)+'</span></div>'+
         '<div class="content">'+esc(m.content)+'</div></div>';
@@ -2814,10 +2867,13 @@ async function purgeOrphans(){
 }
 
 function gheadHtml(key, label, n){
+  /* FIX-8：箭头从标题**前**挪到**末尾**，和本机内容页的 .grphead 保持一致
+     （原来同一个 .ghead 两个位置：记忆页箭头在左、本机内容页在右）。 */
   return '<div class="ghead' + (key === 'recent' ? ' g-recent' : '') + '" id="gh-' + key +
     '" data-k="' + key + '" onclick="toggleGroup(this.dataset.k)">' +
-    '<span class="cv">▼</span><span>' + label + '</span>' +
-    '<span class="cnt">' + n + '</span></div>';
+    '<span>' + label + '</span>' +
+    '<span class="cnt">' + n + '</span>' +
+    '<span class="cv">▼</span></div>';
 }
 function renderGrouped(rows){
   var pin = rows.filter(function(r){ return r.pinned; });
@@ -3025,7 +3081,7 @@ async function runAutoScan(silent){
       SCANCAND.map(function(c,i){
         return '<div class="mem"><div class="top">'+
           '<input type="checkbox" class="sck" data-i="'+i+'" checked>'+
-          '<span class="ttag"><i style="background:'+(c.from_user?"#0a84ff":"#30d158")+'"></i>'+(c.from_user?"我":"AI")+'</span>'+
+          '<span class="ttag"><i style="background:'+(c.from_user?"var(--data-me)":"var(--data-ai)")+'"></i>'+(c.from_user?"我":"AI")+'</span>'+
           '<span class="proj">'+esc(c.session_title||"")+'</span>'+
           '<span class="accent">'+c.mtype+'</span>'+
           '<span class="score">第'+c.turn+'轮</span></div>'+
@@ -3861,7 +3917,7 @@ async function skCopy(){
   loadSkills();
 }
 function roleName(r){return r==="user"?"我":(r==="assistant"?"AI":(r==="raw"?"原文":r))}
-function roleColor(r){return r==="user"?"#0a84ff":(r==="assistant"?"#30d158":(r==="raw"?"#8e8e93":"#bf5af2"))}
+function roleColor(r){return r==="user"?"var(--data-me)":(r==="assistant"?"var(--data-ai)":(r==="raw"?"var(--data-context)":"var(--data-preference)"))}
 async function sessionParse(){
   var t=document.getElementById("s-text").value;
   if(!t.trim()){alert("先粘贴对话内容");return}
@@ -3964,7 +4020,7 @@ async function extractSession(sid){
     rows.map(function(c,i){
       return '<div class="mem"><div class="top">'+
         '<input type="checkbox" class="ck" data-i="'+i+'" checked>'+
-        '<span class="ttag"><i style="background:'+(c.from_user?"#0a84ff":"#30d158")+'"></i>'+(c.from_user?"我":"AI")+'</span>'+
+        '<span class="ttag"><i style="background:'+(c.from_user?"var(--data-me)":"var(--data-ai)")+'"></i>'+(c.from_user?"我":"AI")+'</span>'+
         '<span class="proj">第'+c.turn+'轮</span>'+
         '<span class="accent">'+c.mtype+'</span>'+
         '<span class="score">'+(c.from_user?"优先":"备选")+'</span></div>'+
@@ -4128,7 +4184,7 @@ function scrollSide(el){
 function memChip(m){
   var t=String(m.content||"");
   return '<span class="tchip" onclick="gotoMemCard('+m.id+')" title="'+escAttr(t)+'">'
-    +'<i style="background:'+(TC[m.mtype]||"#8e8e93")+'"></i><b>#'+m.id+'</b>'
+    +'<i style="background:'+(TC[m.mtype]||"var(--data-context)")+'"></i><b>#'+m.id+'</b>'
     +'<span class="tchip-t">'+esc(t)+'</span></span>';
 }
 
@@ -4338,7 +4394,7 @@ async function runAudit(){
   h+='<div class="listhead"><span class="t">重复记忆 · '+r.duplicates.length+' 组</span></div>';
   h+= r.duplicates.length ? r.duplicates.map(function(g,i){
       var ids=g.map(function(x){return x.id}).join(",");
-      return '<div class="mem"><div class="top"><span class="ttag"><i style="background:#ffd60a"></i>重复组 '+(i+1)+'</span>'+
+      return '<div class="mem"><div class="top"><span class="ttag"><i style="background:var(--data-decision)"></i>重复组 '+(i+1)+'</span>'+
         '<span class="proj">'+g.length+' 条同义</span></div><div class="content">'+
         g.map(function(x){return memLine(x,"")}).join("")+'</div>'+
         '<div class="meta"><span>合并后保留最新一条，其余标记作废</span>'+
@@ -4346,7 +4402,7 @@ async function runAudit(){
     }).join("") : '<div class="empty">没有发现重复</div>';
   h+='<div class="listhead"><span class="t">疑似同义 · '+(r.suspects||[]).length+' 对</span></div>';
   h+= (r.suspects||[]).length ? r.suspects.map(function(c){
-      return '<div class="mem"><div class="top"><span class="ttag"><i style="background:#bf5af2"></i>疑似同义</span>'+
+      return '<div class="mem"><div class="top"><span class="ttag"><i style="background:var(--data-preference)"></i>疑似同义</span>'+
         '<span class="score">相似度 '+c.similarity+'</span></div><div class="content">'+
         memLine(c.a,"")+memLine(c.b,"")+'</div>'+
         '<div class="meta"><span>措辞不同但可能是同一件事，请人工判断</span>'+

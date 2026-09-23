@@ -72,18 +72,68 @@
 - **根因**：`BaseHTTPRequestHandler` 在 `handle_one_request()` 收尾还会做一次
   `wfile.flush()`，这一步**不在** `_send` 的 try 里 —— 所以只包 `wfile.write()`
   是白包，探针能稳定触发 10054
-- **改法**：抽出 `_raw()` 做统一出口，只吞 `ConnectionError` / `BrokenPipeError`
-  （断连的正常表现），记一行短日志并 `close_connection = True`；其它异常照常抛。
-  三处写响应（JSON / PNG / 附件下载）全部收口到它
+- **改法**：抽出 `_raw()` 做统一出口，只吞 `ConnectionError`（断连的正常表现），
+  记一行短日志并 `close_connection = True`；其它异常照常抛。
+  三处写响应（JSON / PNG / 附件下载）全部收口到它。
+  （初版文案写成"只吞 `ConnectionError` / `BrokenPipeError`"—— **实际代码只写了一个
+  `except ConnectionError`，这是对的、更简洁**：Python 3.3+ 里 `BrokenPipeError` /
+  `ConnectionAbortedError`（WinError 10053）/ `ConnectionResetError`（10054）
+  **都是 `ConnectionError` 的子类**，一个父类全覆盖。此处更正措辞）
 - 实测：`tools/verify_conn_drop.py` 用裸 socket 发一半就掐 —— 确认①服务端确实走到
   "吞掉"那条路、②stderr 既无 `Traceback` 也无 `WinError 10053`、③正常页面/接口仍 200
 
+### 修复 · 8 处「框」其实画不全（评审第五节存疑①，被证实是真 bug）
+
+- **现象**：`.framed::after` 是画在元素**外面** 2px 的（`left/right/top:-2px`）。
+  落在 `.split-main` 里的栏头，父容器带 `overflow:hidden` → 外扩那 2px 被裁：
+  - `.shead`：左/上/右三面全裁，只剩一条底边；而它自己本来就有 `border-bottom` ——
+    那条底边等于**重描一遍**，纯噪音（栏头下看着多出一条灰线）
+  - `.grphead`：左/右被裁，只剩上下两条线；而 `.grphead` + `.gbody` 本就是完整边框盒
+    → 上下各多一条 2px 外的平行线，看着像"双线"
+- **量出来的**：9 个视图里共 28 个 `.framed`，其中 **8 个三面被裁**（越界量 2.00–2.01px）
+  —— `mem/shead`、`session/shead`、`skill/shead`、`skill/grphead[3..7]`
+- **改法**：这 8 个键在 `FRAME_SELECTION` 里改回 `0`。
+  `.pagehead` / `.dhead` / 部分 `.listhead` 在 `.content` 里（`overflow:auto` 且贴着上边）
+  → 框是完整的，保留
+- **验收**：新增闸门 `verify_frames` → **13/13 个框完好**（并加了防空跑下限：
+  量到的框少于 10 个就判 FAIL，避免"视图没渲染 → 0 个被裁 → 假通过"）
+
+### 调整 · 评审第五节另外两条（都是产品取舍，已按用户诉求定）
+
+- **本机内容页默认只展开第一组**（第③条）：左列 5 组合计约 9000px（光"插件"一组就
+  4888px），进门要滚很久才到底 —— 与"看不了长内容"正面冲突。改为默认只开第一组，
+  一屏能看全 5 个组名 + 条数。**有意不做持久化**：这是"默认视图"不是用户偏好，
+  存起来会让"上次随手展开的一组"在下次进门时留着，看着像默认设置没生效
+  - 实测：左列 `scrollHeight` **约 9000px → 1709px**
+- **采集表状态列只在"待入库"出徽章**（第⑤条）：原先 23 行里 23 行都写"已入库"，
+  一列重复说同一件事等于没信息。已入库的行本来就有三重标记（`.indb` 灰底 +
+  左侧 3px inset 条 + 勾选框 `disabled`），不需要再挂徽章重复
+- **`hover` 上浮 2px 保留**（第②条）：`.mem:hover,.agent:hover` 一直是
+  `translateY(-2px)` + `border-color:var(--line2)`，而规范原文写"列表项禁用 transform"。
+  评审实测在 `.gbody` 的 4px 间隙里**不会重叠**，且上浮是有效的"可点"提示
+  （本轮用户还专门要求加强选中反馈）→ **保留行为、改规范措辞**，
+  把 `docs/设计规范-面板.md` 第四节那句"只动底色，不加描边、不位移"改成与代码一致的描述
+- **`.ghead:hover` 箭头颜色**（第④条）：评审只量到形状没变、没单独量颜色，证据不足。
+  本次补测：常态 `rgb(81,92,105)` → hover `rgb(0,62,143)`，**颜色确实变**，非问题
+
 ### 工程
 
+- 新增闸门 `verify_frames`（框裁切）、`verify_ui_polish`（上三条），均已挂进
+  `tools/run_gates.sh`（重型集）
+- 修正**回收站删除本地工具**（`tools/_del_to_recycle.py`，`_` 前缀故不入库）的**误报**：
+  `SHFileOperationW` 在东西已进回收站时仍会回 2（ERROR_FILE_NOT_FOUND）——
+  原因是经 Git Bash 传参时正/反斜杠被 MSYS 改写，函数读串后回报残留错误码。
+  改为**以文件系统为准**判成功（路径已消失 且 未中止），返回码只当诊断输出，
+  并在文件头写明这个坑
+- 全套闸门 **27/27 PASS**（新增两项后从 25 → 27）
+- 项目根 10 个 `backup-*` 旧备份**移入回收站**（8 个目录 + 2 个孤儿 SQLite sidecar 文件）：
+  删前逐个比对过数据库快照（15/17/40/40/54 条记忆，都是当前 116 条的子集，无独有数据）
+- 项目整体从 `C:\Users\user\Hippocampus` 迁到 `D:\repo`：
+  改了 12 个文件的硬编码路径（2 个 bat / 桌面启动器 / 3 个 Agent 的 MCP 配置 /
+  `tools/` 下 6 个开发脚本），代码与配置零残留；C 盘源目录已移入回收站
 - 新增闸门 `verify_conn_drop`（断连静默），已挂进 `tools/run_gates.sh`（常规集）
 - 闸门 `verify_sel_feedback` 从 3 个列表扩到 **6 个**（新增质检 / 清理·源文件 / 清理·记忆），
-  仍走"真鼠标点击 + 移开鼠标后复读 computed style"，防"hover 冒充选中"；
-  已挂进 `tools/run_gates.sh`（重型集）
+  仍走"真鼠标点击 + 移开鼠标后复读 computed style"，防"hover 冒充选中"
 - 出图工具 `tools/shot_sel_feedback` 同步扩到 3 个场景
   （`docs/shots/sel-{session,audit,clean}-{dark,light}-{before,after}.png`）
 

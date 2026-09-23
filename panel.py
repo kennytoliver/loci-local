@@ -3005,6 +3005,9 @@ async function doScan(){
   ["ck-all","ck-none","ck-go"].forEach(id=>{
     document.getElementById(id).style.display=rows.length?"inline-block":"none"});
   // 表格化（规范 Table 组件：静音表头 + 细描边行 + 彩色状态）。整行是 label，点哪都能勾。
+  // 状态列**只在"待入库"时出徽章**（2026-09-23 评审第⑤条）：绝大多数时候整列都是
+  // "已入库" —— 一列 23 行说同一句话，等于没信息；已入库的行本来就有三重标记
+  // （`.indb` 灰底 + 左侧 3px inset 条 + 勾选框 disabled），不需要再挂个徽章重复。
   el.innerHTML = rows.length ? (
     '<div class="stable">'+
       '<div class="shead-row"><span></span><span>内容预览</span><span>类型</span>'+
@@ -3016,7 +3019,7 @@ async function doScan(){
           <span class="cell">${esc(it.kind)}</span>
           <span class="cell">${esc(it.source)}</span>
           <span class="cell">${esc(it.date)}</span>
-          <span>${it.in_db?'<span class="bdg state">已入库</span>':'<span class="bdg pin">待入库</span>'}</span>
+          <span>${it.in_db?'':'<span class="bdg pin">待入库</span>'}</span>
         </label>`).join("")+
     '</div>'
   ) : '<div class="empty">没有发现可采集的文件</div>';
@@ -3178,7 +3181,7 @@ function grp(title,n,note){
    "每一类单独一个框，能整块收起来"）。做法是后处理而不是改渲染代码 ——
    段数和顺序会随探测结果变，直接改拼接字符串容易漏一处。
    包好之后直接复用记忆页那套 toggleGroup：段头点一下，.gbody 整块 display:none。 */
-function wrapGroups(root){
+function wrapGroups(root, onlyFirstOpen){
   if(!root)return;
   var heads=Array.prototype.slice.call(root.querySelectorAll(".grphead"));
   heads.forEach(function(h,i){
@@ -3206,6 +3209,20 @@ function wrapGroups(root){
     foot.onclick=function(ev){ev.stopPropagation();toggleGroup(key)};
     body.parentNode.insertBefore(foot,body.nextSibling);
   });
+  /* ── 只展开第一组，其余收起（2026-09-23 评审第③条）──
+     左列 5 组合计约 9000px（光"插件"一组就 4888px）—— 进门先看到一整屏组标题、
+     要滚很久才到底部，跟"看不了长内容"的诉求正面冲突。
+     收起后一屏能看全所有组名 + 各自条数，想开哪组点哪组。
+     ⚠️ 有意**不做持久化**：这是"默认视图"不是用户偏好。若把展开状态存起来，
+     上次随手展开的一组会在下次进门时留着，看着像"默认设置没生效"。
+     在渲染函数里同步调用，不会有一闪而过的展开动画。 */
+  if(onlyFirstOpen){
+    heads.forEach(function(h,i){
+      if(i===0)return;
+      var b=document.getElementById("g-skg"+i);
+      if(b&&!b.classList.contains("hide"))toggleGroup("skg"+i);
+    });
+  }
 }
 /* 把某个页面里的 .panel 逐个变成可折叠（点标题栏收起）—— 清理页有 4 个 Panel，
    用户要求也能折。同样用后处理，不改 HTML。默认展开，状态也走 toggleGroup。 */
@@ -3230,11 +3247,23 @@ function wrapPanels(viewId, keys){
    判断依据：往上找有没有 .panel / .split-main / .split-side —— 它们的边框已经是框了，
    再描一圈就是双重框（用户原话："本身就在框里面的，为什么要多此一举"）。 */
 /* ── 框线选择清单（**用户在 ?frames=1 里亲手点的，不是自动判断的**）──
-   40 处，1 = 要框，0 = 不要，未列出的 = 不加。
+   1 = 要框，0 = 不要，未列出的 = 不加。
    键的格式与标注模式的 keyOf() 完全一致：`页面/类名[该类在该页候选里的下标]`。
    要改规则：地址后加 ?frames=1 重选一遍，点右上角浮条复制，贴回来即可。
    ⚠️ 不要再用"在不在框里"去自动推断 —— 用户的选择跟这个不总一致（例如清理页
-   4 个 Panel 的标题他在框内也要框，而记忆包页 3 个在框内他偏不要）。 */
+   4 个 Panel 的标题他在框内也要框，而记忆包页 3 个在框内他偏不要）。
+
+   ── 2026-09-23 修正：8 个键从 1 改回 0（评审报告第五节存疑① 被证实是真 bug）──
+   `.framed::after` 是画在元素**外面** 2px 的（left/right/top:-2px）。凡是落在
+   `.split-main` 里的栏头，父容器有 overflow:hidden，那外扩的 2px 会被裁掉：
+     · `.shead` —— 左/上/右三面全裁，只剩一条底边；而 `.shead` 自己本来就有
+       `border-bottom:1px solid var(--line)` → 那条底边就是**重描一遍**，纯噪音
+     · `.grphead` —— 左/右被裁，只剩上/下两条线；而 `.grphead` + `.gbody` 本来就是
+       一个完整的边框盒 → 上下各多出一条 2px 外的平行线，看着像"双线"
+   验证工具：`node tools/verify_frames.js http://127.0.0.1:8787`（逐元素量越界量，
+   越界 >0 即被裁；已挂进闸门，红了说明清单又对不上了）。
+   结论：**栏头类的框一律不要**；`.pagehead` / `.dhead` / 部分 `.listhead` 在
+   `.content` 里（overflow:auto，且它们贴着上边）→ 框是完整的，保留。 */
 var FRAME_SELECTION={
   "agents/listhead[1]":0, "agents/listhead[2]":1, "agents/pagehead[0]":1,
   "audit/listhead[1]":1, "audit/listhead[2]":1, "audit/listhead[3]":1,
@@ -3244,13 +3273,13 @@ var FRAME_SELECTION={
   "clean/listhead[4]":0, "clean/pagehead[0]":1,
   "collect/listhead[1]":0, "collect/pagehead[0]":1,
   "handoff/listhead[1]":0, "handoff/pagehead[0]":1,
-  "mem/dhead[2]":1, "mem/pagehead[0]":1, "mem/shead[1]":1,
+  "mem/dhead[2]":1, "mem/pagehead[0]":1, "mem/shead[1]":0,
   "pack/listhead[1]":0, "pack/listhead[2]":0, "pack/listhead[3]":0, "pack/pagehead[0]":1,
   "session/dhead[4]":1, "session/listhead[1]":0, "session/listhead[2]":1,
-  "session/pagehead[0]":1, "session/shead[3]":1,
-  "skill/grphead[3]":1, "skill/grphead[4]":1, "skill/grphead[5]":1,
-  "skill/grphead[6]":1, "skill/grphead[7]":1,
-  "skill/listhead[1]":0, "skill/pagehead[0]":1, "skill/shead[2]":1
+  "session/pagehead[0]":1, "session/shead[3]":0,
+  "skill/grphead[3]":0, "skill/grphead[4]":0, "skill/grphead[5]":0,
+  "skill/grphead[6]":0, "skill/grphead[7]":0,
+  "skill/listhead[1]":0, "skill/pagehead[0]":1, "skill/shead[2]":0
 };
 /* 每个框"往下拉大"多少 px（用户在 ?frames=1 里拖出来的）。框会真的往下延伸这么多，
    把下面更多内容圈进来 —— 用绝对定位的 ::after 画，不占布局。 */
@@ -3589,7 +3618,7 @@ async function loadSkills(){
       '</strong> 个插件旧版本躺在磁盘上，在上面「插件」里点开任一个就能看到它的全部版本'+
       '（含"当前 / 旧"标记和各自的时间）。这些是装机时留下的，可清理 —— '+
       '面板只报，不动手删。</div>'):'');
-  wrapGroups(box);
+  wrapGroups(box, true);   // true = 默认只展开第一组（评审第③条）
 }
 /* 把正文里的 `# xxx` 行变成真标题，并生成一条小节条。
    少于 2 节就别加 —— 不然又是一种视觉噪音。返回要插在正文前的 HTML（或空串）。 */

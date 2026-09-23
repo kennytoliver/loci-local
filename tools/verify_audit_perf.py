@@ -11,7 +11,7 @@ quality_scan() 结果比对：重复组、疑似同义、可能矛盾三项必�
 零第三方依赖：python tools/verify_audit_perf.py
 """
 import sys, time
-sys.path.insert(0, r"C:/Users/user/Hippocampus")
+sys.path.insert(0, r"D:/repo")
 import hippocampus as hippo
 
 

@@ -12,7 +12,7 @@ import os
 import sys
 import tempfile
 
-sys.path.insert(0, r"C:/Users/user/Hippocampus")
+sys.path.insert(0, r"D:/repo")
 import install_agents as IA
 
 OLD_HIPPO = """<!-- hippohub:begin -->

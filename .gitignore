@@ -50,3 +50,15 @@ archive/
 
 # 损坏的 git 仓库副本（事故回退用，不属于项目）
 .git-broken-*/
+
+# ===== 令牌 / 密钥（2026-09-25 加）=====
+# 本机上确实存在 github_token.txt 这类文件（统一放仓库外的 ~/.workbuddy/）。
+# 这里再兜一层：万一哪天手滑把它拖进仓库目录，也不会被提交上去。
+# （审计发现：加之前这个文件一条 token/密钥规则都没有）
+.env
+.env.*
+*.token
+github_token.txt
+gh_token.txt
+.gh_token
+credentials.json

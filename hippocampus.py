@@ -16,6 +16,16 @@ Hippocampus（海马体）— 个人跨 Agent 记忆中枢（零依赖单文件�
 """
 import sys, os, io, json, math, re, sqlite3, argparse, datetime, hashlib
 
+# ⚠️ 全项目**唯一**的版本号来源（2026-09-25 统一）。
+#    以前是 3 处字面量各写各的：MCP serverInfo「0.2.0」、面板页脚「v0.2.0」、
+#    面板自检 clientInfo「0.2」—— 发到 v0.3 之后这三处还都停在 0.2，
+#    用户在界面上看到的版本号是错的。现在只在这里定义：
+#      · 本文件 MCP 握手用它
+#      · panel.py 页脚用它（serve 时替换 __APP_VERSION__ 占位符）
+#      · panel.py 自检 clientInfo 用它
+#    发版时**只改这一行**。
+APP_VERSION = "0.3"
+
 # 环境变量：优先新名，兼容旧名（老配置里可能还写着 HIPPOHUB_DB）
 _ENV_DB = os.environ.get("HIPPOCAMPUS_DB") or os.environ.get("HIPPOHUB_DB")
 # 来源标记：各 Agent 的 MCP 配置里设置 HIPPOCAMPUS_AGENT，写入记忆时自动带上，
@@ -2821,7 +2831,7 @@ def mcp_server():
             reply(rid, {
                 "protocolVersion": ver,
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "hippocampus", "version": "0.2.0"}})
+                "serverInfo": {"name": "hippocampus", "version": APP_VERSION}})
         elif method == "notifications/initialized":
             pass
         elif method == "tools/list":

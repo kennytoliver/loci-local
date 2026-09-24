@@ -999,7 +999,8 @@ def verify_mcp(timeout=20):
     try:
         send({"jsonrpc": "2.0", "id": 1, "method": "initialize",
               "params": {"protocolVersion": "2024-11-05", "capabilities": {},
-                         "clientInfo": {"name": "hippocampus-panel", "version": "0.2"}}})
+                         "clientInfo": {"name": "hippocampus-panel",
+                                        "version": hippo.APP_VERSION}}})
         r = recv()
         name = (r or {}).get("result", {}).get("serverInfo", {}).get("name")
         send({"jsonrpc": "2.0", "method": "notifications/initialized"})
@@ -2193,7 +2194,7 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
       <a class="nav" data-v="pack"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.5L12 4l8.5 4.5v7L12 20l-8.5-4.5z"/><path d="M3.5 8.5L12 13l8.5-4.5M12 13v7"/></svg><span>记忆包</span></a>
       <a class="nav" data-v="handoff"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="6" width="17" height="12" rx="3"/><path d="M8 11h8M8 14h5"/></svg><span>交接卡</span></a>
     </nav>
-    <div class="sfoot">v0.2.0 · 本地运行</div>
+    <div class="sfoot">v__APP_VERSION__ · 本地运行</div>
     <button id="backtop" onclick="backTop()" title="回到顶部" aria-label="回到顶部">↑</button>
   </aside>
 
@@ -5490,7 +5491,10 @@ class Handler(BaseHTTPRequestHandler):
         _touch()
         q = parse_qs(u.query)
         if u.path in ("/", "/index.html"):
-            self._send(200, PAGE, "text/html; charset=utf-8")
+            # 版本号只有一处来源（hippocampus.APP_VERSION），页脚里是 __APP_VERSION__ 占位符。
+            # 单次 str.replace 的开销可以忽略，换来"发版只改一行"。
+            self._send(200, PAGE.replace("__APP_VERSION__", hippo.APP_VERSION),
+                       "text/html; charset=utf-8")
         elif u.path == "/selftest":
             self._send(200, SELFTEST, "text/html; charset=utf-8")
         elif u.path == "/api/stats":

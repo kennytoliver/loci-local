@@ -127,7 +127,7 @@ python test_panel.py   # 面板回归测试：JS 语法守卫/元素完整性/�
 
 | 文件 | 作用 |
 |---|---|
-| `hippocampus.py` | 核心引擎 + MCP Server + CLI（约 1,400 行，零依赖） |
+| `hippocampus.py` | 核心引擎 + MCP Server + CLI（约 2,900 行，零依赖） |
 | `panel.py` | 单文件网页面板（零依赖，复用 hippocampus.py） |
 | `test_mcp.py` | 引擎端到端测试 |
 | `test_panel.py` | 面板回归测试（JS 语法守卫） |

@@ -47,6 +47,7 @@ GATES=(
   "verify_rules_migration|$PY tools/verify_rules_migration.py"
   "verify_shutdown|$PY tools/verify_shutdown.py"
   "verify_panel_api|$PY tools/verify_panel_api.py $BASE"
+  "verify_csrf|$PY tools/verify_csrf.py $BASE"
   "verify_audit_perf|$PY tools/verify_audit_perf.py"
   "measure_layers|$NODE tools/measure_layers.js $BASE"
   "smoke_panel|$NODE tools/smoke_panel.js $BASE"

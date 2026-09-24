@@ -1027,6 +1027,10 @@ def verify_mcp(timeout=20):
 _LAST_SEEN = [0.0]      # 最近一次活动（单调时钟）
 IDLE_EXIT_SEC = 300     # 默认 5 分钟；设为 0 表示常驻不自动退出
 
+# 面板实际绑定的端口。CSRF 守卫要用它来判断"请求是不是本面板自己发的"
+# （见 Handler._origin_allowed）。main() 里赋值，未启动时为 None（此时一律放行）。
+_BOUND_PORT = [None]
+
 
 def _now_mono():
     import time as _t
@@ -4873,9 +4877,62 @@ class Handler(BaseHTTPRequestHandler):
     def _json(self, obj):
         self._send(200, json.dumps(obj, ensure_ascii=False))
 
+    # ── CSRF 守卫（2026-09-24 加）─────────────────────────────────────────
+    # 以前 do_GET / do_POST 只要路径匹配就执行，**完全不看请求从哪来**。
+    # 实测（真 Chrome，从一个别的源 8800 打开页面）：那个页面能静默写库 ——
+    #   攻击前 118 条 → 攻击后 119 条，多出一条 agent=panel 的伪造记忆。
+    # 比删库更阴险的是**污染上下文**：假记忆会被 4 个 Agent 当事实读走。
+    #
+    # 判据（不依赖任何客户端可控的内容）：
+    #   · Origin / Referer 指向本面板自己（127.0.0.1 / localhost / ::1 + 同一端口）→ 放行
+    #   · 带了 Origin/Referer 但不是自己 → 403，一个动作都不执行
+    #   · 两者都没带（curl、tools/verify_*.py、MCP 直连）→ 放行
+    #     浏览器发 POST 一定带 Origin，所以"没带 = 不是浏览器发起的跨站请求"。
+    #
+    # 为什么不用"强制 Content-Type: application/json"（社区通行做法）——
+    # 实测不可靠：连跑 3 次全被拦，但中间出现过 1 次照样写进去了。
+    # 这个不确定性写在 docs/ 的交接包里，留给专家定位。
+    @staticmethod
+    def _origin_allowed(v):
+        """v 为 Origin / Referer 原串。返回 True=自己人 False=外人 None=没带。"""
+        if not v:
+            return None
+        try:
+            p = urlparse(v)
+        except Exception:
+            return False
+        if p.scheme not in ("http", "https"):
+            # 含 Origin: null（沙箱 iframe / file:// 页面）—— 一律当外人
+            return False
+        if (p.hostname or "").lower() not in ("127.0.0.1", "localhost", "::1"):
+            return False
+        if p.port:
+            bound = _BOUND_PORT[0]
+            if bound and p.port != bound:
+                return False
+        return True
+
+    def _csrf_guard(self):
+        """放行返回 True；拦下则已回 403 并返回 False。"""
+        o = self._origin_allowed(self.headers.get("Origin"))
+        r = self._origin_allowed(self.headers.get("Referer"))
+        if o is False or r is False:
+            _orig = self.headers.get("Origin") or self.headers.get("Referer") or ""
+            self._send(403, json.dumps({
+                "error": "来源不被信任：面板只接受本机自身的请求",
+                "detail": "来自 %s 的跨站请求已被拒绝（CSRF 防护）" % (_orig[:120]),
+            }, ensure_ascii=False))
+            return False
+        return True
+
     def do_GET(self):
-        _touch()
         u = urlparse(self.path)
+        # /api/ 下不全是只读的（/api/autoscan 会抽取落库、/api/open-folder 会开资源管理器），
+        # 所以整段按来源校验。页面本身（/ 与 /selftest）不校验 —— 顶层导航不带 Origin，
+        # 从聊天软件里点链接进面板不该被自己拦掉。
+        if u.path.startswith("/api/") and not self._csrf_guard():
+            return
+        _touch()
         q = parse_qs(u.query)
         if u.path in ("/", "/index.html"):
             self._send(200, PAGE, "text/html; charset=utf-8")
@@ -5039,6 +5096,9 @@ class Handler(BaseHTTPRequestHandler):
             self._send(404, '{"error":"not found"}')
 
     def do_POST(self):
+        # 所有写操作都从这里进 —— 先过 CSRF 守卫，外人一个字节都别想落库。
+        if not self._csrf_guard():
+            return
         _touch()
         u = urlparse(self.path)
         length = int(self.headers.get("Content-Length", 0))
@@ -5200,6 +5260,7 @@ def main():
     a = ap.parse_args()
     global IDLE_EXIT_SEC
     IDLE_EXIT_SEC = max(0, a.idle_exit)
+    _BOUND_PORT[0] = a.port   # 给 CSRF 守卫判断"自己人"用
     url = f"http://127.0.0.1:{a.port}"
     # 端口已被占：给一句人话，别抛栈。
     # 之前这里没有任何防护 —— 点两次快捷方式就会看到满屏红色 Traceback，

@@ -26,7 +26,7 @@ BASE="${BASE:-http://127.0.0.1:8787}"
 FILTER="${1:-}"
 
 # 重型闸门：出现名字里的关键字就归为"慢"
-HEAVY="audit_tokens measure_layers smoke_panel verify_link_shots verify_link_measure verify_slist_rows verify_pane_guide verify_sel_feedback verify_frames verify_ui_polish verify_shutdown verify_audit_perf verify_extract_perf shot_new_pages verify_content"
+HEAVY="audit_tokens measure_layers smoke_panel verify_link_shots verify_link_measure verify_slist_rows verify_pane_guide verify_folds verify_sel_feedback verify_frames verify_ui_polish verify_shutdown verify_audit_perf verify_extract_perf shot_new_pages verify_content"
 
 # 名称 | 命令  （顺序按规范第八节；越靠前越快）
 GATES=(
@@ -55,6 +55,7 @@ GATES=(
   "verify_link_measure|$NODE tools/verify_link_measure.js $BASE"
   "verify_slist_rows|$NODE tools/verify_slist_rows.js $BASE"
   "verify_pane_guide|$NODE tools/verify_pane_guide.js $BASE"
+  "verify_folds|$NODE tools/verify_folds.js $BASE"
   "verify_sel_feedback|$NODE tools/verify_sel_feedback.js $BASE"
   "verify_frames|$NODE tools/verify_frames.js $BASE"
   "verify_ui_polish|$NODE tools/verify_ui_polish.js $BASE"

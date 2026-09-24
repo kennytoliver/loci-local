@@ -1420,6 +1420,69 @@ select,.formrow input[type=text]{background:var(--d2);border:1px solid var(--lin
 .pagehead .pacts .pgrp{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap}
 .pagehead .pacts .psep{width:1px;height:20px;background:var(--line);flex:0 0 1px}
 .pagehead .pacts .proj-sel{max-width:190px}
+
+/* ── 页头「数据与说明」折叠区（2026-09-24 用户要求）─────────────────────────
+   用户原话：每个页面的页头都铺着一行数据 + 一段注释结论，占掉不少视野，
+   第一眼该看到的是内容本身，这些文字需要时再展开。
+   做法：把 .pagehead 之后紧邻的 .psub（数据行）/ .lead（注释结论）挪进
+   .pfold > .pfin，标题右侧挂一个胶囊按钮开合，**默认收起**。结构由 pmAll()
+   后处理生成 —— 和 wrapGroups / secApply 同一个套路，9 处 HTML 不用各写一遍，
+   以后新页面只要 .pagehead 后面跟 .psub/.lead，就自动被折起来。
+   ⚠️ 类名刻意避开 .pagehead/.listhead/.shead/.dhead/.grphead：
+       frameKeyOf() 是按"同 section 内 FRAME_SEL 命中项的序号"生成 key 的，
+       多命中一个元素，FRAME_SELECTION 整张清单就会错位（画框标注指到别的元素）。
+   ⚠️ 展开/收起用 grid-template-rows 0fr→1fr —— 不需要预先知道内容高度；
+       浏览器不支持这条过渡时只是"没有动画"，不会有尺寸错位（比 max-height 猜值稳）。
+   ⚠️ 状态**不持久化**（只活在本次会话），与项目里"默认视图不是用户偏好"的约定一致：
+       存进 localStorage 的话，上次随手展开过的一页，下次进门就不再是默认样子了。 */
+.pagehead .phead-l{display:flex;align-items:center;gap:10px;min-width:0}
+.psub{font-size:12.5px;color:var(--faint);line-height:1.6;margin:0}
+.psub b{color:var(--sub);font-weight:600}
+.pmtgl{display:inline-flex;align-items:center;gap:5px;flex:0 0 auto;font:inherit;
+  font-size:12px;line-height:1;color:var(--faint);background:var(--d2);
+  border:1px solid var(--line);border-radius:999px;padding:5px 10px 5px 8px;cursor:pointer}
+.pmtgl:hover{background:var(--d3);color:var(--sub)}
+.pmtgl .cvs{width:11px;height:11px;flex:0 0 auto;transition:transform .2s ease}
+.pmtgl[aria-expanded="true"]{color:var(--acc-ink);background:var(--d3)}
+.pmtgl[aria-expanded="true"] .cvs{transform:rotate(90deg)}
+.pmtgl:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.pfold{display:grid;grid-template-rows:0fr;opacity:.001;overflow:hidden;
+  transition:grid-template-rows .22s var(--ease),opacity .18s ease}
+.pfold.pf-on{grid-template-rows:1fr;opacity:1}
+.pfold>.pfin{overflow:hidden;min-height:0;display:flex;flex-direction:column;gap:10px;
+  padding-bottom:0}
+.pfold.pf-on>.pfin{padding-bottom:20px}
+.pfold>.pfin>.lead{margin-bottom:0}
+
+/* ── 本机内容页的 4 张 KPI 卡（技能 / MCP / 插件 / 配置文件）───────────────
+   2026-09-24 用户指定就要这四类（文件名原话：「4 张 KPI 卡需要改成
+   skill、MCP、插件、配置文件」），不要"总数 / 备份 / 来源"混在里面。
+   数字由 loadSkills() 用真实探测结果填 —— **不写死**：原型里那版"技能 10 /
+   插件 60"是编的，被用户当场揪出来过，这类数字必须能对上 /api/skills 与 /api/content。
+   卡片沿用项目现有语言：纯平（阴影全透明）、靠 1px 描边与面差分层，
+   hover 只抬 2px + 描边提一档，不引入阴影。 */
+.kgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--space-3);
+  margin-bottom:var(--space-5)}
+@media (max-width:1100px){.kgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:var(--radius-lg);
+  padding:var(--space-4);display:flex;flex-direction:column;gap:10px;min-width:0}
+.kpi .ktop{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.kpi .kt{font-size:12.5px;font-weight:600;color:var(--sub)}
+.kpi .kic{width:26px;height:26px;flex:0 0 auto;border-radius:var(--radius-md);
+  background:var(--d3);display:grid;place-items:center}
+.kpi .kic svg{width:15px;height:15px}
+/* line-height:1 会把行盒压到比字形窄（数字的墨会溢出到盒子外），
+   下面那条 4px 的条再贴 8px 就几乎咬住数字。给 2px 缓冲，视觉上才"数字归数字" */
+.kpi .kv{font-family:var(--sans);font-size:32px;font-weight:600;line-height:1;
+  letter-spacing:-1px;color:var(--ink);font-variant-numeric:tabular-nums;padding-bottom:2px}
+.kpi .kv .u{font-size:13px;font-weight:500;color:var(--faint);margin-left:3px;letter-spacing:0}
+.kpi .kbar{height:3px;border-radius:2px;background:var(--d3);overflow:hidden}
+.kpi .kbar>i{display:block;height:100%;border-radius:2px;width:0;
+  transition:width .32s var(--ease)}
+.kpi .kfoot{display:flex;justify-content:space-between;gap:8px;font-size:11.5px;
+  color:var(--faint);line-height:1.5}
+.kpi .kfoot>span:last-child{text-align:right;flex-shrink:0}
+
 /* 页面骨架的卡片节奏：卡片之间 20px（库的 .content 用 calc(--spacing*5)），
    区块标题（.listhead）跟着卡片走。规范第五节的 A/B/C 三套骨架都靠这两条，
    页面上就不用写内联 margin 了 */
@@ -1473,7 +1536,9 @@ select,.formrow input[type=text]{background:var(--d2);border:1px solid var(--lin
    切换页面靠的是 JS 设 hidden 属性，CSS 绝不能把它顶掉。 */
 #v-session:not([hidden]){display:flex;flex-direction:column}
 #v-session>.pagehead{order:1}
-#v-session>.lead{order:2}
+/* ⚠️ .lead 会被 pmAll() 挪进 .pfold，所以两条都得带 order —— 只写 .lead 的话，
+   折叠区退回默认 order:0，会跳到页面最上面去。 */
+#v-session>.lead,#v-session>.pfold{order:2}
 #v-session>#scan-msg{order:3}
 #v-session>#scan-out{order:4}
 #v-session>.listhead{order:5}
@@ -1484,9 +1549,10 @@ select,.formrow input[type=text]{background:var(--d2);border:1px solid var(--lin
 /* ⚠️ 同 #v-session：必须带 :not([hidden])，否则会顶掉 hidden 的 display:none */
 #v-skill:not([hidden]){display:flex;flex-direction:column}
 #v-skill>.pagehead{order:1}
-#v-skill>.lead{order:2}
-#v-skill>.split{order:3}
-#v-skill>.panel{order:4}
+#v-skill>.lead,#v-skill>.pfold{order:2}   /* 同上：.lead 会被挪进 .pfold */
+#v-skill>.kgrid{order:3}                  /* 4 张 KPI 卡：技能 / MCP / 插件 / 配置文件 */
+#v-skill>.split{order:4}
+#v-skill>.panel{order:5}
 .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .hint{font-size:12px;color:var(--faint);line-height:1.7;margin-top:10px}
 /* 本机对话来源列表 —— 让"这次到底扫了谁、为什么"看得见
@@ -1532,9 +1598,10 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
 /* 卡片入场（stagger：渲染时写入 --i） */
 .agent,.stat{animation:cardIn .34s var(--ease) both;animation-delay:calc(var(--i,0)*32ms)}
 
-/* 悬停微交互 */
-.mem,.agent,.stat{transition:transform .18s var(--ease),border-color .18s var(--ease),background .18s var(--ease)}
-.mem:hover,.agent:hover{transform:translateY(-2px);border-color:var(--line2)}
+/* 悬停微交互（.kpi 是 2026-09-24 加的 KPI 卡，共用同一条：抬 2px + 描边提一档，
+   都不参与布局，所以量尺寸的闸门读到的数字不变） */
+.mem,.agent,.stat,.kpi{transition:transform .18s var(--ease),border-color .18s var(--ease),background .18s var(--ease)}
+.mem:hover,.agent:hover,.kpi:hover{transform:translateY(-2px);border-color:var(--line2)}
 .btn,.mini,.del,.nav{transition:transform .12s var(--ease),background .16s var(--ease),color .16s var(--ease)}
 .btn:active,.mini:active,.del:active{transform:scale(.965)}
 /* 键盘焦点可见环：亮色蓝 / 暗色白（规范 --ring） */
@@ -2365,9 +2432,50 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
             <button class="btn" onclick="loadSkills()">重新探测</button>
           </div>
         </div>
+        <!-- 数据行 + 注释结论：pmAll() 会把这两个一起收进 .pfold（默认收起），
+             第一眼看到的是下面 4 张 KPI 卡，而不是文字。 -->
+        <p class="psub" id="sk-psub">正在探测本机内容…</p>
         <p class="lead">记忆传结论，技能传能力。这里清算本机各 Agent 的三类内容：
           <b>技能</b>（能互相传的那类）、<b>配置文件</b>、<b>MCP</b>。
           全部只读；配置文件里的密钥一律不读值。传递＝复制，源目录不会被删。</p>
+
+        <!-- 4 张 KPI 卡（2026-09-24 用户指定：技能 / MCP / 插件 / 配置文件）。
+             数字全部由 loadSkills() 从 /api/skills 与 /api/content 的真实结果填，
+             写死过的版本被用户当场揪出来过 —— 这类数字必须能对上接口。 -->
+        <div class="kgrid" id="sk-kpi">
+          <div class="kpi">
+            <div class="ktop"><span class="kt">技能</span>
+              <span class="kic" style="color:var(--data-skill)"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 2.4l1.7 3.5 3.8.5-2.8 2.7.7 3.8L8 11l-3.4 1.9.7-3.8L2.5 6.4l3.8-.5z"/></svg></span>
+            </div>
+            <div class="kv"><span id="kpi-skill">—</span><span class="u">个</span></div>
+            <div class="kbar"><i id="kpi-skill-b" style="background:var(--data-skill)"></i></div>
+            <div class="kfoot"><span>可互相传递的能力</span><span id="kpi-skill-f">探测中…</span></div>
+          </div>
+          <div class="kpi">
+            <div class="ktop"><span class="kt">MCP</span>
+              <span class="kic" style="color:var(--data-decision)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="11" height="8" rx="2"/><path d="M8 2.4V4"/><circle cx="5.8" cy="8" r=".9"/><circle cx="10.2" cy="8" r=".9"/></svg></span>
+            </div>
+            <div class="kv"><span id="kpi-mcp">—</span><span class="u">个</span></div>
+            <div class="kbar"><i id="kpi-mcp-b" style="background:var(--data-decision)"></i></div>
+            <div class="kfoot"><span>配置里已声明的服务</span><span id="kpi-mcp-f">探测中…</span></div>
+          </div>
+          <div class="kpi">
+            <div class="ktop"><span class="kt">插件</span>
+              <span class="kic" style="color:var(--data-context)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.2 3.4l4.8 3 4.8-3v9.2l-4.8-3-4.8 3z"/><path d="M8 6.4v9.2"/></svg></span>
+            </div>
+            <div class="kv"><span id="kpi-plugin">—</span><span class="u">个</span></div>
+            <div class="kbar"><i id="kpi-plugin-b" style="background:var(--data-context)"></i></div>
+            <div class="kfoot"><span>各 Agent 已安装的插件</span><span id="kpi-plugin-f">探测中…</span></div>
+          </div>
+          <div class="kpi">
+            <div class="ktop"><span class="kt">配置文件</span>
+              <span class="kic" style="color:var(--data-fact)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4.5h11M2.5 11.5h11"/><circle cx="6" cy="4.5" r="1.6"/><circle cx="10.5" cy="11.5" r="1.6"/></svg></span>
+            </div>
+            <div class="kv"><span id="kpi-cfg">—</span><span class="u">份</span></div>
+            <div class="kbar"><i id="kpi-cfg-b" style="background:var(--data-fact)"></i></div>
+            <div class="kfoot"><span>密钥一律不读值</span><span id="kpi-cfg-f">探测中…</span></div>
+          </div>
+        </div>
 
         <div class="panel">
           <div class="listhead ghead collapsed" id="gh-skillsrc" onclick="toggleGroup('skillsrc')">
@@ -2515,6 +2623,10 @@ if(["mem","session","audit","clean","collect","agents","skill","pack","handoff"]
 // 没带锚点时落在「会话」：面板是给人看的，先看「发生过什么对话」，
 // 再看从对话里提炼出的记忆碎片（碎片是给模型检索用的，不该当第一眼）。
 else{ show("session"); }
+/* 页头的「数据与说明」默认收起（见 pmAll 注释）。放在这里而不是 show(v) 里：
+   9 个 section 一开始就在 DOM 里，装完再切页，不会出现"先展开一下再收起"的闪动。
+   pmAll 是函数声明，会提升，所以写在这里也能调到（定义在脚本中段）。 */
+pmAll();
 function goAdd(){show("mem");document.getElementById("form").classList.add("open");
   document.getElementById("f-content").focus()}
 function backToList(){document.getElementById("q").value="";show("mem");loadList()}
@@ -3594,6 +3706,30 @@ async function loadSkills(){
   /* 本机磁盘上留着的插件旧版本总数。这个数**不是装饰** ——
      它是"就地清算"的度量：装了 55 个插件，磁盘上却有 130 个版本目录。 */
   var OLDVER=PLUGINS.reduce(function(n,p){return n+(p.old_count||0)},0);
+  /* ── 4 张 KPI 卡 + 页头数据行（2026-09-24）──────────────
+     全部吃上面这几个真实数组的长度，**没有一个写死的数字**。
+     条宽按"当前最大的一类"取满分比：这样 4 条并排时能一眼看出量级差，
+     而不是四条都顶满（顶满等于没信息）。 */
+  (function(){
+    var max=Math.max(SKILLS.length,CFGS.length,MCPS.length,PLUGINS.length,1);
+    var put=function(id,n,foot){
+      var e=document.getElementById(id);if(e)e.textContent=n;
+      var b=document.getElementById(id+"-b");
+      if(b)b.style.width=Math.round(n/max*100)+"%";
+      var f=document.getElementById(id+"-f");if(f)f.textContent=foot;
+    };
+    var usr=SKILLS.filter(function(k){return k.scope==="用户级"}).length;
+    var mags={};MCPS.forEach(function(m){mags[m.agent]=1});
+    var magc=Object.keys(mags).length;
+    put("kpi-skill",SKILLS.length,"用户级 "+usr+" · 内置 "+(SKILLS.length-usr));
+    put("kpi-mcp",MCPS.length,magc?("来自 "+magc+" 个 Agent"):"本机没探到 mcp.json");
+    put("kpi-plugin",PLUGINS.length,OLDVER?("磁盘另有 "+OLDVER+" 个旧版本"):"无历史版本");
+    put("kpi-cfg",CFGS.length,BACKUPS.length?("另有 "+BACKUPS.length+" 份备份"):"无备份");
+    var ps=document.getElementById("sk-psub");
+    if(ps)ps.innerHTML="技能 <b>"+SKILLS.length+"</b> · 配置文件 <b>"+CFGS.length+
+      "</b> · MCP <b>"+MCPS.length+"</b> · 插件 <b>"+PLUGINS.length+
+      "</b> · 另含备份 <b>"+BACKUPS.length+"</b> · 来源 <b>"+CSRC.length+"</b>";
+  })();
   /* 来源卡片。分三组渲染：
        用户级（4 个，各 Agent 一个）+ 有内容的项目级 + 其余项目级的**汇总一行**。
      一开始是 11 行平铺，其中 7 行都是"这个工作区还没建 skills 目录"，
@@ -4249,6 +4385,67 @@ function foldOne(el){
   el.insertAdjacentElement("afterend",btn);
 }
 function foldAll(){document.querySelectorAll(FOLD_SEL).forEach(foldOne)}
+
+/* ---------- 页头「数据与说明」折叠（2026-09-24）----------
+   用户原话：每页页头那行数据 + 一段注释结论占了较多视野，第一眼该看到内容，
+   这些文字做成可收起 / 可展开，**默认收起**。
+   机制：把 .pagehead 之后**紧邻**的 .psub / .lead 挪进 .pfold > .pfin，
+   标题右侧挂一个胶囊按钮开合。只做一次（dataset.pmReady 打标）。
+   ⚠️ 三个刻意的选择：
+     · 状态不持久化（PM_OPEN 只活在内存里）。"默认收起"是默认视图不是用户偏好，
+       存 localStorage 的话上次随手展开过的一页，下次进门就不再是默认样子。
+     · 用后处理而不是改 9 处 HTML —— 和 wrapGroups / secApply 同一套路；
+       以后新增页面只要 .pagehead 后面跟 .psub/.lead，自动被折起来。
+     · 没有可折叠内容时不插按钮（不留"点了没反应"的控件）。
+   ⚠️ 折叠器类名是 .pfold，**不是** .pagehead/.listhead/.shead/.dhead/.grphead ——
+      frameKeyOf() 按"同 section 内 FRAME_SEL 命中项的序号"生成 key，
+      多命中一个就会让整张 FRAME_SELECTION 清单错位。 */
+var PM_OPEN={};
+function pmAll(){
+  Array.prototype.forEach.call(
+    document.querySelectorAll("section[id^='v-']>.pagehead"),function(h){
+    if(h.dataset.pmReady)return;
+    h.dataset.pmReady="1";
+    var sec=h.closest("section"),key=sec?sec.id.replace(/^v-/,""):"";
+    /* ① 页头后面紧邻的数据行 / 注释段，整段挪进折叠区 */
+    var inn=document.createElement("div");inn.className="pfin";
+    var nx=h.nextElementSibling,moved=[];
+    while(nx&&(nx.classList.contains("psub")||nx.classList.contains("lead"))){
+      moved.push(nx);nx=nx.nextElementSibling;
+    }
+    if(!moved.length)return;             /* 这页没有说明性内容 → 什么都不做 */
+    var box=document.createElement("div");
+    box.className="pfold";box.id="pm-"+key;
+    box.appendChild(inn);
+    moved.forEach(function(e){inn.appendChild(e)});
+    h.parentNode.insertBefore(box,h.nextElementSibling);
+    /* ② 标题单独包一层再挂按钮：.pagehead 是 space-between，
+          直接把按钮塞进去会被甩到中间（和 .listhead 加箭头踩过同一个坑） */
+    var t=h.querySelector(".ptitle");
+    if(!t)return;
+    var l=document.createElement("div");l.className="phead-l";
+    t.parentNode.insertBefore(l,t);l.appendChild(t);
+    var b=document.createElement("button");
+    b.type="button";b.className="pmtgl";
+    b.setAttribute("aria-expanded","false");
+    b.setAttribute("aria-controls",box.id);
+    b.innerHTML='<svg class="cvs" viewBox="0 0 12 12" fill="none" stroke="currentColor"'+
+      ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+
+      '<path d="M4.3 2.2L8.1 6l-3.8 3.8"/></svg>'+
+      (inn.querySelector(".psub")?"数据与说明":"说明");
+    b.onclick=function(){pmToggle(key)};
+    l.appendChild(b);
+    h._pmTgl=b;
+  });
+}
+function pmToggle(key){
+  var h=document.querySelector("#v-"+key+">.pagehead");
+  var box=document.getElementById("pm-"+key);
+  if(!h||!box)return;
+  var on=!PM_OPEN[key];PM_OPEN[key]=on;
+  box.classList.toggle("pf-on",on);
+  if(h._pmTgl)h._pmTgl.setAttribute("aria-expanded",on?"true":"false");
+}
 
 /* ---------- 整块区域折叠（2026-09-22）----------
    用户要的是"整块收起"：收起后只剩标题栏（+ 内容第一行），把高度让给别的区块。

@@ -3363,23 +3363,34 @@ function wrapPanels(viewId, keys){
    验证工具：`node tools/verify_frames.js http://127.0.0.1:8787`（逐元素量越界量，
    越界 >0 即被裁；已挂进闸门，红了说明清单又对不上了）。
    结论：**栏头类的框一律不要**；`.pagehead` / `.dhead` / 部分 `.listhead` 在
-   `.content` 里（overflow:auto，且它们贴着上边）→ 框是完整的，保留。 */
+   `.content` 里（overflow:auto，且它们贴着上边）→ 框是完整的，保留。
+
+   ── 2026-09-24 修正（用户拍板「方案 A」）：**9 个页头（.pagehead）的框全部去掉** ──
+   实测原因（`ui-round2/shots-frames/对照-有框vs无框.html`）：
+     ① 页头自身高 34px，里头的按钮也 34px → 框内零内边距，上下贴死
+     ② 页头框与它下面的内容卡片同宽、同高（都 1160px） → 一屏两个同宽的框，
+        看着像"表格的两行"
+     ③ 页头里的按钮自己就有 1px 描边 → 框里再套框
+     ④ 语义错位：框＝"这一组是一个整体"，可页头管的是**下面**的内容
+   去掉后"记忆"两个字才重新变回**标题**，而不是"盒子里的字"。
+   ⚠️ `.listhead` / `.dhead` / 质检页那 7 组 .listhead 的框**保留** ——
+      它们才是真的"圈住一组内容"。 */
 var FRAME_SELECTION={
-  "agents/listhead[1]":0, "agents/listhead[2]":1, "agents/pagehead[0]":1,
+  "agents/listhead[1]":0, "agents/listhead[2]":1,
   "audit/listhead[1]":1, "audit/listhead[2]":1, "audit/listhead[3]":1,
   "audit/listhead[4]":1, "audit/listhead[5]":1, "audit/listhead[6]":1,
-  "audit/listhead[7]":1, "audit/pagehead[0]":1,
+  "audit/listhead[7]":1,
   "clean/listhead[1]":0, "clean/listhead[2]":0, "clean/listhead[3]":0,
-  "clean/listhead[4]":0, "clean/pagehead[0]":1,
-  "collect/listhead[1]":0, "collect/pagehead[0]":1,
-  "handoff/listhead[1]":0, "handoff/pagehead[0]":1,
-  "mem/dhead[2]":1, "mem/pagehead[0]":1, "mem/shead[1]":0,
-  "pack/listhead[1]":0, "pack/listhead[2]":0, "pack/listhead[3]":0, "pack/pagehead[0]":1,
+  "clean/listhead[4]":0,
+  "collect/listhead[1]":0,
+  "handoff/listhead[1]":0,
+  "mem/dhead[2]":1, "mem/shead[1]":0,
+  "pack/listhead[1]":0, "pack/listhead[2]":0, "pack/listhead[3]":0,
   "session/dhead[4]":1, "session/listhead[1]":0, "session/listhead[2]":1,
-  "session/pagehead[0]":1, "session/shead[3]":0,
+  "session/shead[3]":0,
   "skill/grphead[3]":0, "skill/grphead[4]":0, "skill/grphead[5]":0,
   "skill/grphead[6]":0, "skill/grphead[7]":0,
-  "skill/listhead[1]":0, "skill/pagehead[0]":1, "skill/shead[2]":0
+  "skill/listhead[1]":0, "skill/shead[2]":0
 };
 /* 每个框"往下拉大"多少 px（用户在 ?frames=1 里拖出来的）。框会真的往下延伸这么多，
    把下面更多内容圈进来 —— 用绝对定位的 ::after 画，不占布局。 */

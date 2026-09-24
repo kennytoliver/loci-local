@@ -1696,6 +1696,13 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
 
 /* 主从双栏（列表 + 详情） */
 .split{display:grid;grid-template-columns:clamp(360px,33%,460px) minmax(0,1fr);gap:20px;align-items:start}
+/* 「详情栏空着就不占格子」——详情栏没有内容时，两栏塌成单列、左列表吃满全宽；
+   有内容再恢复两栏。**三处主从骨架共用**（记忆 #detail / 会话 .split-side / 技能 #sk-detail），
+   由 JS 的 splitSolo() 切换。以前空态照旧留着 2/3 宽的格子，里面只有一句话，
+   看着像"页面没加载完"（用户报的问题 1）。
+   ⚠️ 只在 `solo` 类下生效 —— 窄屏那条媒体查询（`.split{grid-template-columns:1fr}`）不受影响。 */
+.split.solo{grid-template-columns:minmax(0,1fr)}
+.split.solo>.split-side{display:none}
 .split-main{min-width:0;background:var(--card);border:1px solid var(--line);
   border-radius:var(--radius-lg);box-shadow:var(--shadow-2xs);overflow:hidden;
   animation:cardIn .3s var(--ease) both}
@@ -2157,7 +2164,10 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
             <button class="btn" onclick="sessionSearch()" title="在原话里检索（也可直接回车）">检索</button>
           </span>
         </div>
-        <div class="split">
+        <!-- ⚠️ 默认带 `solo`：会话页是打开面板的默认页，而且不会自动选中第一条，
+             所以首屏必然是「详情栏空着」——带上 solo 才不会先闪一下空壳再塌。
+             clearSessionView() / renderSessionView() 接着按真实状态切换。 -->
+        <div class="split solo">
           <div class="split-main">
             <div class="shead"><span class="t">会话列表</span></div>
             <div class="sbody"><div id="s-list"></div></div>
@@ -2532,8 +2542,10 @@ function renderDetail(id){
   if(!r){
     el.innerHTML='<div class="dhead"><h3 class="dempty-h">记忆详情</h3></div>'+
       '<div class="dmain"><div class="dempty">点左侧任意一条记忆，这里会显示完整内容、标签与操作按钮。</div></div>';
+    splitSolo(el,true);      /* 没选中 → 详情栏不占格子，列表吃满全宽 */
     return;
   }
+  splitSolo(el,false);       /* 有选中 → 恢复两栏 */
   var full=String(r.content||"");
   var short=full.length>46;
   var title=memTitle(full,46);
@@ -4073,6 +4085,7 @@ async function loadSessions(){
 async function extractSession(sid){
   var box=document.getElementById("s-view");
   box.style.display="block";
+  splitSolo(box,false);    /* 抽取候选也是"有内容"，别让列表塌在单列里 */
   box.innerHTML='<div class="dempty">正在抽取候选记忆…</div>';
   document.getElementById("s-view-acts").innerHTML="";
   var rows=await api("/api/extract?sid="+sid);
@@ -4222,8 +4235,10 @@ function secApply(){
 /* 右栏详情、本机内容右栏、会话左列表都是随时重渲染的：
    靠 observer 自动把折叠状态补回去，免得每处渲染都手写一次调用（漏一处就失效）。 */
 var _secQ=false;
-function secQueue(){if(_secQ)return;_secQ=true;setTimeout(function(){_secQ=false;secApply()},0)}
-["detail","sk-detail","s-list","list"].forEach(function(id){
+function secQueue(){if(_secQ)return;_secQ=true;setTimeout(function(){_secQ=false;secApply();soloSync()},0)}
+/* ⚠️ sk-list 也必须在观察名单里 —— 技能页首次进页面时只有 loadSkills() 在写 #sk-list，
+   不监听它，soloSync() 就没机会跑，技能页的空态详情栏会一直留着占位。 */
+["detail","sk-detail","sk-list","s-list","list"].forEach(function(id){
   var el=document.getElementById(id);
   if(el)new MutationObserver(secQueue).observe(el,{childList:true,subtree:true});
 });
@@ -4308,8 +4323,25 @@ function renderSessionView(r){
   }
   el.innerHTML=html;
   el.style.display="block";
+  splitSolo(el,false);     /* 详情栏有内容了 → 恢复两栏 */
   foldAll();
   secApply();
+}
+
+/* ── 主从骨架的「空态塌单列」 ──────────────────────────────────
+   三处共用：记忆页 #detail / 会话页 .split-side / 技能页 #sk-detail。
+   详情栏没有内容时两栏塌成单列、列表吃满全宽，有内容再恢复两栏。
+   **统一走这里**，别在页面上手写 grid-template-columns（三份迟早会改歪）。 */
+function splitSolo(node,on){
+  var s=(node&&node.closest)?node.closest(".split"):null;
+  if(s)s.classList.toggle("solo",!!on);
+}
+/* 技能页没有单一的"清空详情"入口 —— 5 个渲染函数各自往 #sk-detail 写。
+   所以靠已有 observer 统一判定：**有 .dhead 才算真内容**，
+   "读取中… / 左边点一条" 这类占位都不算。 */
+function soloSync(){
+  var el=document.getElementById("sk-detail");
+  if(el)splitSolo(el,!el.querySelector(".dhead"));
 }
 
 function clearSessionView(){
@@ -4320,6 +4352,7 @@ function clearSessionView(){
   document.getElementById("s-view-acts").innerHTML="";
   var el=document.getElementById("s-view");
   el.innerHTML="";el.style.display="none";
+  splitSolo(el,true);      /* 详情栏空了 → 左列表吃满全宽 */
 }
 
 async function openSession(sid){

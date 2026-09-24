@@ -1731,6 +1731,20 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
 /* 详情卡头／体 —— 对齐 Trae 稿 .detail-header / .detail-body（均 20px 内边距，头下一条分隔线） */
 .split-side .dhead{padding:var(--space-5);border-bottom:1px solid var(--line)}
 .split-side .dmain{padding:var(--space-5)}
+/* 会话页空态引导卡（2026-09-24 用户拍板「方案 B」）——
+   详情栏不跟着列表塌成单列，未选中时常驻一张引导卡，把"右边为什么空着"说清楚。
+   ⚠️ 与「空态塌单列」（.split.solo）**互斥**：会话页不参与 solo 机制（骨架不带 solo、
+   clearSessionView 不再调 splitSolo），记忆页 / 技能页照旧参与。三处别弄混。 */
+.split-side .guide{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;padding:var(--space-10) var(--space-6);min-height:220px}
+.split-side .guide .gic{width:52px;height:52px;border-radius:var(--radius-xl);
+  background:var(--popover);display:flex;align-items:center;justify-content:center;
+  margin-bottom:var(--space-4)}
+.split-side .guide .gic svg{width:24px;height:24px;stroke:var(--faint);fill:none;
+  stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.split-side .guide h4{margin:0 0 var(--space-2);font-size:14px;font-weight:600;
+  color:var(--ink);letter-spacing:-.1px}
+.split-side .guide p{margin:0;font-size:12.5px;color:var(--sub);line-height:1.65;max-width:320px}
 .split-side .dhtop{display:flex;align-items:flex-start;justify-content:space-between;
   gap:var(--space-4)}
 .split-side h3{font-size:16px;font-weight:600;line-height:1.4;margin:0;color:var(--ink)}
@@ -2164,10 +2178,11 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
             <button class="btn" onclick="sessionSearch()" title="在原话里检索（也可直接回车）">检索</button>
           </span>
         </div>
-        <!-- ⚠️ 默认带 `solo`：会话页是打开面板的默认页，而且不会自动选中第一条，
-             所以首屏必然是「详情栏空着」——带上 solo 才不会先闪一下空壳再塌。
-             clearSessionView() / renderSessionView() 接着按真实状态切换。 -->
-        <div class="split solo">
+        <!-- ⚠️ 会话页**不参与**「空态塌单列」：未选中时右边常驻一张引导卡
+             （2026-09-24 用户拍板「方案 B」—— 比"整栏突然消失"更可预期、布局不跳）。
+             所以骨架不带 solo，clearSessionView() 也不再调 splitSolo()。
+             #s-guide（引导卡）与 #s-view（原文时间线）互斥显隐，统一走 sessionGuide()。 -->
+        <div class="split">
           <div class="split-main">
             <div class="shead"><span class="t">会话列表</span></div>
             <div class="sbody"><div id="s-list"></div></div>
@@ -2182,7 +2197,14 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
                 <span class="dmi" id="s-view-h">点左侧任意会话查看原文；「抽取记忆」会在这里逐轮给出候选记忆</span>
               </div>
             </div>
-            <div class="dmain"><div class="handoff-out" id="s-view"></div></div>
+            <div class="dmain">
+              <div class="guide" id="s-guide">
+                <div class="gic"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+                <h4>从左边选一条会话</h4>
+                <p>这里会显示它的原文、每一轮产出的记忆，以及可执行的操作。</p>
+              </div>
+              <div class="handoff-out" id="s-view" style="display:none"></div>
+            </div>
           </aside>
         </div>
       </section>
@@ -4085,7 +4107,7 @@ async function loadSessions(){
 async function extractSession(sid){
   var box=document.getElementById("s-view");
   box.style.display="block";
-  splitSolo(box,false);    /* 抽取候选也是"有内容"，别让列表塌在单列里 */
+  sessionGuide(false);     /* 抽取候选也算"有内容"，收起引导卡 */
   box.innerHTML='<div class="dempty">正在抽取候选记忆…</div>';
   document.getElementById("s-view-acts").innerHTML="";
   var rows=await api("/api/extract?sid="+sid);
@@ -4323,7 +4345,7 @@ function renderSessionView(r){
   }
   el.innerHTML=html;
   el.style.display="block";
-  splitSolo(el,false);     /* 详情栏有内容了 → 恢复两栏 */
+  sessionGuide(false);     /* 有内容了 → 收起引导卡（会话页不走 solo，见 sessionGuide 注释） */
   foldAll();
   secApply();
 }
@@ -4335,6 +4357,13 @@ function renderSessionView(r){
 function splitSolo(node,on){
   var s=(node&&node.closest)?node.closest(".split"):null;
   if(s)s.classList.toggle("solo",!!on);
+}
+/* 会话页**不用** splitSolo（用户 2026-09-24 拍板「方案 B」）：
+   未选中时详情栏不消失，换成一张引导卡 —— 布局恒定，不会因为"选没选中"整页跳一下。
+   #s-guide（引导卡）与 #s-view（原文时间线）互斥，统一走这里，别再各写一份显隐。 */
+function sessionGuide(on){
+  var g=document.getElementById("s-guide");
+  if(g)g.style.display=on?"":"none";
 }
 /* 技能页没有单一的"清空详情"入口 —— 5 个渲染函数各自往 #sk-detail 写。
    所以靠已有 observer 统一判定：**有 .dhead 才算真内容**，
@@ -4361,7 +4390,7 @@ function clearSessionView(){
   document.getElementById("s-view-acts").innerHTML="";
   var el=document.getElementById("s-view");
   el.innerHTML="";el.style.display="none";
-  splitSolo(el,true);      /* 详情栏空了 → 左列表吃满全宽 */
+  sessionGuide(true);      /* 详情栏清空了 → 换回引导卡（不再塌单列） */
 }
 
 async function openSession(sid){

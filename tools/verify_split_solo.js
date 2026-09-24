@@ -14,6 +14,13 @@
  *   ② 有内容 → solo 没了、详情栏可见且宽度正常、左列表回到窄列
  * 只测一个方向是不够的 —— 只会塌不会恢复，比原来更糟。
  *
+ * ⚠️ 2026-09-24 用户拍板「方案 B」后，**会话页退出这个机制**：
+ *   塌单列会让两栏宽度在"选没选中"之间跳变，改成详情栏常驻 + 一张引导卡
+ *   （#s-guide，走 sessionGuide() 显隐）。所以：
+ *     · 会话页 → 空态也必须两栏、详情栏可见、引导卡显示；选中后引导卡收起
+ *     · 记忆页 / 技能页 → 照旧「空态塌单列」，③～⑥ 不变
+ *   两套规则**别混**：会话页的判据里不该再出现 solo=true。
+ *
  * 用法：node tools/verify_split_solo.js [http://127.0.0.1:8787]
  * 依赖：puppeteer-core（开发期；产品本身零依赖）
  */
@@ -43,16 +50,19 @@ const FULL_MIN = 1100;
       const sp = document.querySelector(sel);
       if (!sp) return null;
       const side = sp.querySelector('.split-side');
+      const g = sp.querySelector('#s-guide');
       return {
         solo: sp.classList.contains('solo'),
         sideShown: side ? getComputedStyle(side).display !== 'none' : null,
         sideW: side ? +side.getBoundingClientRect().width.toFixed(1) : null,
         mainW: +sp.querySelector('.split-main').getBoundingClientRect().width.toFixed(1),
+        guideShown: g ? getComputedStyle(g).display !== 'none' : null,
       };
     };
     return { session: one('#v-session .split'), mem: one('#v-mem .split'), skill: one('#v-skill .split') };
   });
-  const line = (s) => `solo=${s.solo} 列表宽=${s.mainW} 详情宽=${s.sideW} 详情显示=${s.sideShown}`;
+  const line = (s) => `solo=${s.solo} 列表宽=${s.mainW} 详情宽=${s.sideW} 详情显示=${s.sideShown}`
+    + (s.guideShown === null ? '' : ` 引导卡显示=${s.guideShown}`);
 
   for (const theme of ['light', 'dark']) {
     const p = await b.newPage();
@@ -61,11 +71,16 @@ const FULL_MIN = 1100;
     await sleep(1500);
 
     // ── 会话页：首屏必须是空态（默认页 + 不自动选中）
+    //    ⚠️ 2026-09-24 用户拍板「方案 B」：会话页**不再**塌单列，
+    //       改成详情栏常驻 + 一张引导卡（布局恒定，不跳）。
+    //       记忆页 / 技能页仍是原来的「空态塌单列」，③～⑥ 照旧。
     await p.evaluate(() => window.show('session'));
     await sleep(1400);
     let s = (await probe(p)).session;
-    rec(`[${theme}] 会话页·空态 → 塌单列、详情栏不显示`,
-      s && s.solo === true && s.sideShown === false && s.mainW > FULL_MIN, s ? line(s) : '取不到');
+    rec(`[${theme}] 会话页·空态 → 两栏常驻、详情栏显示引导卡`,
+      s && s.solo === false && s.sideShown === true && s.sideW > 700 && s.mainW < 600
+        && s.guideShown === true,
+      s ? line(s) : '取不到');
 
     const sid = await p.evaluate(async () => {
       const list = await (await fetch('/api/session/list?limit=50')).json();
@@ -76,8 +91,9 @@ const FULL_MIN = 1100;
     await sleep(1400);
     s = (await probe(p)).session;
     if (!sid) console.log(`  [${theme}] 会话页·库里没会话，②跳过`);
-    else rec(`[${theme}] 会话页·选中 #${sid} → 恢复两栏`,
-      s.solo === false && s.sideShown === true && s.mainW < 600 && s.sideW > 700, line(s));
+    else rec(`[${theme}] 会话页·选中 #${sid} → 两栏、引导卡收起`,
+      s.solo === false && s.sideShown === true && s.mainW < 600 && s.sideW > 700
+        && s.guideShown === false, line(s));
 
     // ── 技能页
     await p.evaluate(() => window.show('skill'));

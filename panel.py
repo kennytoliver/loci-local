@@ -458,6 +458,34 @@ def _dir_nonempty(d):
     return False
 
 # ---------- 本机 Agent 体检 ----------
+def _entry_path_ok(text):
+    """配置文本里那个 MCP server 的启动脚本，**文件真的存在吗**。
+
+    为什么需要它：`"配置里有 loci 这个名字" != "真的能用"`。
+    真实事故（2026-09-25 逮到）：TraeWork 的配置一直指向
+    `C:\\Users\\user\\Hippocampus\\hippocampus.py` —— 09-23 项目搬到 D 盘后就没更新过，
+    名字在、路径早没了，可面板一直报「已接入」。用户以为记忆是通的，其实是死的。
+    所以体检必须同时验**名字**和**路径**，否则就是假绿。
+    """
+    if not text:
+        return False
+    try:
+        d = json.loads(text)
+    except Exception:
+        return False
+
+    def walk(o):
+        if isinstance(o, dict):
+            return any(walk(v) for v in o.values())
+        if isinstance(o, list):
+            return any(walk(v) for v in o)
+        if isinstance(o, str) and o.lower().endswith(".py"):
+            return os.path.exists(o)
+        return False
+
+    return walk(d)
+
+
 def scan_agents():
     """扫描本机 Agent：装了没 / 接入了没"""
     out = []
@@ -474,6 +502,7 @@ def scan_agents():
         else:
             state = "absent"
         registered = False
+        paths_ok = False
         if cfg_hit:
             try:
                 # ⚠️ 兼容改名前的配置：老配置里服务名还是 "hippocampus"（也叫 hippohub / memhub）。
@@ -481,6 +510,8 @@ def scan_agents():
                 #    用户会以为记忆断了，实际只是名字对不上。改名是 2026-09-25 做的。
                 _t = _file_text(cfg_hit)
                 registered = any('"%s"' % n in _t for n in ("loci", "hippocampus", "hippohub", "memhub"))
+                # 名字对了还不够，启动脚本得真的在（见 _entry_path_ok 的注释：TraeWork 假绿事故）
+                paths_ok = _entry_path_ok(_t) if registered else False
             except Exception:
                 pass
         out.append({"name": a["name"], "state": state,
@@ -488,6 +519,7 @@ def scan_agents():
                     "writable": a["write"],
                     "source": a.get("source", "builtin"),
                     "loci_registered": registered,
+                    "paths_ok": paths_ok,
                     "config": cfg_hit or a["configs"][0]})
     out.sort(key=lambda x: x["name"].lower())   # 按名称 A-Z 排序
     return out
@@ -5264,7 +5296,8 @@ async function loadAgents(){
     let dot,txt,cls,acts="",tag="";
     if(a.state==="residue"){dot="off";txt="已卸载 · 有残留配置";cls="badge-no"}
     else if(!a.installed){dot="off";txt="未安装";cls="badge-no"}
-    else if(a.loci_registered){dot="on";txt="已接入 Loci";cls="badge-ok"}
+    else if(a.loci_registered && a.paths_ok){dot="on";txt="已接入 Loci";cls="badge-ok"}
+    else if(a.loci_registered){dot="warn";txt="已配置 · 但引擎路径失效（点「一键接入」修复）";cls="badge-warn"}
     else if(!a.writable){dot="warn";txt="已安装 · 暂不支持自动写入（可手动配）";cls="badge-warn"}
     else{dot="warn";txt="已安装 · 未接入";cls="badge-warn"}
     if(a.source==="discovered") tag='<span class="badge-new">自动发现</span>';

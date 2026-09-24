@@ -138,7 +138,16 @@ def cmd_list():
     print("-" * 72)
     for a in rows:
         state = {"installed": "已安装", "residue": "残留", "absent": "未安装"}[a["state"]]
-        mark = "已接入" if a["loci_registered"] else ("可接入" if (a["installed"] and a["writable"]) else "")
+        # ⚠️ 「配置里有这个名字」不等于「真的能用」：TraeWork 曾长期指向搬盘前的旧路径，
+        #    名字在、文件早没了，却一直显示「已接入」（假绿）。所以路径也要验。
+        if a["loci_registered"] and a.get("paths_ok"):
+            mark = "已接入"
+        elif a["loci_registered"]:
+            mark = "路径失效"
+        elif a["installed"] and a["writable"]:
+            mark = "可接入"
+        else:
+            mark = ""
         print(f"  {a['name']:<22} {state:<6} {mark:<6} {a['config']}")
     n = sum(1 for a in rows if a["installed"])
     print("-" * 72)

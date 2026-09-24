@@ -57,11 +57,27 @@ const rec = (name, pass, info = '') =>
 
     rec(`[${theme}] 无页面 JS 报错`, errs.length === 0, errs.slice(0, 2).join(' | '));
 
-    const dots = await page.$$eval('#list .mem .mdot', (els) =>
-      els.map((e) => getComputedStyle(e).backgroundColor));
-    rec(`[${theme}] 类型圆点已上色`,
-      new Set(dots).size >= 1 && !dots.includes('rgba(0, 0, 0, 0)'),
-      `颜色数=${new Set(dots).size}`);
+    /* 类型标记已上色 —— 2026-09-24 改版后，标记从「8px 圆点 .mdot + 内联 background」
+       变成「30px 图标块 .mico + .mico.<类型> 类吃 --t-*-bg 令牌」。
+       断言跟着换，但**同时把原来那条弱的加强**：老版本只要求"颜色种数 ≥1"，
+       全是一个颜色也能过；现在要求"同类同色、异类异色"，才真的守住"类型可区分"。 */
+    const marks = await page.$$eval('#list .mem', (rows) => rows.map((r) => {
+      const t = r.querySelector('.mmeta .tb');
+      const m = r.querySelector('.mico');
+      return { type: t ? t.textContent.trim() : '', bg: m ? getComputedStyle(m).backgroundColor : '' };
+    }));
+    const byType = {};
+    let uncolored = 0;
+    marks.forEach((x) => {
+      if (!x.type || !x.bg || x.bg === 'rgba(0, 0, 0, 0)') { uncolored++; return; }
+      (byType[x.type] = byType[x.type] || new Set()).add(x.bg);
+    });
+    const types = Object.keys(byType);
+    const typeColors = new Set(types.map((t) => [...byType[t]][0]));
+    rec(`[${theme}] 类型图标块已按类型上色（同类同色 / 异类异色）`,
+      marks.length > 0 && uncolored === 0 && types.length > 0
+        && types.every((t) => byType[t].size === 1) && typeColors.size === types.length,
+      `${marks.length} 行 / ${types.length} 种类型 / ${typeColors.size} 种颜色${uncolored ? ' / 未上色 ' + uncolored : ''}`);
 
     const id = await page.$eval('#list .mem', (e) => e.id.replace('memcard-', ''));
     await page.click(`#memcard-${id}`);

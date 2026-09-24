@@ -1107,6 +1107,13 @@ PAGE = r"""<!DOCTYPE html>
   --data-fact:#0a84ff; --data-decision:#ffd60a; --data-preference:#bf5af2;
   --data-skill:#30d158; --data-error:#ff453a; --data-context:#8e8e93;
   --data-me:#0a84ff; --data-ai:#30d158;
+  /* 记忆类型徽章 / 图标块的**底色**（2026-09-24 记忆页改版新增）。
+     文字色直接复用上面的 --data-*，所以只需要底 ——
+     亮暗两套各给一份，避免用 rgba 硬编码导致暗色下发灰。
+     值都是"同色系、低饱和"的一档，保证徽章上的彩字仍有 4.5:1 左右对比。 */
+  --t-fact-bg:#0d2b4d; --t-decision-bg:#3d3410; --t-preference-bg:#33204d;
+  --t-skill-bg:#0e3520; --t-error-bg:#4a1d1a; --t-context-bg:#2b2b2e;
+  --t-summary-bg:#1f2c3d;
   --data-agent-a:#0a84ff; --data-agent-b:#ea4335; --data-agent-c:#f9ab00;
   --data-agent-d:#30d158; --data-agent-e:#007acc; --data-agent-f:#5f6368;
   --data-agent-g:#09b6a2;
@@ -1189,6 +1196,10 @@ PAGE = r"""<!DOCTYPE html>
   --data-fact:#0b57d0; --data-decision:#8a5300; --data-preference:#7b2ff7;
   --data-skill:#147a35; --data-error:#c5221f; --data-context:#5f6368;
   --data-me:#0b57d0; --data-ai:#147a35;
+  /* 记忆类型徽章底色（亮色版）：同色系的高明度一档，配 --data-* 的深色彩字 */
+  --t-fact-bg:#e4eefc; --t-decision-bg:#f6efdd; --t-preference-bg:#f1e7fd;
+  --t-skill-bg:#e2f4e6; --t-error-bg:#fbe6e4; --t-context-bg:#eceef0;
+  --t-summary-bg:#e6edf6;
   --data-agent-a:#0b57d0; --data-agent-b:#c5221f; --data-agent-c:#8a5300;
   --data-agent-d:#147a35; --data-agent-e:#005a9e; --data-agent-f:#5f6368;
   --data-agent-g:#0f766e;
@@ -1482,6 +1493,43 @@ select,.formrow input[type=text]{background:var(--d2);border:1px solid var(--lin
 .kpi .kfoot{display:flex;justify-content:space-between;gap:8px;font-size:11.5px;
   color:var(--faint);line-height:1.5}
 .kpi .kfoot>span:last-child{text-align:right;flex-shrink:0}
+
+/* ── 记忆构成条（记忆页 2026-09-24）────────────────────────────────────
+   一条横向堆叠条 + 图例，类型分布一眼看清。
+   宽度用 flex-grow = 真实条数（不是百分比）—— 少一次除法就少一处能算错的地方，
+   0 条的类别自动不占宽。颜色直接吃 --data-*（与列表图标块、徽章同一套色）。 */
+.distcard{background:var(--card);border:1px solid var(--line);border-radius:var(--radius-lg);
+  padding:var(--space-4) var(--space-5);margin-bottom:var(--space-5)}
+.distcard .dh{display:flex;align-items:baseline;justify-content:space-between;gap:var(--space-3);
+  margin-bottom:var(--space-3)}
+.distcard .dh b{font-size:13px;font-weight:600;color:var(--ink)}
+.distcard .dh span{font-size:11.5px;color:var(--faint)}
+.distcard .bar{display:flex;height:10px;border-radius:5px;overflow:hidden;background:var(--d3)}
+.distcard .bar>i{display:block;min-width:2px}
+.distcard .legend{display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-4);
+  margin-top:var(--space-3);font-size:11.5px;color:var(--sub)}
+.distcard .legend>span{display:inline-flex;align-items:center;gap:6px}
+.distcard .legend b{width:8px;height:8px;border-radius:3px;flex:0 0 8px}
+.distcard .legend em{font-style:normal;color:var(--ink);font-weight:600;
+  font-variant-numeric:tabular-nums}
+
+/* ── 详情栏顶部 4 格元信息网格（记忆页）──────────────────────────────
+   把「类型 / 重要度 / 来源 / 创建时间」从下面那一大段纯文字里提到第一屏。
+   原来这几项埋在「归属信息」的 <br> 串里，要滚下去才看得到。 */
+.kv-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--space-2)}
+.kv-grid .cell{background:var(--d2);border-radius:var(--radius-md);padding:8px 10px;min-width:0}
+.kv-grid .k{font-size:10.5px;color:var(--faint);line-height:1.4}
+.kv-grid .v{font-size:12.5px;color:var(--ink);font-weight:600;line-height:1.5;margin-top:2px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media (max-width:900px){.kv-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* ── 记忆列表行的排版（2026-09-24）────────────────────────────────────
+   ⚠️ 必须带 #list 前缀：`.split-main .mtitle` 是记忆页与会话页**共用**的选择器，
+      直接改字号会让会话行从 61.19px 长高 → verify_slist_rows 量到就红。
+      #list 只有记忆页有（会话页是 #s-list），所以这条是安全的收口。 */
+#list .mem.lrow{padding:15px var(--space-4)}
+#list .mtitle{font-size:14px}
+#list .mmeta{margin-top:5px}
 
 /* ── 主从详情切换：内容整体换掉时淡入一次（2026-09-24）─────────────────────
    纯 CSS，不写一行 JS：renderDetail() / 会话详情 / 技能详情都是整块 innerHTML
@@ -1934,8 +1982,37 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
   background:transparent;border:0;box-shadow:none}
 .split-main .mem.lrow:hover{transform:none;background:var(--hover);box-shadow:none}
 .split-main .lrow + .lrow{margin-top:2px}
-.split-main .mem.lrow .mdot{width:8px;height:8px;border-radius:50%;
-  flex:0 0 8px;margin-top:6px}
+/* ── 记忆行的类型图标块（2026-09-24 改版）──
+   原来是 8px 小圆点：只能表达"有颜色"，说不出是"哪一类"。
+   换成 30px 圆角方块的图标（内联 SVG，颜色吃 --data-*），类型一目了然。
+   ⚠️ 类名从 .mdot 改成 .mico（只有记忆行走 cardHtml()，会话行走另一套渲染，
+      所以这个类名是记忆页独有的，改名不会波及 #s-list —— verify_slist_rows 量的是后者）。 */
+/* 尺寸与布局（颜色兜底在低特异性的 .mico 里，见上面那段注释） */
+.split-main .mem.lrow .mico{width:30px;height:30px;border-radius:var(--radius-md);
+  flex:0 0 30px;display:grid;place-items:center}
+.split-main .mem.lrow .mico svg{width:16px;height:16px}
+/* ── 类型徽章 + 类型图标块（记忆列表行里的两处"彩色标记"）──
+   底色走 --t-*-bg 令牌（亮暗各一份），文字/图形色复用 --data-*，
+   所以两种主题下都保持"彩字 + 同色系浅底"，不会在暗色里发灰。
+   ⚠️ 两者共用同一组变体规则（一条规则同时命中 .tb.fact 与 .mico.fact），
+      避免"徽章改了、图标块忘了改"这种一半新一半旧的漂移；
+      万一 mtype 是个没登记的值 → 没有变体命中 → 自动退回中性灰，不会画出空白块。 */
+.tb{display:inline-flex;align-items:center;height:17px;padding:0 6px;border-radius:5px;
+  font-size:10.5px;font-weight:600;line-height:1;flex:0 0 auto;
+  background:var(--d3);color:var(--sub)}
+/* ⚠️ .mico 的中性兜底必须写在这条**低特异性**规则里（0,1,0）。
+      踩过的坑：把 background 写在下面那条 `.split-main .mem.lrow .mico`（0,3,1）里，
+      特异性高过 `.mico.fact`（0,2,0）→ 图标块永远吃不到类型的 --t-*-bg，
+      实测亮色下还是灰底 rgb(239,241,244)，只有徽章变了色（一半新一半旧）。
+      现在把"尺寸/布局"放高特异性、"颜色兜底"放低特异性，变体规则才压得住。 */
+.mico{background:var(--d3);color:var(--data-context)}
+.tb.fact,.mico.fact{background:var(--t-fact-bg);color:var(--data-fact)}
+.tb.decision,.mico.decision{background:var(--t-decision-bg);color:var(--data-decision)}
+.tb.preference,.mico.preference{background:var(--t-preference-bg);color:var(--data-preference)}
+.tb.skill,.mico.skill{background:var(--t-skill-bg);color:var(--data-skill)}
+.tb.error,.mico.error{background:var(--t-error-bg);color:var(--data-error)}
+.tb.context,.mico.context{background:var(--t-context-bg);color:var(--data-context)}
+.tb.summary,.mico.summary{background:var(--t-summary-bg);color:var(--data-fact)}
 .split-main .mbody{min-width:0;flex:1}
 .split-main .mtitle{font-size:13px;font-weight:500;line-height:1.4;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -1988,7 +2065,11 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
 .split-main .mem.lrow.sel:hover{background:var(--sel-bg)}
 .split-main .mem.lrow.sel .mtitle{color:var(--sel-ink);font-weight:600}
 .split-main .mem.lrow.sel .mmeta{color:var(--sel-ink);opacity:.8}
-.split-main .mem.lrow.sel .mdot{box-shadow:0 0 0 2px var(--sel-bg)}
+/* 选中行里图标块的写法（原来是给 8px 圆点套一圈 --sel-bg 让它从蓝底上"抠出来"）。
+   30px 的图标块自带类型底色，**底色保留** —— 和同一行里的类型徽章保持一致，
+   否则会出现"徽章有颜色、图标块变透明"的一半新一半旧。
+   只把字形换成 --sel-ink，保证压在蓝色选中底上仍然读得清（明暗两主题都成立）。 */
+.split-main .mem.lrow.sel .mico{color:var(--sel-ink)}
 
 /* ── 选中底统一（2026-09-23，用户先后报了两次同一件事）──
    第 1 次：黑夜下点列表项，只有**记忆页**有蓝色选中底（`--sel-bg`）；会话页和本机内容页
@@ -2155,6 +2236,53 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
         不是给人读的叙事。想看「当时到底聊了什么」，去
         <span class="leadlink" onclick="show('session')">会话</span>页看原文时间线；
         每条记忆的「出处」都能跳回产出它的那一轮。</p>
+        <!-- 数据行（会被 pmAll() 收进页头折叠区，默认收起）+ 4 张 KPI 卡 + 类型构成条。
+             数字全部由 loadStats() 从 /api/stats 现取，**一个都不写死**。 -->
+        <p class="psub" id="mem-psub">正在统计…</p>
+        <div class="kgrid" id="mem-kpi">
+          <!-- ⚠️ 这里**故意不放 .kbar**：本机内容页那 4 张卡是"同一种东西的不同类别"
+               （技能/MCP/插件/配置），同尺度比条宽才有意义；而记忆页这 4 项是
+               「条数 / 会话数 / 轮次 / 项目数」四种不同量纲，共用一条刻度只会造出
+               一根 100% 和三根 0.9% 的装饰条。没有真实的比率就不画条。 -->
+          <div class="kpi">
+            <div class="ktop"><span class="kt">活跃记忆</span>
+              <span class="kic" style="color:var(--data-fact)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><ellipse cx="8" cy="4" rx="5.2" ry="2.2"/><path d="M2.8 4v8c0 1.2 2.3 2.2 5.2 2.2s5.2-1 5.2-2.2V4"/><path d="M2.8 8c0 1.2 2.3 2.2 5.2 2.2S13.2 9.2 13.2 8"/></svg></span>
+            </div>
+            <div class="kv"><span id="mk-total">—</span><span class="u">条</span></div>
+            <div class="kfoot"><span>检索时会被读到</span><span id="mk-total-f">统计中…</span></div>
+          </div>
+          <div class="kpi">
+            <div class="ktop"><span class="kt">归档会话</span>
+              <span class="kic" style="color:var(--data-skill)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3.5h12v7H7l-3 2.5v-2.5H2z"/></svg></span>
+            </div>
+            <div class="kv"><span id="mk-sess">—</span><span class="u">个</span></div>
+            <div class="kfoot"><span>写进库的历史对话</span><span id="mk-sess-f">统计中…</span></div>
+          </div>
+          <div class="kpi">
+            <div class="ktop"><span class="kt">对话轮次</span>
+              <span class="kic" style="color:var(--data-preference)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 4h10M3 8h10M3 12h6"/></svg></span>
+            </div>
+            <div class="kv"><span id="mk-turn">—</span><span class="u">轮</span></div>
+            <div class="kfoot"><span>上面那些记忆的原料</span><span id="mk-turn-f">统计中…</span></div>
+          </div>
+          <div class="kpi">
+            <div class="ktop"><span class="kt">覆盖项目</span>
+              <span class="kic" style="color:var(--data-decision)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M1.8 4.4c0-.7.6-1.2 1.2-1.2h3l1.3 1.6h5.7c.7 0 1.2.5 1.2 1.2v6c0 .7-.5 1.2-1.2 1.2H3c-.6 0-1.2-.5-1.2-1.2z"/></svg></span>
+            </div>
+            <div class="kv"><span id="mk-proj">—</span><span class="u">个</span></div>
+            <div class="kfoot"><span>有记忆归属的项目</span><span id="mk-proj-f">统计中…</span></div>
+          </div>
+        </div>
+
+        <!-- 类型构成条：条宽 = 该类真实条数（flex-grow），图例给名称 + 条数。
+             ⚠️ 它与上面 4 张卡的分工：卡片给"总量"，这条给"构成" —— 两者都取自
+             /api/stats 的同一次返回，不会出现"卡里 76、条上加起来 74"这种自相矛盾。 -->
+        <div class="distcard" id="mem-dist">
+          <div class="dh"><b>记忆构成</b><span id="mem-dist-h">按类型分布</span></div>
+          <div class="bar" id="mem-dist-bar"></div>
+          <div class="legend" id="mem-dist-legend"></div>
+        </div>
+
         <div class="panel formcard" id="form">
           <textarea id="f-content" placeholder="要记什么？（决策 / 坑 / 事实 / 经验……）"></textarea>
           <div class="formrow">
@@ -2608,6 +2736,28 @@ const TL={fact:"事实",decision:"决策",preference:"偏好",skill:"经验",err
 const TC={fact:"var(--data-fact)",decision:"var(--data-decision)",preference:"var(--data-preference)",
   skill:"var(--data-skill)",error:"var(--data-error)",context:"var(--data-context)",
   summary:"var(--data-context)"};
+/* 记忆列表行 30px 图标块里那 16px 的图形（2026-09-24 改版）。
+   与 TL/TC 同源同序 —— 新增类型时三处一起加。
+   rowIcon() 找不到对应图形时**退回一个中性圆**，不会画出空白块（少一个图标是小事，
+   列表里出现一排空方块才是事故）。 */
+const TI={
+  fact:'<circle cx="8" cy="8" r="3.2"/><circle cx="8" cy="8" r="6"/>',
+  decision:'<path d="M3.2 8.4l3.2 3.2 6.4-7"/>',
+  preference:'<path d="M8 13.2S2.8 10 2.8 6.6A2.7 2.7 0 018 5a2.7 2.7 0 015.2 1.6c0 3.4-5.2 6.6-5.2 6.6z"/>',
+  skill:'<path d="M8 2.4l1.7 3.5 3.8.5-2.8 2.7.7 3.8L8 11l-3.4 1.9.7-3.8L2.5 6.4l3.8-.5z"/>',
+  error:'<path d="M8 3.4v5.2"/><circle cx="8" cy="12" r="1"/>',
+  context:'<path d="M3 4h10M3 8h10M3 12h6"/>',
+  summary:'<path d="M3 3.8h10v8.4H3z"/><path d="M5.4 6.8h5.2M5.4 9.6h3.4"/>'
+};
+const TI_FILL={skill:1};   /* 只有"经验"是实心星，其余按描边画（与原型同一套观感） */
+function rowIcon(t){
+  if(!TI[t])return '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor"'
+    +' stroke-width="1.8" stroke-linecap="round"><circle cx="8" cy="8" r="2.6"/></svg>';
+  return '<svg viewBox="0 0 16 16" '+(TI_FILL[t]
+    ? 'fill="currentColor"'
+    : 'fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"')
+    +'>'+TI[t]+'</svg>';
+}
 let searching=false;
 
 /* 视图切换 */
@@ -2663,6 +2813,45 @@ async function loadStats(){
     pf.innerHTML='<option value="">'+(isAgent?"全部来源":"全部项目")+'</option>'+
       src.map(p=>`<option ${p===cur?"selected":""}>${p}</option>`).join("");
   });
+  /* ── 记忆页的 4 张 KPI 卡 + 构成条 + 页头数据行（2026-09-24）─────────────
+     全部取自**同一次** /api/stats 返回 —— 与顶栏那 4 个数字同源，
+     不会出现"卡里一个数、顶栏另一个数"，也不会出现"卡片总数 76、构成条加起来 74"。
+     数字一律 countUp() 滚上去（初值「—」→ parseInt 得 0，所以是 0→N）。 */
+  (function(){
+    const put=(id,v)=>{const e=document.getElementById(id);if(e)countUp(e,v)};
+    const setf=(id,t)=>{const e=document.getElementById(id);if(e)e.textContent=t};
+    const proj=Object.keys(s.by_project||{});
+    const projMax=proj.reduce((m,k)=>Math.max(m,s.by_project[k]),0);
+    const sup=s.superseded||0, sess=s.sessions||0, msg=s.messages||0;
+    put("mk-total",s.total||0);
+    setf("mk-total-f",sup?("另有 "+sup+" 条已被取代"):"没有被取代的");
+    put("mk-sess",sess);
+    setf("mk-sess-f",msg?("共 "+msg+" 轮对话"):"还没归档过会话");
+    put("mk-turn",msg);
+    setf("mk-turn-f",sess?("均 "+Math.round(msg/sess)+" 轮/会话"):"—");
+    put("mk-proj",proj.length);
+    setf("mk-proj-f",projMax?("最大项目 "+projMax+" 条"):"—");
+    const ps=document.getElementById("mem-psub");
+    if(ps)ps.innerHTML="活跃 <b>"+(s.total||0)+"</b> 条记忆"
+      +(sup?("（另有 <b>"+sup+"</b> 条已被取代）"):"")
+      +" · 归档 <b>"+sess+"</b> 个会话 · <b>"+msg+"</b> 轮对话 · 覆盖 <b>"+proj.length+"</b> 个项目";
+    /* 构成条：键序按 TL 的固定顺序（**不**按条数排）—— 顺序固定才能跨时间一眼对比；
+       遇到 TL 里没登记的新类型排到最后，而不是丢掉（丢掉会让图例加起来对不上总数）。 */
+    const by=s.by_type||{}, order=Object.keys(TL);
+    const sum=Object.keys(by).reduce((n,k)=>n+by[k],0);
+    const keys=Object.keys(by).filter(k=>by[k]>0)
+      .sort((a,b)=>((order.indexOf(a)+1)||99)-((order.indexOf(b)+1)||99));
+    const color=k=>TC[k]||"var(--data-context)";
+    const bar=document.getElementById("mem-dist-bar"), leg=document.getElementById("mem-dist-legend");
+    if(bar)bar.innerHTML=keys.map(k=>
+      '<i style="flex:'+by[k]+';background:'+color(k)+'"></i>').join("");
+    if(leg)leg.innerHTML=keys.map(k=>
+      '<span><b style="background:'+color(k)+'"></b>'+esc(TL[k]||k)+' <em>'+by[k]+'</em></span>').join("");
+    const h=document.getElementById("mem-dist-h");
+    if(h)h.textContent="按类型分布 · 共 "+sum+" 条";
+    const no=document.getElementById("mem-dist");
+    if(no)no.style.display=sum?"":"none";   /* 一条记忆都没有时整块隐藏，别留空条 */
+  })();
 }
 
 function esc(t){const d=document.createElement("div");d.textContent=t;return d.innerHTML}
@@ -2744,6 +2933,15 @@ function renderDetail(id){
       '</div>'+
     '</div>'+
     '<div class="dmain">'+
+      /* 4 格元信息（2026-09-24）：把「类型 / 重要度 / 来源 / 创建时间」提到第一屏。
+         原来这几项埋在下面「归属信息」的 <br> 串里，要滚到底才看得到。
+         ⚠️ 下面那段**不删** —— 那里还有编号 / 项目 / 源文件等更细的字段。 */
+      '<div class="kv-grid">'+
+        '<div class="cell"><div class="k">类型</div><div class="v">'+esc(TL[r.mtype]||r.mtype||"—")+'</div></div>'+
+        '<div class="cell"><div class="k">重要度</div><div class="v">P'+esc(r.importance==null?"—":r.importance)+'</div></div>'+
+        '<div class="cell"><div class="k">来源</div><div class="v">'+esc(agentName(r.agent))+'</div></div>'+
+        '<div class="cell"><div class="k">创建时间</div><div class="v" title="'+escAttr(r.created_at||"")+'">'+esc(when)+'</div></div>'+
+      '</div>'+
       (short?'<div class="dsec"><h4 class="dsec-t">内容</h4>'+
         '<div class="dbody">'+esc(full)+'</div></div>':'')+
       '<div class="dsec"><h4 class="dsec-t">标签</h4>'+
@@ -2911,10 +3109,13 @@ function cardHtml(r,score,idx){
     +(proj?(" · 项目 "+proj):"")+(tags.length?(" · 标签 "+tags.join("/")):"");
   return `<div class="mem lrow" id="memcard-${r.id}" style="--i:${idx||0}" title="${escAttr(tip)}"
       onclick="selectMem(${r.id})">
-    <span class="mdot" style="background:${TC[r.mtype]||"var(--data-context)"}"></span>
+    <span class="mico ${escAttr(r.mtype||"context")}" aria-hidden="true">${rowIcon(r.mtype)}</span>
     <div class="mbody">
       <div class="mtitle">${esc(memTitle(r.content))}</div>
       <div class="mmeta">
+        <!-- 类型徽章（2026-09-24 新增）：原来列表里**只有来源、没有类型**，
+             而类型恰恰是"这条记忆属于哪一类"最该先看到的一格。 -->
+        <span class="tb ${escAttr(r.mtype||"context")}">${esc(TL[r.mtype]||r.mtype||"—")}</span>
         <span class="mtime">${esc(relTime(r.created_at))}</span>
         <span class="bdg">${esc(agentName(r.agent))}</span>
         ${r.pinned?'<span class="bdg pin">常驻</span>':'<span class="bdg state">最近</span>'}

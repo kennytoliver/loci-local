@@ -1696,13 +1696,11 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
 
 /* 主从双栏（列表 + 详情） */
 .split{display:grid;grid-template-columns:clamp(360px,33%,460px) minmax(0,1fr);gap:20px;align-items:start}
-/* 「详情栏空着就不占格子」——详情栏没有内容时，两栏塌成单列、左列表吃满全宽；
-   有内容再恢复两栏。**三处主从骨架共用**（记忆 #detail / 会话 .split-side / 技能 #sk-detail），
-   由 JS 的 splitSolo() 切换。以前空态照旧留着 2/3 宽的格子，里面只有一句话，
-   看着像"页面没加载完"（用户报的问题 1）。
-   ⚠️ 只在 `solo` 类下生效 —— 窄屏那条媒体查询（`.split{grid-template-columns:1fr}`）不受影响。 */
-.split.solo{grid-template-columns:minmax(0,1fr)}
-.split.solo>.split-side{display:none}
+/* ⚠️「详情栏空着就不占格子」（`.split.solo` 塌单列）—— **2026-09-24 用户拍板撤销，别再改回来。**
+   撤销理由：本项目所有主从页都是"左边列表 + 右边详情"，不存在单列形态；
+   塌单列会让两栏宽度在"选没选中"之间从 1160px 猛跳到 383px，比空着更晃眼。
+   现行做法：**详情栏常驻**，未选中时里面渲染一张引导卡（`.split-side .guide`），
+   三处共用同一套样式 —— 记忆 #detail / 会话 #s-guide / 技能 #sk-detail。 */
 .split-main{min-width:0;background:var(--card);border:1px solid var(--line);
   border-radius:var(--radius-lg);box-shadow:var(--shadow-2xs);overflow:hidden;
   animation:cardIn .3s var(--ease) both}
@@ -1731,10 +1729,10 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
 /* 详情卡头／体 —— 对齐 Trae 稿 .detail-header / .detail-body（均 20px 内边距，头下一条分隔线） */
 .split-side .dhead{padding:var(--space-5);border-bottom:1px solid var(--line)}
 .split-side .dmain{padding:var(--space-5)}
-/* 会话页空态引导卡（2026-09-24 用户拍板「方案 B」）——
-   详情栏不跟着列表塌成单列，未选中时常驻一张引导卡，把"右边为什么空着"说清楚。
-   ⚠️ 与「空态塌单列」（.split.solo）**互斥**：会话页不参与 solo 机制（骨架不带 solo、
-   clearSessionView 不再调 splitSolo），记忆页 / 技能页照旧参与。三处别弄混。 */
+/* 空态引导卡 —— **三处主从骨架共用**（记忆 #detail / 会话 #s-guide / 技能 #sk-detail）。
+   未选中时详情栏常驻这张卡，把"右边为什么空着、该点哪里"说清楚；
+   选中后由各自的渲染函数整体覆盖。
+   2026-09-24 用户拍板：**不再有「空态塌单列」**，两栏宽度恒定。 */
 .split-side .guide{display:flex;flex-direction:column;align-items:center;justify-content:center;
   text-align:center;padding:var(--space-10) var(--space-6);min-height:220px}
 .split-side .guide .gic{width:52px;height:52px;border-radius:var(--radius-xl);
@@ -2120,7 +2118,21 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
               <div id="list"></div>
             </div>
           </div>
-          <aside class="split-side" id="detail"></aside>
+          <!-- 详情栏常驻：未选中时渲染引导卡（三处骨架都不再塌单列，见 .split CSS 上方注释）。
+               选中后 renderDetail() 会整体覆盖这里。 -->
+          <aside class="split-side" id="detail">
+            <div class="dhead">
+              <div class="dhtop"><h3>记忆详情</h3></div>
+              <div class="dtop"><span class="dmi">点左侧任意一条记忆，这里会显示完整内容、标签与操作按钮</span></div>
+            </div>
+            <div class="dmain">
+              <div class="guide">
+                <div class="gic"><svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h9M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg></div>
+                <h4>从左边选一条记忆</h4>
+                <p>这里会显示它的完整内容、标签、归属信息与操作按钮。</p>
+              </div>
+            </div>
+          </aside>
         </div>
       </section>
 
@@ -2178,9 +2190,8 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
             <button class="btn" onclick="sessionSearch()" title="在原话里检索（也可直接回车）">检索</button>
           </span>
         </div>
-        <!-- ⚠️ 会话页**不参与**「空态塌单列」：未选中时右边常驻一张引导卡
-             （2026-09-24 用户拍板「方案 B」—— 比"整栏突然消失"更可预期、布局不跳）。
-             所以骨架不带 solo，clearSessionView() 也不再调 splitSolo()。
+        <!-- 未选中时右边常驻一张引导卡：2026-09-24 用户拍板，**三处骨架都不再塌单列**
+             （"整栏突然消失"比空着更晃眼，而且两栏宽度会跟着选中状态猛跳）。
              #s-guide（引导卡）与 #s-view（原文时间线）互斥显隐，统一走 sessionGuide()。 -->
         <div class="split">
           <div class="split-main">
@@ -2377,8 +2388,21 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
             </div>
             <div class="sbody"><div id="sk-list"><div class="empty">正在探测…</div></div></div>
           </div>
+          <!-- 详情栏常驻：未选中时渲染引导卡（不再塌单列）。
+               骨架必须带 .dhead —— 5 个 pick*() 渲染函数都会整体覆盖这里，
+               而"有没有 .dhead"曾是用来判断空栏的判据，现在是视觉一致性要求。 -->
           <aside class="split-side" id="sk-detail">
-            <div class="dmain"><div class="empty">左边点一条，看内容；技能还能传到别的 Agent</div></div>
+            <div class="dhead">
+              <div class="dhtop"><h3>详情</h3></div>
+              <div class="dtop"><span class="dmi">左边点一条，看内容；技能还能传到别的 Agent</span></div>
+            </div>
+            <div class="dmain">
+              <div class="guide">
+                <div class="gic"><svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h9M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg></div>
+                <h4>从左边选一条</h4>
+                <p>这里会显示它的内容；技能还能选目标 Agent，直接传过去。</p>
+              </div>
+            </div>
           </aside>
         </div>
       </section>
@@ -2562,12 +2586,16 @@ function renderDetail(id){
   var el=document.getElementById('detail'); if(!el)return;
   var r=(LASTROWS||[]).filter(function(x){return x.id===id})[0];
   if(!r){
-    el.innerHTML='<div class="dhead"><h3 class="dempty-h">记忆详情</h3></div>'+
-      '<div class="dmain"><div class="dempty">点左侧任意一条记忆，这里会显示完整内容、标签与操作按钮。</div></div>';
-    splitSolo(el,true);      /* 没选中 → 详情栏不占格子，列表吃满全宽 */
+    /* 没选中 → 详情栏常驻引导卡（不再塌单列，见 .split CSS 上方注释） */
+    el.innerHTML='<div class="dhead">'+
+        '<div class="dhtop"><h3>记忆详情</h3></div>'+
+        '<div class="dtop"><span class="dmi">点左侧任意一条记忆，这里会显示完整内容、标签与操作按钮</span></div>'+
+      '</div>'+
+      '<div class="dmain">'+
+        paneGuide('从左边选一条记忆','这里会显示它的完整内容、标签、归属信息与操作按钮。')+
+      '</div>';
     return;
   }
-  splitSolo(el,false);       /* 有选中 → 恢复两栏 */
   var full=String(r.content||"");
   var short=full.length>46;
   var title=memTitle(full,46);
@@ -4257,9 +4285,8 @@ function secApply(){
 /* 右栏详情、本机内容右栏、会话左列表都是随时重渲染的：
    靠 observer 自动把折叠状态补回去，免得每处渲染都手写一次调用（漏一处就失效）。 */
 var _secQ=false;
-function secQueue(){if(_secQ)return;_secQ=true;setTimeout(function(){_secQ=false;secApply();soloSync()},0)}
-/* ⚠️ sk-list 也必须在观察名单里 —— 技能页首次进页面时只有 loadSkills() 在写 #sk-list，
-   不监听它，soloSync() 就没机会跑，技能页的空态详情栏会一直留着占位。 */
+function secQueue(){if(_secQ)return;_secQ=true;setTimeout(function(){_secQ=false;secApply()},0)}
+/* 观察名单：这些容器随时被重渲染，折叠状态靠 observer 补回去，免得每处渲染都手写一次。 */
 ["detail","sk-detail","sk-list","s-list","list"].forEach(function(id){
   var el=document.getElementById(id);
   if(el)new MutationObserver(secQueue).observe(el,{childList:true,subtree:true});
@@ -4345,37 +4372,31 @@ function renderSessionView(r){
   }
   el.innerHTML=html;
   el.style.display="block";
-  sessionGuide(false);     /* 有内容了 → 收起引导卡（会话页不走 solo，见 sessionGuide 注释） */
+  sessionGuide(false);     /* 有内容了 → 收起引导卡 */
   foldAll();
   secApply();
 }
 
-/* ── 主从骨架的「空态塌单列」 ──────────────────────────────────
-   三处共用：记忆页 #detail / 会话页 .split-side / 技能页 #sk-detail。
-   详情栏没有内容时两栏塌成单列、列表吃满全宽，有内容再恢复两栏。
-   **统一走这里**，别在页面上手写 grid-template-columns（三份迟早会改歪）。 */
-function splitSolo(node,on){
-  var s=(node&&node.closest)?node.closest(".split"):null;
-  if(s)s.classList.toggle("solo",!!on);
+/* ── 详情栏的「空态引导卡」 ────────────────────────────────────
+   三处主从骨架共用：记忆页 #detail / 会话页 #s-guide / 技能页 #sk-detail。
+   2026-09-24 用户拍板：**撤销「空态塌单列」** —— 详情栏不再消失，
+   未选中时就渲染这张卡，把"该点哪里"说清楚，两栏宽度也恒定不跳。
+   ⚠️ 别在页面上手写 grid-template-columns。 */
+function paneGuide(title,msg){
+  return '<div class="guide">'+
+    '<div class="gic"><svg viewBox="0 0 24 24">'+
+      '<path d="M8 6h13M8 12h13M8 18h9M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg></div>'+
+    '<h4>'+esc(title)+'</h4><p>'+esc(msg)+'</p></div>';
 }
-/* 会话页**不用** splitSolo（用户 2026-09-24 拍板「方案 B」）：
-   未选中时详情栏不消失，换成一张引导卡 —— 布局恒定，不会因为"选没选中"整页跳一下。
-   #s-guide（引导卡）与 #s-view（原文时间线）互斥，统一走这里，别再各写一份显隐。 */
+/* 会话页的引导卡是静态 HTML（#s-guide），与 #s-view（原文时间线）互斥显隐，
+   统一走这里，别再各写一份。 */
 function sessionGuide(on){
   var g=document.getElementById("s-guide");
   if(g)g.style.display=on?"":"none";
 }
-/* 技能页没有单一的"清空详情"入口 —— 5 个渲染函数各自往 #sk-detail 写。
-   所以靠已有 observer 统一判定：**有 .dhead 才算真内容**，
-   "读取中… / 左边点一条" 这类占位都不算。 */
-function soloSync(){
-  var el=document.getElementById("sk-detail");
-  if(el)splitSolo(el,!el.querySelector(".dhead"));
-}
 /* 技能页详情栏的「过渡 / 失败」占位 —— **必须带 .dhead**。
-   否则 soloSync 判它是空栏 → 整栏 display:none：
-   · 报错时错误文案一个字符都看不见（实测详情栏宽 757px → 0）
-   · 已展开时点另一条会先塌再弹（慢盘 / 大文件可见抖动）
+   缺了 .dhead 整块会被当成"不是正经详情"，视觉上像卡了半截
+   （踩过：错误态只写 .dmain>.empty，标题栏空着、文案孤零零悬在中间）。
    注意判据不能放宽到 .empty —— 骨架初始空态本身也是 .dmain>.empty。 */
 function skHold(title,msg){
   return '<div class="dhead"><div class="dhtop"><h3>'+esc(title)+'</h3></div></div>'+

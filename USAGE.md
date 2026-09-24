@@ -29,7 +29,7 @@
 | 入口 | 给谁用 | 怎么起 |
 |---|---|---|
 | **网页面板** | 给你（人）看和改 | `python panel.py --open` → `http://127.0.0.1:8787` |
-| **MCP / CLI** | 给 Agent（程序）读和写 | `python hippocampus.py`（MCP 服务）；`python hippocampus.py --cli`（命令行） |
+| **MCP / CLI** | 给 Agent（程序）读和写 | `python loci.py`（MCP 服务）；`python loci.py --cli`（命令行） |
 | **安装器** | 接入 / 验证 | `python install_agents.py --list / --all / --verify / --rules` |
 
 **面板默认不常驻**：页面关掉后 **5 分钟无访问自动退出**，不占后台。
@@ -157,7 +157,7 @@ Agent 开局需要的是**结论** —— 短、省 token、直接能用。几�
 | | |
 |---|---|
 | **为什么用** | 换电脑、备份、把记忆发给别人 |
-| **得到什么** | 一个 `.json` 文件（格式 `hippocampus-pack v1`） |
+| **得到什么** | 一个 `.json` 文件（格式 `loci-pack v1`） |
 | **然后呢** | 新机器上「选择文件并导入」→ **按内容自动去重**，重复的不会变成两份 |
 
 三块功能：
@@ -245,7 +245,7 @@ python install_agents.py --rules     # 让 Agent 开局先调 memory_context
 
 | 问题 | 答案 |
 |---|---|
-| **数据存在哪** | 一个 SQLite 文件 `hippocampus.db`（默认与 `hippocampus.py` 同目录，可用环境变量 `HIPPOCAMPUS_DB` 指定） |
+| **数据存在哪** | 一个 SQLite 文件 `loci.db`（默认与 `loci.py` 同目录，可用环境变量 `LOCI_DB` 指定） |
 | **会上云吗** | **不会**。不联网、无遥测、无账号、无 API Key；面板只监听 `127.0.0.1` |
 | **手动备份** | 复制那个 `.db` 文件即可；或在**清理**页点「立即备份」 |
 | **自动备份** | 在**清理**页①设一个归档目录（可放移动硬盘），每开一次面板检查一次，每天最多一份，默认留 30 份 |
@@ -262,7 +262,7 @@ python install_agents.py --rules     # 让 Agent 开局先调 memory_context
 | 现象 | 原因 | 怎么办 |
 |---|---|---|
 | 浏览器打不开 `127.0.0.1:8787` | 端口被占 / 面板没起来 | 换端口启动 `python panel.py --port 8799` |
-| Agent 说"没有 hippocampus 这个工具" | 没接入，或**接入后没重启** | **Agent** 页点「一键接入」→ **重启该 Agent** → 「验证 MCP 服务」 |
+| Agent 说"没有 loci 这个工具" | 没接入，或**接入后没重启** | **Agent** 页点「一键接入」→ **重启该 Agent** → 「验证 MCP 服务」 |
 | Agent 记不住东西 | 它没在开局调 `memory_context` | 跑 `python install_agents.py --rules` |
 | 搜不到明明记过的内容 | 关键词差太远 / 那条被作废了 | 换关键词；去**记忆**页搜 ID 直接看 |
 | 中文显示成方块 | 终端编码 | 用 `python -X utf8` 启动 |
@@ -273,10 +273,10 @@ python install_agents.py --rules     # 让 Agent 开局先调 memory_context
 ## 9. 命令行速查（不想开面板时）
 
 ```bash
-python hippocampus.py --cli                      # 交互模式
-python hippocampus.py --save "写操作先落库再失效" --type skill --proj 架构
-python hippocampus.py --search "缓存怎么失效"
-python hippocampus.py --stats
+python loci.py --cli                      # 交互模式
+python loci.py --save "写操作先落库再失效" --type skill --proj 架构
+python loci.py --search "缓存怎么失效"
+python loci.py --stats
 ```
 
 ## 10. 改完代码想验证

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Hippocampus 面板回归测试（纯 Python，无需浏览器）
+"""Loci 面板回归测试（纯 Python，无需浏览器）
 
 专门防住一个曾把整个面板打瘫的坑：
   panel.py 里的 PAGE 变量若不是 raw string，Python 会把它内部的 \\n
@@ -55,7 +55,7 @@ _node = _find_node()
 if _node:
     import tempfile
     import subprocess
-    tmp = os.path.join(tempfile.gettempdir(), "hippocampus_check.js")
+    tmp = os.path.join(tempfile.gettempdir(), "loci_check.js")
     io.open(tmp, "w", encoding="utf-8").write(script)
     try:
         r = subprocess.run([_node, "--check", tmp], capture_output=True, text=True, timeout=30)
@@ -120,9 +120,9 @@ check("后端路由齐全", not missing_routes, f"缺失: {missing_routes}")
 # 7. 无第三方依赖（检查全部 .py 文件）
 ALLOWED = ("sys", "os", "io", "json", "math", "re", "sqlite3", "argparse", "datetime",
            "hashlib", "threading", "webbrowser", "shutil", "subprocess",
-           "http", "urllib", "hippocampus", "panel")
+           "http", "urllib", "loci", "panel")
 third = []
-for fn in ("hippocampus.py", "panel.py", "install_agents.py", "test_mcp.py", "test_panel.py"):
+for fn in ("loci.py", "panel.py", "install_agents.py", "test_mcp.py", "test_panel.py"):
     fp = os.path.join(HERE, fn)
     if not os.path.exists(fp):
         continue

@@ -41,8 +41,8 @@ for _s in ("", "-wal", "-shm"):
         os.remove(TMP + _s)
     except OSError:
         pass
-os.environ["HIPPOCAMPUS_DB"] = TMP
-import hippocampus as h  # noqa: E402
+os.environ["LOCI_DB"] = TMP
+import loci as h  # noqa: E402
 
 SRC = "agent-scan://gate-dup"
 a = [{"role": "user", "content": "第一轮"}, {"role": "assistant", "content": "回答"}]
@@ -60,7 +60,7 @@ ck("A1 同源重复保存 sid 稳定且 created=False",
 ck("A2 同源恒 1 条、消息不被更短内容截断", n == 1 and m == 3, "条数=%s(1) 消息=%s(3)" % (n, m))
 
 # ---- 真实库检查索引与残留 ----
-os.environ.pop("HIPPOCAMPUS_DB", None)
+os.environ.pop("LOCI_DB", None)
 importlib.reload(h)
 real = h.db()
 idx = real.execute("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_sess_src'").fetchone()

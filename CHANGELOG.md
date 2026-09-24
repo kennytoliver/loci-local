@@ -2,6 +2,33 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.4.0] - 2026-09-25
+
+### 改名 · Hippocampus（海马体） → Loci（忆宫）
+
+> 破坏性变更（路径变了），所以进 minor。品牌演进史：MemHub → HippoHub → Hippocampus → **Loci**。
+
+**对外**
+- 仓库改名 `kennytoliver/loci-local`（GitHub 旧地址自动 301 跳转，已有链接不会断）
+- README / README_EN / USAGE 的品牌名、标题与 slogan
+  （`I never forget.` → `a memory palace your agents share.`）
+- 个人主页 README 的项目名与链接
+
+**本地路径（clone 下来直接看到的就是这些）**
+- `hippocampus.py` → **`loci.py`**（引擎 + MCP Server + CLI）
+- `hippocampus.db` → **`loci.db`**（数据库）
+- 环境变量 `HIPPOCAMPUS_DB` / `HIPPOCAMPUS_AGENT` → **`LOCI_DB` / `LOCI_AGENT`**
+- MCP 服务名 `hippocampus` → **`loci`**（工具前缀随之变成 `mcp__loci__*`）
+- 记忆包格式标识 `hippocampus-pack` → **`loci-pack`**
+
+**兼容（**别删**，删了会让老配置和老数据"失联"）**
+- 环境变量与数据库文件名：**旧名继续可用**；且新库缺失、旧库存在时自动回落到旧库
+- 记忆包导入：**同时接受 `hippocampus-pack` 旧格式**，改名之前导出的包仍能导入
+- `install_agents.py` 的 `LEGACY_RULES` 补上 `hippocampus` 标记 ——
+  否则各 Agent 的 `AGENTS.md` 里会同时留下新旧两份互相矛盾的约定块
+- 面板「是否已接入」的检测同时认 `loci` / `hippocampus` / `hippohub` / `memhub` 四个名字
+- 主题偏好 localStorage 键：读新键失败时回落到旧键，用户不会突然被切回默认主题
+
 ## [0.2.3] - 2026-09-23
 
 > 这一轮全部来自 `docs/独立评审报告-UI.md`（独立 UI 评审，10 条）与用户实测反馈。
@@ -131,7 +158,7 @@
 - 全套闸门 **27/27 PASS**（新增两项后从 25 → 27）
 - 项目根 10 个 `backup-*` 旧备份**移入回收站**（8 个目录 + 2 个孤儿 SQLite sidecar 文件）：
   删前逐个比对过数据库快照（15/17/40/40/54 条记忆，都是当前 116 条的子集，无独有数据）
-- 项目整体从 `C:\Users\user\Hippocampus` 迁到 `D:\repo`：
+- 项目整体从 `C:\Users\user\Loci` 迁到 `D:\repo`：
   改了 12 个文件的硬编码路径（2 个 bat / 桌面启动器 / 3 个 Agent 的 MCP 配置 /
   `tools/` 下 6 个开发脚本），代码与配置零残留；C 盘源目录已移入回收站
 - 新增闸门 `verify_conn_drop`（断连静默），已挂进 `tools/run_gates.sh`（常规集）
@@ -252,7 +279,7 @@
 
 ### 首个可用版本
 
-- `hippocampus.py`：零依赖单文件引擎，SQLite 存储，**中文 bigram + 英文混合 TF-IDF 检索**
+- `loci.py`：零依赖单文件引擎，SQLite 存储，**中文 bigram + 英文混合 TF-IDF 检索**
 - 6 个 MCP 工具：`memory_save` / `memory_search` / `memory_list` / `memory_delete` / `memory_stats` / `memory_handoff`
 - 项目交接卡：按类型分组生成 markdown，切换 Agent 时注入上下文
 - 记忆包导入导出（JSON，跨机器交换，导入自动去重）

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Hippocampus 安装器（命令行版）
+"""Loci 安装器（命令行版）
 ============================
 给不用网页面板的人用：一条命令把自己接入本机所有 AI Agent。
 
@@ -28,13 +28,19 @@ except Exception as e:  # pragma: no cover
     print(f"无法加载 panel.py：{e}")
     sys.exit(1)
 
-RULES_BEGIN = "<!-- hippocampus:begin -->"
-RULES_END = "<!-- hippocampus:end -->"
+RULES_BEGIN = "<!-- loci:begin -->"
+RULES_END = "<!-- loci:end -->"
 # 改名前留下的旧约定块。写入前必须先剔除 —— 否则新标记匹配不上旧标记时，
 # _write_rules() 会走"追加"分支，结果是同一个文件里并存两份约定：
 # 旧的（没有 session_save 那条）在前、新的在后，Agent 读到重复且互相矛盾的指令。
-# 品牌演进：MemHub → HippoHub → Hippocampus（.gitignore 里的 memhub.db / hippohub.db 是同一段历史的痕迹）
+# 品牌演进：MemHub → HippoHub → Hippocampus → Loci
+# （.gitignore 里的 memhub.db / hippohub.db / hippocampus.db 是同一段历史的痕迹）
+# ⚠️ `hippocampus` 那一对是 **2026-09-25 改名时补的，不能删**：
+#    各 Agent 的 ~/.agents/AGENTS.md 里已经躺着用旧标记写的约定块，
+#    不把它们列进 LEGACY_RULES，_write_rules() 就会走"追加"分支 ——
+#    同一个文件里并存两份互相矛盾的指令，Agent 读到的是重复且错的规则。
 LEGACY_RULES = (
+    ("<!-- hippocampus:begin -->", "<!-- hippocampus:end -->"),
     ("<!-- hippohub:begin -->", "<!-- hippohub:end -->"),
     ("<!-- memhub:begin -->", "<!-- memhub:end -->"),
 )
@@ -53,9 +59,9 @@ def _strip_legacy(text):
 
 
 RULES_BODY = """{begin}
-## Hippocampus 共享记忆（本机跨 Agent 记忆中枢）
+## Loci 共享记忆（本机跨 Agent 记忆中枢）
 
-本项目/本机已接入 Hippocampus MCP 服务。它有**两层**：会话层存原话（给人看），记忆层存结论（给模型用）。请遵守以下约定：
+本项目/本机已接入 Loci MCP 服务。它有**两层**：会话层存原话（给人看），记忆层存结论（给模型用）。请遵守以下约定：
 
 1. **对话开始时**：先调用 `memory_context`（可带 project 参数）拿到常驻记忆与近期重点，再开始工作。
 2. **出现新的决策 / 踩坑 / 用户偏好**：调用 `memory_save` 写入（类型选 decision / error / preference），不要只在对话里说。
@@ -132,7 +138,7 @@ def cmd_list():
     print("-" * 72)
     for a in rows:
         state = {"installed": "已安装", "residue": "残留", "absent": "未安装"}[a["state"]]
-        mark = "已接入" if a["hippocampus_registered"] else ("可接入" if (a["installed"] and a["writable"]) else "")
+        mark = "已接入" if a["loci_registered"] else ("可接入" if (a["installed"] and a["writable"]) else "")
         print(f"  {a['name']:<22} {state:<6} {mark:<6} {a['config']}")
     n = sum(1 for a in rows if a["installed"])
     print("-" * 72)
@@ -144,7 +150,7 @@ def cmd_install(names=None):
     if names:
         want = set(names)
         rows = [a for a in rows if a["name"] in want]
-    todo = [a for a in rows if not a["hippocampus_registered"]]
+    todo = [a for a in rows if not a["loci_registered"]]
     if not todo:
         print("没有需要接入的 Agent（未安装或已接入）")
         return
@@ -158,7 +164,7 @@ def cmd_install(names=None):
 
 
 def cmd_uninstall(names=None):
-    rows = [a for a in P.scan_agents() if a["hippocampus_registered"]]
+    rows = [a for a in P.scan_agents() if a["loci_registered"]]
     if names:
         want = set(names)
         rows = [a for a in rows if a["name"] in want]
@@ -191,7 +197,7 @@ def cmd_rules(remove=False, include_cwd=False):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Hippocampus 安装器")
+    ap = argparse.ArgumentParser(description="Loci 安装器")
     ap.add_argument("--list", action="store_true", help="扫描本机 Agent")
     ap.add_argument("--all", action="store_true", help="接入全部已安装的 Agent")
     ap.add_argument("--install", nargs="*", metavar="NAME", help="接入指定 Agent")

@@ -27,7 +27,7 @@ except Exception:
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
-import hippocampus as h  # noqa: E402
+import loci as h  # noqa: E402
 
 FAIL, PASS = [], []
 GATE_NAME = "__gate_test_skill__"

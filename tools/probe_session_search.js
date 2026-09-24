@@ -42,12 +42,12 @@ if (!CHROME) { console.error('没找到 Chrome，请用 CHROME_PATH 指定。');
   }
 
   await tryEnter('英文', 'hippocampus');
-  await tryEnter('中文', '海马体');
+  await tryEnter('中文', '忆宫');
 
   // 直接调用函数（对照）
   const direct = await page.evaluate(async () => {
     try {
-      document.getElementById('s-q').value = '海马体';
+      document.getElementById('s-q').value = '忆宫';
       await window.sessionSearch();
       return 'ok, #s-list 长度=' + document.getElementById('s-list').innerHTML.length;
     } catch (e) { return 'ERR: ' + (e && e.message ? e.message : String(e)); }

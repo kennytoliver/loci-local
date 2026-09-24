@@ -1,18 +1,18 @@
 # -*- coding: utf-8 -*-
-"""Hippocampus MCP Server 端到端测试：模拟 MCP 客户端全流程
+"""Loci MCP Server 端到端测试：模拟 MCP 客户端全流程
 
-- 路径自动定位（与 hippocampus.py 同目录），不写死绝对路径
-- 使用独立临时数据库，跑完自动删除，不污染真实 hippocampus.db
+- 路径自动定位（与 loci.py 同目录），不写死绝对路径
+- 使用独立临时数据库，跑完自动删除，不污染真实 loci.db
 """
 import subprocess, json, sys, os, tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SERVER = os.path.join(HERE, "hippocampus.py")
+SERVER = os.path.join(HERE, "loci.py")
 
 # 独立临时库：测试数据与真实数据隔离
-_tmp = tempfile.NamedTemporaryFile(prefix="hippocampus_test_", suffix=".db", delete=False)
+_tmp = tempfile.NamedTemporaryFile(prefix="loci_test_", suffix=".db", delete=False)
 _tmp.close()
-os.environ["HIPPOCAMPUS_DB"] = _tmp.name
+os.environ["LOCI_DB"] = _tmp.name
 
 proc = subprocess.Popen(
     [sys.executable, "-X", "utf8", SERVER],
@@ -32,7 +32,7 @@ results = []
 send({"jsonrpc": "2.0", "id": 1, "method": "initialize",
       "params": {"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {"name": "test-client", "version": "1.0"}}})
 r = recv()
-ok = r and r.get("result", {}).get("serverInfo", {}).get("name") == "hippocampus"
+ok = r and r.get("result", {}).get("serverInfo", {}).get("name") == "loci"
 results.append(("initialize 握手", ok, r.get("result", {}).get("serverInfo") if r else None))
 
 send({"jsonrpc": "2.0", "method": "notifications/initialized"})
@@ -139,4 +139,4 @@ for name, ok, extra in results:
         print(f"      {str(extra)[:150]}")
 print("=" * 60)
 print("总体:", "全部通过" if all_ok else "有失败项")
-print("（测试使用独立临时数据库，真实 hippocampus.db 未被改动）")
+print("（测试使用独立临时数据库，真实 loci.db 未被改动）")

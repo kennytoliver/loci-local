@@ -1,4 +1,7 @@
 # ===== 私有数据，绝不上传 =====
+# 现行名（2026-09-25 改名后）；下面几行是各历史名，**故意留着** ——
+# 旧环境/旧备份里还有这些文件，删掉规则它们就会变成"未忽略"
+loci.db
 hippocampus.db
 memhub.db
 *.db-journal
@@ -8,15 +11,15 @@ memhub.db
 # 个人文件（含真实记忆/路径，不进仓库）
 agents.json
 trash-backup/
+loci-backup-*.json
 hippocampus-backup-*.json
 RESTORE.md
 filelist.txt
 自检报告-*.md
 docs/
-hippocampus.bat
-hippocampus-panel.bat
-memhub.bat
-memhub-panel.bat
+# 启动脚本一律忽略：里面写着本机绝对路径（D:\repo\...），换台机器就不对，
+# 而且历史上抄过"只列具体文件名"的亏 —— 改名后旧文件名漏在规则外，差点被提交。
+*.bat
 
 # Python
 __pycache__/
@@ -39,7 +42,7 @@ Thumbs.db
 hippohub.db
 # 数据库的时间戳备份（.bak-<时间戳>）：含真实记忆数据，绝不进版本库
 # （2026-09-22 踩坑：只写了 *.db，漏了带后缀的备份，30MB 真数据被误提交）
-hippocampus.db.bak-*
+loci.db.bak-*
 *.db.bak-*
 
 # 本地备份一律不提交（通配符，避免又漏掉新的备份目录名）

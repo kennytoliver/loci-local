@@ -83,7 +83,7 @@ def db_count(db):
 
 def spawn(port, idle, db):
     env = dict(os.environ)
-    env["HIPPOCAMPUS_DB"] = db
+    env["LOCI_DB"] = db
     env.setdefault("PYTHONIOENCODING", "utf-8")
     return subprocess.Popen(
         [PY, "-u", os.path.join(ROOT, "panel.py"), "--port", str(port),
@@ -109,8 +109,8 @@ def post_json(port, path, payload=None, timeout=10):
 
 def main():
     tmp = tempfile.mkdtemp(prefix="hippo-shutdown-")
-    real_db = os.path.join(ROOT, "hippocampus.db")
-    db = os.path.join(tmp, "hippocampus.db")
+    real_db = os.path.join(ROOT, "loci.db")
+    db = os.path.join(tmp, "loci.db")
     shutil.copy2(real_db, db)
     before = db_count(db)
     print("临时库：%s（%d 条记忆）\n" % (db, before))

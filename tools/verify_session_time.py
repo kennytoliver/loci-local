@@ -28,9 +28,9 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
 TMP = tempfile.mkdtemp(prefix="hippo-stime-")
-os.environ["HIPPOCAMPUS_DB"] = os.path.join(TMP, "hippocampus.db")
+os.environ["LOCI_DB"] = os.path.join(TMP, "loci.db")
 
-import hippocampus as hippo  # noqa: E402
+import loci as hippo  # noqa: E402
 
 RESULTS = []
 
@@ -45,7 +45,7 @@ def section(t):
 
 
 def main():
-    print("临时库：%s" % os.environ["HIPPOCAMPUS_DB"])
+    print("临时库：%s" % os.environ["LOCI_DB"])
 
     # ── ① norm_time ────────────────────────────────────────────────────────
     section("norm_time 各格式归一")

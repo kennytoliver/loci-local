@@ -34,12 +34,12 @@ except Exception:
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# 必须在 import hippocampus **之前**设置：DB 路径是模块加载时求值的，
+# 必须在 import loci **之前**设置：DB 路径是模块加载时求值的，
 # 放在 import 之后设等于没设（第一版就是这么错的 —— 闸门悄悄读了真实库还以为在测目标库）。
 if len(sys.argv) > 1:
-    os.environ["HIPPOCAMPUS_DB"] = sys.argv[1]
+    os.environ["LOCI_DB"] = sys.argv[1]
 
-import hippocampus as h  # noqa: E402
+import loci as h  # noqa: E402
 
 FAIL = []
 PASS = []

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Hippocampus（海马体）— 个人跨 Agent 记忆中枢（零依赖单文件）
+Loci（忆宫）— 个人跨 Agent 记忆中枢（零依赖单文件）
 ================================================
 - 存储: SQLite 单文件, 零运维
 - 检索: 中文 bigram + 英文 token 混合 TF-IDF (专为中文优化)
@@ -9,10 +9,10 @@ Hippocampus（海马体）— 个人跨 Agent 记忆中枢（零依赖单文件�
 - 同时提供 CLI 模式, 方便 bat 快捷方式和手动使用
 
 用法:
-  python hippocampus.py                 # MCP server 模式 (stdio)
-  python hippocampus.py --cli           # 交互式 CLI
-  python hippocampus.py --save "内容" --type decision --imp 4 --tags a,b --proj 项目名
-  python hippocampus.py --search "查询"
+  python loci.py                 # MCP server 模式 (stdio)
+  python loci.py --cli           # 交互式 CLI
+  python loci.py --save "内容" --type decision --imp 4 --tags a,b --proj 项目名
+  python loci.py --search "查询"
 """
 import sys, os, io, json, math, re, sqlite3, argparse, datetime, hashlib
 
@@ -24,14 +24,21 @@ import sys, os, io, json, math, re, sqlite3, argparse, datetime, hashlib
 #      · panel.py 页脚用它（serve 时替换 __APP_VERSION__ 占位符）
 #      · panel.py 自检 clientInfo 用它
 #    发版时**只改这一行**。
-APP_VERSION = "0.3"
+APP_VERSION = "0.4"
 
-# 环境变量：优先新名，兼容旧名（老配置里可能还写着 HIPPOHUB_DB）
-_ENV_DB = os.environ.get("HIPPOCAMPUS_DB") or os.environ.get("HIPPOHUB_DB")
-# 来源标记：各 Agent 的 MCP 配置里设置 HIPPOCAMPUS_AGENT，写入记忆时自动带上，
+# 环境变量：优先新名 LOCI_*，**同时兼容全部历史名**。
+# 老配置（4 个 Agent 的 MCP 配置里）可能还写着 HIPPOCAMPUS_DB / HIPPOHUB_DB，
+# 少认一个，那个 Agent 就会连到另一个（空的）库上 —— 表现是"记忆突然全没了"。
+_ENV_DB = (os.environ.get("LOCI_DB") or os.environ.get("HIPPOCAMPUS_DB")
+           or os.environ.get("HIPPOHUB_DB"))
+# 来源标记：各 Agent 的 MCP 配置里设置 LOCI_AGENT，写入记忆时自动带上，
 # 避免调用方自己猜导致来源失真（曾出现 Trae 写入却被记成 WorkBuddy）
-DEFAULT_AGENT = os.environ.get("HIPPOCAMPUS_AGENT") or ""
-DB_PATH = _ENV_DB or os.path.join(os.path.dirname(os.path.abspath(__file__)), "hippocampus.db")
+DEFAULT_AGENT = os.environ.get("LOCI_AGENT") or os.environ.get("HIPPOCAMPUS_AGENT") or ""
+# 数据库默认位置：新名 loci.db；但**如果新文件还不存在、旧的 hippocampus.db 在**，
+# 就先接着用旧的 —— 改名当天万一复制失败或被漏掉，也不至于让用户看到"空记忆库"。
+_DIR = os.path.dirname(os.path.abspath(__file__))
+_NEW_DB, _OLD_DB = os.path.join(_DIR, "loci.db"), os.path.join(_DIR, "hippocampus.db")
+DB_PATH = _ENV_DB or (_OLD_DB if (not os.path.exists(_NEW_DB) and os.path.exists(_OLD_DB)) else _NEW_DB)
 CJK = re.compile(r"[一-鿿　-〿＀-￯]")
 WORD = re.compile(r"[a-zA-Z0-9_+\-.#]{2,}")
 TYPES = ("fact", "preference", "context", "decision", "error", "skill", "summary")
@@ -417,7 +424,7 @@ def context_pack(project=None, limit=8):
         seen.add(r["id"]); merged.append(r)
     label = {"decision": "决策", "preference": "偏好", "error": "坑", "skill": "经验",
              "fact": "事实", "context": "背景", "summary": "摘要"}
-    head = "# Hippocampus 常驻上下文" + (("（项目：" + project + "）") if project else "")
+    head = "# Loci 常驻上下文" + (("（项目：" + project + "）") if project else "")
     lines = [head, "> 有效记忆 %d 条｜常驻 %d 条｜本机共享，跨 Agent 通用"
              % (s["total"], s.get("pinned", 0)), ""]
     if pinned:
@@ -799,7 +806,7 @@ def audit_report(project=None):
     q = quality_scan(project)
     h = health_score(project)
     L = []
-    L.append("# Hippocampus 记忆质检报告")
+    L.append("# Loci 记忆质检报告")
     L.append("")
     L.append("> 生成时间：%s ｜ 范围：%s ｜ 扫描：%d 条" %
              (now(), project or "全局", q["scanned"]))
@@ -854,7 +861,7 @@ def audit_report(project=None):
         L.append("")
     L.append("---")
     L.append("")
-    L.append("*本报告由 Hippocampus 质检模块生成，处理动作可在面板「质检」页执行。*")
+    L.append("*本报告由 Loci 质检模块生成，处理动作可在面板「质检」页执行。*")
     return "\n".join(L)
 
 def scan_zcode_db(db_path=None, include_subagent=True, max_sessions=60,
@@ -873,7 +880,7 @@ def scan_zcode_db(db_path=None, include_subagent=True, max_sessions=60,
     if not force and sig is not None and (known or {}).get(key) == sig:
         st["unchanged"] = st.get("unchanged", 0) + 1
         return []
-    work = os.path.join(_tmp.gettempdir(), "hippocampus-zcode-ro.sqlite")
+    work = os.path.join(_tmp.gettempdir(), "loci-zcode-ro.sqlite")
     try:
         _sh.copy2(src, work)
     except Exception:
@@ -1301,9 +1308,9 @@ def skill_markdown(project, limit=200):
     groups = {}
     for r in rows:
         groups.setdefault(r["mtype"], []).append(r)
-    name = "hippocampus-" + re.sub(r"[^\w\u4e00-\u9fff-]", "_", project)
+    name = "loci-" + re.sub(r"[^\w\u4e00-\u9fff-]", "_", project)
     lines = ["---", "name: " + name,
-             "description: 由 Hippocampus 记忆库生成的「%s」经验手册（%d 条）" % (project, len(rows)),
+             "description: 由 Loci 记忆库生成的「%s」经验手册（%d 条）" % (project, len(rows)),
              "---", "", "# %s 经验手册" % project, "",
              "> 自动生成，跨 Agent 共享。使用前请核对时效性与项目当前状态。", ""]
     for t, title in (("decision", "已确认的决策"), ("preference", "硬性要求与偏好"),
@@ -1322,7 +1329,7 @@ def export_skill(project, out_dir=None):
     if not md:
         return {"error": "该项目没有可导出的记忆"}
     base = out_dir or os.path.join(os.path.expanduser("~"), ".workbuddy", "skills")
-    name = "hippocampus-" + re.sub(r"[^\w\u4e00-\u9fff-]", "_", project)
+    name = "loci-" + re.sub(r"[^\w\u4e00-\u9fff-]", "_", project)
     d = os.path.join(base, name)
     os.makedirs(d, exist_ok=True)
     p = os.path.join(d, "SKILL.md")
@@ -2258,7 +2265,7 @@ def handoff(project, limit=50):
     label = {"decision": "已确认的决策", "preference": "偏好与硬性要求", "fact": "事实与状态",
              "error": "踩过的坑", "skill": "可复用经验", "context": "背景上下文", "summary": "摘要"}
     lines = [f"# 项目交接卡: {project}",
-             f"> 生成时间 {now()} ｜ 共 {len(rows)} 条记忆 ｜ 来源: Hippocampus 本地记忆库", ""]
+             f"> 生成时间 {now()} ｜ 共 {len(rows)} 条记忆 ｜ 来源: Loci 本地记忆库", ""]
     for t in ("decision", "preference", "error", "fact", "skill", "context", "summary"):
         if t not in groups:
             continue
@@ -2774,7 +2781,7 @@ def do_archive_snapshot(force=False):
     except Exception as e:
         return {"error": "归档目录不可用：%s" % e}
     today = datetime.date.today().strftime("%Y%m%d")
-    target = os.path.join(snap, "hippocampus-%s.db" % today)
+    target = os.path.join(snap, "loci-%s.db" % today)
     if os.path.exists(target) and not force:
         return {"ok": True, "skipped": True, "path": target, "msg": "今天已有备份，跳过"}
     try:
@@ -2831,7 +2838,7 @@ def mcp_server():
             reply(rid, {
                 "protocolVersion": ver,
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "hippocampus", "version": APP_VERSION}})
+                "serverInfo": {"name": "loci", "version": APP_VERSION}})
         elif method == "notifications/initialized":
             pass
         elif method == "tools/list":
@@ -2850,10 +2857,10 @@ def mcp_server():
 
 # ---------- CLI ----------
 def cli():
-    print("Hippocampus CLI（输入 help 查看命令, quit 退出）")
+    print("Loci CLI（输入 help 查看命令, quit 退出）")
     while True:
         try:
-            line = input("hippocampus> ").strip()
+            line = input("loci> ").strip()
         except (EOFError, KeyboardInterrupt):
             break
         if not line or line == "quit":
@@ -2892,7 +2899,7 @@ def cli():
             print("未知命令，输入 help")
 
 def main():
-    ap = argparse.ArgumentParser(description="Hippocampus 个人跨 Agent 记忆中枢")
+    ap = argparse.ArgumentParser(description="Loci 个人跨 Agent 记忆中枢")
     ap.add_argument("--cli", action="store_true")
     ap.add_argument("--save")
     ap.add_argument("--search")

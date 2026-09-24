@@ -19,9 +19,9 @@ import os
 import sqlite3
 import sys
 
-DB = os.environ.get("HIPPOCAMPUS_DB",
+DB = os.environ.get("LOCI_DB",
                     os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                                 "hippocampus.db"))
+                                 "loci.db"))
 
 
 def main():

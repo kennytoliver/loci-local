@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""生成《Hippocampus 使用指南 · 功能流程版》PDF。
+"""生成《Loci 使用指南 · 功能流程版》PDF。
 纯文字、按功能讲操作流程，无截图，便于对照录视频。
 依赖：reportlab（已装）。中文字体用系统本地字体（黑体/宋体）。
 """
@@ -80,7 +80,7 @@ story = []
 
 # ---------- 封面 ----------
 story.append(Spacer(1, 40 * mm))
-story.append(P("Hippocampus 使用指南", S_TITLE))
+story.append(P("Loci 使用指南", S_TITLE))
 story.append(P("跨 Agent 本地记忆中枢 · 功能流程版", S_SUB))
 story.append(Spacer(1, 8 * mm))
 story.append(P("I never forget.", S_SLOGAN))
@@ -96,25 +96,25 @@ story.append(PageBreak())
 story.append(P("零、如何启动面板", S_H1))
 story.append(P("在录视频或日常使用前，先把面板跑起来：", S_BODY))
 story.append(steps([
-    "确认本机已安装项目要求的 Python 版本，并 clone / 解压好 Hippocampus 项目目录。",
-    "Windows 用户：直接双击项目根目录的 <b>hippocampus-panel.bat</b> 即可启动；",
+    "确认本机已安装项目要求的 Python 版本，并 clone / 解压好 Loci 项目目录。",
+    "Windows 用户：直接双击项目根目录的 <b>loci-panel.bat</b> 即可启动；",
     "或命令行启动：在项目目录下执行 <b>python panel.py --port 8787</b>（常驻可加 <b>--idle-exit 0</b>）。",
     "打开浏览器，访问 <b>http://127.0.0.1:8787</b>，即可看到左侧 8 个功能入口的面板。",
     "关闭面板：直接关掉浏览器即可；常驻进程可在任务管理器结束，或等其 idle 自动退出。",
 ]))
-story.append(P("数据就一个本地文件（hippocampus.db），全部在你自己电脑上，不上云。", S_TIP))
+story.append(P("数据就一个本地文件（loci.db），全部在你自己电脑上，不上云。", S_TIP))
 story.append(PageBreak())
 
 # ---------- 1. 核心心智模型 ----------
 story.append(P("一、先建立核心心智模型（贯穿全篇）", S_H1))
-story.append(P("Hippocampus 把信息分两层，这是理解后面所有功能的前提：", S_BODY))
+story.append(P("Loci 把信息分两层，这是理解后面所有功能的前提：", S_BODY))
 story.append(table([
     ["类型", "存什么", "作用"],
     ["会话层（原话）", "你和 AI 的完整对话原文", "想找回“当时 AI 到底说了什么”时，用原文检索"],
     ["记忆层（结论）", "你沉淀下来的结论：决策 / 偏好 / 事实 / 经验 / 踩坑 / 背景 / 摘要", "Agent 开局直接读取，省 token、立即可用"],
 ], [28 * mm, 62 * mm, 80 * mm]))
 story.append(Spacer(1, 4 * mm))
-story.append(P("用一个贯穿全篇的例子：你让 AI 帮你做个人博客网站。聊了几天、换了三个 Agent 之后，海马体里会沉淀出：", S_BODY))
+story.append(P("用一个贯穿全篇的例子：你让 AI 帮你做个人博客网站。聊了几天、换了三个 Agent 之后，忆宫里会沉淀出：", S_BODY))
 story.append(table([
     ["记忆类型", "内容（真实示例）", "作用"],
     ["决策", "技术选型：静态博客，不上数据库", "我为什么这样做"],
@@ -184,13 +184,13 @@ story.append(steps([
     "运行扫描，工具会把历史对话整理成候选记忆。",
     "逐条挑选“有用”的，确认入库；没价值的跳过。",
 ]))
-story.append(P("新手注意：采集是“补历史账”——你之前没接海马体时的对话，现在一次性补进来。", S_TIP))
+story.append(P("新手注意：采集是“补历史账”——你之前没接忆宫时的对话，现在一次性补进来。", S_TIP))
 
 story.append(P("2.6 Agent（接入管理）", S_H2))
-story.append(P("一句话：把海马体接进各个 AI 工具，并验证它们是否可用。", S_BODY))
+story.append(P("一句话：把忆宫接进各个 AI 工具，并验证它们是否可用。", S_BODY))
 story.append(steps([
     "点左侧「Agent」入口。",
-    "看已支持的 AI 工具列表，一键执行“接入”把海马体挂到对应工具上。",
+    "看已支持的 AI 工具列表，一键执行“接入”把忆宫挂到对应工具上。",
     "用内置验证，确认 10 个工具是否都可用（状态灯绿/红）。",
     "有接不上的，按提示排查（通常是路径或配置文件问题）。",
 ]))
@@ -267,7 +267,7 @@ story.append(P("五、记忆包 vs 交接卡（最容易搞混的两个）", S_H
 story.append(table([
     ["", "记忆包", "交接卡"],
     ["形态", "一个 .json 文件", "一段 Markdown 文字"],
-    ["给谁", "给另一台电脑上的海马体", "给另一个 AI Agent"],
+    ["给谁", "给另一台电脑上的忆宫", "给另一个 AI Agent"],
     ["怎么用", "面板里“选择文件”导入", "复制粘贴到对话里"],
     ["场景", "换电脑 / 备份 / 给同事", "开新对话时让 AI 立刻懂"],
     ["需要对方装东西吗", "需要", "不需要（粘贴即用）"],
@@ -296,7 +296,7 @@ def footer(canvas, doc):
     canvas.saveState()
     canvas.setFont("Song", 8)
     canvas.setFillColor(GREY)
-    canvas.drawString(20 * mm, 12 * mm, "Hippocampus 使用指南 · 功能流程版")
+    canvas.drawString(20 * mm, 12 * mm, "Loci 使用指南 · 功能流程版")
     canvas.drawRightString(A4[0] - 20 * mm, 12 * mm, "第 %d 页" % doc.page)
     canvas.restoreState()
 
@@ -305,7 +305,7 @@ OUT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
 doc = SimpleDocTemplate(OUT, pagesize=A4,
                         leftMargin=20 * mm, rightMargin=20 * mm,
                         topMargin=18 * mm, bottomMargin=18 * mm,
-                        title="Hippocampus 使用指南 · 功能流程版",
-                        author="Hippocampus")
+                        title="Loci 使用指南 · 功能流程版",
+                        author="Loci")
 doc.build(story, onFirstPage=footer, onLaterPages=footer)
 print("OK ->", OUT)

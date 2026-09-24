@@ -12,7 +12,7 @@ quality_scan() 结果比对：重复组、疑似同义、可能矛盾三项必�
 """
 import sys, time
 sys.path.insert(0, r"D:/repo")
-import hippocampus as hippo
+import loci as hippo
 
 
 def reference_scan(project=None, dup_th=0.66, contain_th=0.82, conflict_lo=0.28,

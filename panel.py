@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Hippocampus Panel — macOS Vibrancy 风本地网页面板（零依赖单文件）
+Loci Panel — macOS Vibrancy 风本地网页面板（零依赖单文件）
 =================================================
-- 复用 hippocampus.py 引擎（同一目录 import），数据直连同一个 hippocampus.db
+- 复用 loci.py 引擎（同一目录 import），数据直连同一个 loci.db
 - 纯 stdlib http.server，只监听 127.0.0.1，不暴露到局域网
 - 功能：统计 / 记忆列表 / 中文检索 / 新增 / 删除 / 交接卡 / 记忆包 / Agent 体检
 - 设计：三级深灰 + 侧边栏 vibrancy + Georgia 衬线标题（暗色原生）
@@ -18,7 +18,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs, quote
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import hippocampus as hippo
+import loci as hippo
 
 # ---------- Agent 注册表：检测 + 一键接入的唯一数据源 ----------
 def _custom_path():
@@ -476,20 +476,24 @@ def scan_agents():
         registered = False
         if cfg_hit:
             try:
-                registered = '"hippocampus"' in _file_text(cfg_hit)
+                # ⚠️ 兼容改名前的配置：老配置里服务名还是 "hippocampus"（也叫 hippohub / memhub）。
+                #    这里必须**把旧名一起认**，否则升级后本机明明接着，面板却报「未接入」——
+                #    用户会以为记忆断了，实际只是名字对不上。改名是 2026-09-25 做的。
+                _t = _file_text(cfg_hit)
+                registered = any('"%s"' % n in _t for n in ("loci", "hippocampus", "hippohub", "memhub"))
             except Exception:
                 pass
         out.append({"name": a["name"], "state": state,
                     "installed": state == "installed",
                     "writable": a["write"],
                     "source": a.get("source", "builtin"),
-                    "hippocampus_registered": registered,
+                    "loci_registered": registered,
                     "config": cfg_hit or a["configs"][0]})
     out.sort(key=lambda x: x["name"].lower())   # 按名称 A-Z 排序
     return out
 
 # ---------- 记忆包导出/导入 ----------
-def export_backup_file(prefix="hippocampus-backup"):
+def export_backup_file(prefix="loci-backup"):
     """删除前强制备份：全量导出成一个带时间戳的 JSON 文件，返回路径"""
     pack = export_pack(None)
     pack["count"] = len(pack["memories"])
@@ -673,7 +677,7 @@ def list_backups():
         out.append({"dir": d, "files": n, "size": size, "time": name})
     return out
 
-PACK_FORMAT = "hippocampus-pack"
+PACK_FORMAT = "loci-pack"
 
 def export_pack(project=None, include_sessions=False):
     """导出记忆包。默认只带「记忆层(结论)」；include_sessions=True 时连「会话层(对话原文)」一起导出。"""
@@ -708,9 +712,11 @@ def export_pack(project=None, include_sessions=False):
 
 
 def import_pack(pack):
-    if not isinstance(pack, dict) or pack.get("format") != PACK_FORMAT \
+    # ⚠️ 旧格式标识一起认：改名时 format 从 "hippocampus-pack" 换成 "loci-pack"，
+    #    如果只认新名，用户手上**改名之前导出的记忆包就全部导不进来了**（数据在，却读不出）。
+    if not isinstance(pack, dict) or pack.get("format") not in (PACK_FORMAT, "hippocampus-pack") \
             or not isinstance(pack.get("memories"), list):
-        return {"error": "不是有效的 Hippocampus 记忆包"}
+        return {"error": "不是有效的 Loci 记忆包"}
     conn = hippo.db()
     existing = {r["content"] for r in conn.execute("SELECT content FROM memories")}
     conn.close()
@@ -865,14 +871,14 @@ def collect(paths):
 # ---------- 一键接入：直接读写各 Agent 的 MCP 配置（写入前必做备份） ----------
 def _script_paths():
     here = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(here, "hippocampus.py"), os.path.join(here, "hippocampus.db")
+    return os.path.join(here, "loci.py"), os.path.join(here, "loci.db")
 
 def _server_entry():
     """生成写进各家配置的 MCP server 条目（路径动态取自当前运行环境，保证可移植）"""
     script, db = _script_paths()
     return {"command": sys.executable,
             "args": ["-X", "utf8", script],
-            "env": {"HIPPOCAMPUS_DB": db}}
+            "env": {"LOCI_DB": db}}
 
 def _json_targets():
     """支持一键写入的 Agent -> 候选配置文件（来自注册表，write=True 的才可写）"""
@@ -933,7 +939,7 @@ def _resolve_target(name, config=None):
     return _pick_target(targets[name]), _shape_of(_agent_def(name)), None
 
 def register_agent(name, config=None):
-    """把 hippocampus 写入指定 Agent 的 MCP 配置（备份 + 合并不覆盖）"""
+    """把 loci 写入指定 Agent 的 MCP 配置（备份 + 合并不覆盖）"""
     path, shape, err = _resolve_target(name, config)
     if err:
         return err
@@ -943,7 +949,7 @@ def register_agent(name, config=None):
     except ValueError as e:
         return {"error": str(e), "path": path}
     bak = _backup(path)
-    servers["hippocampus"] = _server_entry()
+    servers["loci"] = _server_entry()
     try:
         _write_config(path, data)
     except Exception as e:
@@ -951,7 +957,7 @@ def register_agent(name, config=None):
     return {"ok": True, "path": path, "backup": bak, "created": bak is None, "shape": shape}
 
 def unregister_agent(name, config=None):
-    """移除指定 Agent 配置里的 hippocampus 条目（备份 + 仅删自己那一项）"""
+    """移除指定 Agent 配置里的 loci 条目（备份 + 仅删自己那一项）"""
     path, shape, err = _resolve_target(name, config)
     if err:
         return err
@@ -965,10 +971,10 @@ def unregister_agent(name, config=None):
         servers = _servers_get(data, shape, create=False)
     except ValueError as e:
         return {"error": str(e), "path": path}
-    if not servers or "hippocampus" not in servers:
-        return {"error": "该配置里没有 hippocampus 条目", "path": path}
+    if not servers or "loci" not in servers:
+        return {"error": "该配置里没有 loci 条目", "path": path}
     bak = _backup(path)
-    servers.pop("hippocampus", None)
+    servers.pop("loci", None)
     try:
         _write_config(path, data)
     except Exception as e:
@@ -976,10 +982,10 @@ def unregister_agent(name, config=None):
     return {"ok": True, "path": path, "backup": bak}
 
 def verify_mcp(timeout=20):
-    """真实握手验证：起 hippocampus.py，走 initialize + tools/list，确认 MCP 可用"""
+    """真实握手验证：起 loci.py，走 initialize + tools/list，确认 MCP 可用"""
     script, db = _script_paths()
     env = dict(os.environ)
-    env["HIPPOCAMPUS_DB"] = db
+    env["LOCI_DB"] = db
     env["PYTHONIOENCODING"] = "utf-8"
     try:
         p = subprocess.Popen([sys.executable, "-X", "utf8", script],
@@ -999,7 +1005,7 @@ def verify_mcp(timeout=20):
     try:
         send({"jsonrpc": "2.0", "id": 1, "method": "initialize",
               "params": {"protocolVersion": "2024-11-05", "capabilities": {},
-                         "clientInfo": {"name": "hippocampus-panel",
+                         "clientInfo": {"name": "loci-panel",
                                         "version": hippo.APP_VERSION}}})
         r = recv()
         name = (r or {}).get("result", {}).get("serverInfo", {}).get("name")
@@ -1007,7 +1013,7 @@ def verify_mcp(timeout=20):
         send({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
         r2 = recv()
         tools = [t["name"] for t in (r2 or {}).get("result", {}).get("tools", [])]
-        ok = name == "hippocampus" and len(tools) == 10
+        ok = name == "loci" and len(tools) == 10
         return {"ok": ok, "server": name, "tools": tools,
                 "python": sys.executable, "script": script,
                 "error": None if ok else "握手返回不符合预期"}
@@ -1051,7 +1057,7 @@ def _watchdog():
             continue
         idle = _now_mono() - _LAST_SEEN[0]
         if idle > IDLE_EXIT_SEC:
-            print("[Hippocampus] 面板已闲置 %d 秒，自动退出（记忆数据不受影响）"
+            print("[Loci] 面板已闲置 %d 秒，自动退出（记忆数据不受影响）"
                   % int(idle), flush=True)
             os._exit(0)
 
@@ -1067,7 +1073,7 @@ PAGE = r"""<!DOCTYPE html>
 <meta charset="utf-8">
 <link rel="icon" type="image/png" href="/icon.png">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Hippocampus</title>
+<title>Loci</title>
 <style>
 :root{
   /* 页面底从库值 #161616 压到 #0e0e0e：库的 #161616 对卡片 #1d1d1c 只有 1.073:1 面差，
@@ -2179,7 +2185,7 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
     <div class="sbrand">
       <img class="slogo" src="/icon-blue.png" alt="">
       <div class="sbtext">
-        <h1>Hippocampus</h1>
+        <h1>Loci</h1>
         <p>本地 AI 记忆管理器</p>
       </div>
     </div>
@@ -2539,7 +2545,7 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
             <button class="btn pri" onclick="registerAll()">全部接入</button>
           </div>
         </div>
-        <p class="lead">把 Hippocampus 接入本机所有 AI Agent：自动识别已安装的产品，一键写入 MCP 配置。写入前自动备份，只增不改其他条目。</p>
+        <p class="lead">把 Loci 接入本机所有 AI Agent：自动识别已安装的产品，一键写入 MCP 配置。写入前自动备份，只增不改其他条目。</p>
 
         <div class="panel">
           <div class="listhead">
@@ -2668,7 +2674,7 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
         <div class="panel">
           <div class="listhead">
             <span class="t">① 导出范围</span>
-            <span class="hint" style="margin:0">格式 hippocampus-pack v1：内容 / 类型 / 重要度 / 项目 / 时间</span>
+            <span class="hint" style="margin:0">格式 loci-pack v1：内容 / 类型 / 重要度 / 项目 / 时间</span>
           </div>
           <div class="row">
             <select id="pk-proj" class="proj-sel"><option value="">全部项目</option></select>
@@ -2687,7 +2693,7 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
             <button class="btn" onclick="document.getElementById('pack-file').click()">选择文件并导入</button>
             <input type="file" id="pack-file" accept=".json" style="display:none" onchange="doImport(this)">
           </div>
-          <p class="hint">只接受 Hippocampus 导出的记忆包；与现有记忆内容重复的条目会自动跳过。</p>
+          <p class="hint">只接受 Loci 导出的记忆包；与现有记忆内容重复的条目会自动跳过。</p>
         </div>
 
         <div class="panel">
@@ -2990,7 +2996,7 @@ function applyTheme(t,save){
   var b=document.getElementById("themetgl");
   if(b) b.title = (t==="light") ? "当前白天模式，点击切到黑夜" : "当前黑夜模式，点击切到白天";
   if(save){
-    try{localStorage.setItem("hippocampus-theme",t)}catch(e){}
+    try{localStorage.setItem("loci-theme",t)}catch(e){}
     toast(t==="light"?"已切换到白天模式":"已切换到黑夜模式","ok");
   }
 }
@@ -3001,7 +3007,7 @@ function toggleTheme(){
 (function initTheme(){
   var t=null,q=(location.search||"").match(/theme=(light|dark)/);
   if(q){ t=q[1]; applyTheme(t,false); return; }   /* URL 指定优先（便于分享/截图） */
-  try{t=localStorage.getItem("hippocampus-theme")}catch(e){}
+  try{t=localStorage.getItem("loci-theme")||localStorage.getItem("hippocampus-theme")}catch(e){}
   if(!t){
     t=(window.matchMedia&&window.matchMedia("(prefers-color-scheme: light)").matches)?"light":"dark";
   }
@@ -4931,15 +4937,15 @@ function memLine(r,extra){
 setInterval(function(){ api("/api/ping").catch(function(){}); }, 60000);
 
 async function shutdownPanel(){
-  if(!confirm("关闭面板服务？\n\n记忆数据不受影响（都存在 hippocampus.db 里）。\n下次要用，双击桌面的 Hippocampus 图标即可重新打开。")) return;
+  if(!confirm("关闭面板服务？\n\n记忆数据不受影响（都存在 loci.db 里）。\n下次要用，双击桌面的 Loci 图标即可重新打开。")) return;
   try{ await api("/api/shutdown",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"}); }catch(e){}
   document.documentElement.innerHTML=
     '<body class="bye">'+
       '<img src="/icon.png" alt="">'+
       '<h2>面板服务已关闭</h2>'+
-      '<p>记忆数据完好，保存在 <code>hippocampus.db</code> 里。<br>'+
+      '<p>记忆数据完好，保存在 <code>loci.db</code> 里。<br>'+
       '你的 AI Agent 照常能读写记忆 —— 它们不依赖这个面板。<br>'+
-      '下次要管理，双击桌面的 <b>Hippocampus</b> 图标即可。</p>'+
+      '下次要管理，双击桌面的 <b>Loci</b> 图标即可。</p>'+
     '</body>';
 }
 
@@ -4984,7 +4990,7 @@ async function exportReport(){
   progress(false);
   var md=r.markdown||"";
   if(!md){toast("报告生成失败","err");return}
-  downloadMd(md, "hippocampus-质检报告-" + new Date().toISOString().slice(0,10) + ".md");
+  downloadMd(md, "loci-质检报告-" + new Date().toISOString().slice(0,10) + ".md");
   toast("质检报告已下载","ok");
 }
 function downloadMd(text, filename){
@@ -5141,12 +5147,12 @@ async function registerAgentAt(i){
 }
 async function unregisterAgentAt(i){
   var a=AGENTS[i];if(!a)return;
-  if(!confirm("从 " + a.name + " 的配置里移除 Hippocampus？（会先备份原文件）"))return;
+  if(!confirm("从 " + a.name + " 的配置里移除 Loci？（会先备份原文件）"))return;
   var r=await api("/api/agent/unregister",{method:"POST",
     headers:{"Content-Type":"application/json"},
     body:JSON.stringify({name:a.name,config:a.config})});
   if(r.error){msg("移除失败：" + r.error,"err")}
-  else{msg("已移除 " + name + " 的 Hippocampus 条目\n配置文件：" + r.path +
+  else{msg("已移除 " + name + " 的 Loci 条目\n配置文件：" + r.path +
            "\n备份：" + r.backup,"ok");toast("已移除 " + name,"ok")}
   loadAgents();
 }
@@ -5258,14 +5264,14 @@ async function loadAgents(){
     let dot,txt,cls,acts="",tag="";
     if(a.state==="residue"){dot="off";txt="已卸载 · 有残留配置";cls="badge-no"}
     else if(!a.installed){dot="off";txt="未安装";cls="badge-no"}
-    else if(a.hippocampus_registered){dot="on";txt="已接入 Hippocampus";cls="badge-ok"}
+    else if(a.loci_registered){dot="on";txt="已接入 Loci";cls="badge-ok"}
     else if(!a.writable){dot="warn";txt="已安装 · 暂不支持自动写入（可手动配）";cls="badge-warn"}
     else{dot="warn";txt="已安装 · 未接入";cls="badge-warn"}
     if(a.source==="discovered") tag='<span class="badge-new">自动发现</span>';
     if(a.source==="manual") tag='<span class="badge-new">手动添加</span>';
     var btns=[];
     if(a.installed && a.writable){
-      btns.push(a.hippocampus_registered
+      btns.push(a.loci_registered
         ? `<button class="mini warn" onclick="unregisterAgentAt(${i})">移除接入</button>`
         : `<button class="mini" onclick="registerAgentAt(${i})">一键接入</button>`);
     }
@@ -5316,7 +5322,7 @@ refresh();
 
 
 SELFTEST = """<!DOCTYPE html>
-<html lang="zh-CN"><head><meta charset="utf-8"><title>Hippocampus 诊断页</title>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>Loci 诊断页</title>
 <style>body{background:#1c1c1e;color:#f5f5f7;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
 padding:28px 30px;max-width:860px;margin:0 auto}
 h1{font-size:24px;margin-bottom:6px}
@@ -5389,12 +5395,12 @@ class Handler(BaseHTTPRequestHandler):
     #   → 功能不受影响，可日志脏到"看着像面板崩了"，真出问题时会埋在这堆噪声里。
     # 所以这里只吞**"对端没了"这一类**（ConnectionError 覆盖 WinError 10053/10054/32）；
     # 其它异常照常往外抛 —— 别把真 bug 一起吞掉。
-    # 想排查连接问题时设 HIPPOCAMPUS_LOG_CONN=1，会打一行短提示。
+    # 想排查连接问题时设 LOCI_LOG_CONN=1，会打一行短提示。
     _conn_drop = 0
 
     def _note_conn_drop(self):
         Handler._conn_drop += 1
-        if os.environ.get("HIPPOCAMPUS_LOG_CONN"):
+        if os.environ.get("LOCI_LOG_CONN"):
             sys.stderr.write(
                 "[panel] 客户端提前断开（第 %d 次，已忽略）\n" % Handler._conn_drop)
 
@@ -5491,7 +5497,7 @@ class Handler(BaseHTTPRequestHandler):
         _touch()
         q = parse_qs(u.query)
         if u.path in ("/", "/index.html"):
-            # 版本号只有一处来源（hippocampus.APP_VERSION），页脚里是 __APP_VERSION__ 占位符。
+            # 版本号只有一处来源（loci.APP_VERSION），页脚里是 __APP_VERSION__ 占位符。
             # 单次 str.replace 的开销可以忽略，换来"发版只改一行"。
             self._send(200, PAGE.replace("__APP_VERSION__", hippo.APP_VERSION),
                        "text/html; charset=utf-8")
@@ -5615,7 +5621,7 @@ class Handler(BaseHTTPRequestHandler):
         elif u.path == "/api/skill/detail":
             self._json(hippo.local_skill_detail(q.get("path", [""])[0]))
         elif u.path == "/api/content":
-            # 配置文件 + MCP。路径只填本机实测过的（见 hippocampus.CONTENT_SOURCES）；
+            # 配置文件 + MCP。路径只填本机实测过的（见 loci.CONTENT_SOURCES）；
             # 敏感文件（credentials 之类）只回存在与键名，值一律不回。
             cfgs = hippo.list_configs()
             self._json({"configs": cfgs,
@@ -5641,9 +5647,9 @@ class Handler(BaseHTTPRequestHandler):
             _ws = (q.get("include_sessions", ["0"])[0] or "0") not in ("0", "", "false")
             pack = export_pack(proj, include_sessions=_ws)
             body = json.dumps(pack, ensure_ascii=False, indent=2).encode("utf-8")
-            fname = "hippocampus-pack.json"
+            fname = "loci-pack.json"
             if proj:
-                fname = f"hippocampus-pack-{quote(proj)}.json"
+                fname = f"loci-pack-{quote(proj)}.json"
             self._raw(200, [
                 ("Content-Type", "application/json; charset=utf-8"),
                 ("Cache-Control", "no-store"),
@@ -5751,7 +5757,7 @@ class Handler(BaseHTTPRequestHandler):
                                            bool(body.get("keep", 1))))
         elif u.path == "/api/cleanup/run":
             if body.get("ids"):
-                bak = export_backup_file("hippocampus-backup-before-cleanup")
+                bak = export_backup_file("loci-backup-before-cleanup")
                 r = hippo.bulk_delete_ids(body["ids"])
                 r["backup"] = bak
                 r["items"] = r["items"][:20]
@@ -5763,7 +5769,7 @@ class Handler(BaseHTTPRequestHandler):
             prev = cleanup_preview(project, agent, before, only_sup)
             if not prev["count"]:
                 return self._json({"error": "当前条件没有命中任何记忆"})
-            bak = export_backup_file("hippocampus-backup-before-cleanup")
+            bak = export_backup_file("loci-backup-before-cleanup")
             r = hippo.bulk_delete(project, agent, before, only_sup)
             r["backup"] = bak
             r["items"] = r["items"][:20]
@@ -5772,7 +5778,7 @@ class Handler(BaseHTTPRequestHandler):
             o = hippo.find_orphans()
             ids = [m["id"] for m in o["memories"]]
             sessions = [s["id"] for s in o["sessions"]]
-            bak = export_backup_file("hippocampus-backup-before-orphan-purge")
+            bak = export_backup_file("loci-backup-before-orphan-purge")
             if ids:
                 hippo.bulk_delete_projects(o["projects"])
             if sessions:
@@ -5795,7 +5801,7 @@ class Handler(BaseHTTPRequestHandler):
             targets = _json_targets()
             results = []
             for a in scan_agents():
-                if a["installed"] and not a["hippocampus_registered"] and a.get("writable"):
+                if a["installed"] and not a["loci_registered"] and a.get("writable"):
                     r = register_agent(a["name"])
                     r["name"] = a["name"]
                     results.append(r)
@@ -5811,7 +5817,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Hippocampus 管理面板")
+    ap = argparse.ArgumentParser(description="Loci 管理面板")
     ap.add_argument("--port", type=int, default=8787)
     ap.add_argument("--open", action="store_true")
     ap.add_argument("--idle-exit", type=int, default=300, metavar="秒",
@@ -5832,7 +5838,7 @@ def main():
     _probe.close()
     if _busy:
         print()
-        print("  [Hippocampus] 端口 %d 上已经有面板在运行了。" % a.port)
+        print("  [Loci] 端口 %d 上已经有面板在运行了。" % a.port)
         print("  浏览器直接打开：%s" % url)
         print("  确实要再开一个：python panel.py --port 9000")
         return 1
@@ -5840,16 +5846,16 @@ def main():
         srv = ThreadingHTTPServer(("127.0.0.1", a.port), Handler)
     except OSError as _e:
         print()
-        print("  [Hippocampus] 端口 %d 起不来：%s" % (a.port, _e))
+        print("  [Loci] 端口 %d 起不来：%s" % (a.port, _e))
         print("  换个端口试试：python panel.py --port 9000")
         return 1
     if IDLE_EXIT_SEC > 0:
-        print("Hippocampus 管理面板已启动: %s" % url)
+        print("Loci 管理面板已启动: %s" % url)
         print("  · 关掉浏览器页面后，%d 分钟内无访问会自动退出（不占后台）"
               % (IDLE_EXIT_SEC // 60 or 1))
         print("  · 想让它一直开着：--idle-exit 0")
     else:
-        print("Hippocampus 管理面板已启动: %s（常驻模式）" % url)
+        print("Loci 管理面板已启动: %s（常驻模式）" % url)
     print("  · Ctrl+C 立即停止")
     _start_watchdog()
     # 打开面板时检查一次归档（未配置目录时会直接跳过，不做任何事）

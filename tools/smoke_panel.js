@@ -195,7 +195,7 @@ const rec = (name, pass, info = '') =>
     // → renderHealth() 再等 /api/health，两个都回来才画出环。
     // ⚠️ 2026-09-21 踩坑：原来等 80×100ms(=8s)，而真实耗时约 6.4s（两个接口各 3.2s），
     //    余量不足 1s → 约 1/3 概率假失败（html=0B，看着像"仪表没渲染"）。
-    //    真根因在 hippocampus.py 的 O(n^2) 配对（每对重复 tokenize）已修（3.2s→0.3s）。
+    //    真根因在 loci.py 的 O(n^2) 配对（每对重复 tokenize）已修（3.2s→0.3s）。
     //    这里同时把预算放宽到 20s，并回报实测等待时长 + 设一条宽松上限，
     //    这样以后万一又慢了会明确失败，而不是偶发假失败。
     const gauge = await page.evaluate(async () => {

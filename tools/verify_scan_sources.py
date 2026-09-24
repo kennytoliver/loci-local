@@ -28,11 +28,11 @@ except Exception:
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-# 必须在 import hippocampus 之前设库：DB 路径是模块加载时求值的。
-TMP_DB = os.path.join(tempfile.gettempdir(), "hippocampus-scan-gate.db")
-os.environ["HIPPOCAMPUS_DB"] = TMP_DB
+# 必须在 import loci 之前设库：DB 路径是模块加载时求值的。
+TMP_DB = os.path.join(tempfile.gettempdir(), "loci-scan-gate.db")
+os.environ["LOCI_DB"] = TMP_DB
 
-import hippocampus as h  # noqa: E402
+import loci as h  # noqa: E402
 
 FAIL, PASS = [], []
 
@@ -83,7 +83,7 @@ def main():
     ok(len(found) >= 1, "本机至少有一个来源有数据（%d 个）" % len(found))
 
     print("\n② 没有写死名单：扫描入口必须走探测函数")
-    src_txt = io.open(os.path.join(ROOT, "hippocampus.py"), encoding="utf-8").read()
+    src_txt = io.open(os.path.join(ROOT, "loci.py"), encoding="utf-8").read()
     seg = src_txt.split("def auto_scan_agents")[1].split("\ndef ")[0]
     ok("detect_conversation_sources()" in seg, "auto_scan_agents() 内部调用了探测函数")
     hard = [a for a in ("'Claude Code'", '"Claude Code"', "'Codex'", '"Codex"', "'ZCode'", '"ZCode"')

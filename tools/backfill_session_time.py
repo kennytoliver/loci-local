@@ -15,7 +15,7 @@ UI 只能退回 created_at（导入那一刻的 now()）—— 结果"9 月 20 �
   · 默认只预览（--dry-run 行为），要写必须显式 --apply
   · 消息时间只在**条数完全对得上**时才回填；对不上就只回填会话级时间，
     绝不按序号硬塞（错位的时间比没有时间更糟）
-  · 回填前自动备份 hippocampus.db
+  · 回填前自动备份 loci.db
 
 用法：
   python tools/backfill_session_time.py            # 预览
@@ -33,7 +33,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
-import hippocampus as hippo  # noqa: E402
+import loci as hippo  # noqa: E402
 
 ZC_DB = os.path.join(os.path.expanduser("~"), ".zcode", "cli", "db", "db.sqlite")
 
@@ -43,7 +43,7 @@ def zcode_index():
     库可能被 ZCode 占用 → 复制副本再读，绝不动原库。"""
     if not os.path.isfile(ZC_DB):
         return {}
-    work = os.path.join(tempfile.gettempdir(), "hippocampus-zcode-backfill.sqlite")
+    work = os.path.join(tempfile.gettempdir(), "loci-zcode-backfill.sqlite")
     try:
         shutil.copy2(ZC_DB, work)
     except Exception as e:
@@ -148,7 +148,7 @@ def main():
     bak = os.path.join(ROOT, "backup-before-timebackfill-%s"
                        % hippo.datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
     os.makedirs(bak, exist_ok=True)
-    shutil.copy2(hippo.DB_PATH, os.path.join(bak, "hippocampus.db"))
+    shutil.copy2(hippo.DB_PATH, os.path.join(bak, "loci.db"))
     print("\n已备份到 %s" % bak)
 
     n_sess = n_msg = 0

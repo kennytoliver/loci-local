@@ -10,7 +10,7 @@
   功能不受影响，可日志脏到"看着像面板崩了"。
 
 怎么验（不能只看代码，必须真造一次断连）：
-  1. 起一个 panel 子进程，env 里设 HIPPOCAMPUS_LOG_CONN=1 —— 这样一旦走到"吞掉"那条路，
+  1. 起一个 panel 子进程，env 里设 LOCI_LOG_CONN=1 —— 这样一旦走到"吞掉"那条路，
      它会打一行「客户端提前断开（第 N 次，已忽略）」，等于告诉我们**确实触发了**；
   2. 用原始 socket 发一个请求，然后带 SO_LINGER=0 立刻 close —— 对端发 RST，
      服务端写响应时必然失败（这是 10053 的成因）；
@@ -33,7 +33,7 @@ ROOT = os.path.dirname(HERE)
 PANEL = os.path.join(ROOT, "panel.py")
 
 PROBE_TIMES = 6          # 断连探针次数
-SKIP = os.environ.get("HIPPOCAMPUS_TEST_SKIP_DB")
+SKIP = os.environ.get("LOCI_TEST_SKIP_DB")
 
 
 def free_port():
@@ -72,8 +72,8 @@ def main():
     env = dict(os.environ)
     env["PYTHONIOENCODING"] = "utf-8"
     env["PYTHONUTF8"] = "1"
-    env["HIPPOCAMPUS_LOG_CONN"] = "1"     # 关键：让"吞掉"那条路留下证据
-    env.setdefault("HIPPOCAMPUS_DB", os.path.join(ROOT, "hippocampus.db"))
+    env["LOCI_LOG_CONN"] = "1"     # 关键：让"吞掉"那条路留下证据
+    env.setdefault("LOCI_DB", os.path.join(ROOT, "loci.db"))
 
     proc = subprocess.Popen(
         [sys.executable, "-X", "utf8", PANEL, "--port", str(port), "--idle-exit", "0"],

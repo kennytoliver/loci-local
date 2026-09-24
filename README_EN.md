@@ -13,7 +13,7 @@ You use Claude Code in the morning, Codex after lunch, Cursor in the evening —
 ```
 Claude Code ─┐
 Codex ───────┤
-Cursor ──────┼──►  Loci         ──►  hippocampus.db   (one file, on your disk)
+Cursor ──────┼──►  Loci         ──►  loci.db   (one file, on your disk)
 Windsurf ────┤     (MCP server)
 Copilot ─────┘
 ```

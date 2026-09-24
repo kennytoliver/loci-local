@@ -6,7 +6,7 @@
 能被 parse_transcript 切成多轮（而不是退化成一整条 raw），会话页才显示得出时间线。
 
 本脚本通过真实 MCP 协议（stdin/stdout JSON-RPC）调用，使用独立临时数据库，
-不污染真实 hippocampus.db。
+不污染真实 loci.db。
 
 零第三方依赖：python tools/verify_session_flow.py
 """
@@ -20,9 +20,9 @@ HERE = r"D:/repo"
 _tmp = tempfile.NamedTemporaryFile(prefix="hc_flow_", suffix=".db", delete=False)
 _tmp.close()
 env = dict(os.environ)
-env["HIPPOCAMPUS_DB"] = _tmp.name
+env["LOCI_DB"] = _tmp.name
 
-proc = subprocess.Popen([sys.executable, "-X", "utf8", os.path.join(HERE, "hippocampus.py")],
+proc = subprocess.Popen([sys.executable, "-X", "utf8", os.path.join(HERE, "loci.py")],
                         stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                         stderr=subprocess.PIPE, env=env)
 _id = [0]
@@ -84,14 +84,14 @@ AI：给 RULES_BODY 补一条归档约定，再跑 install_agents.py --rules 覆
 我：还有其他坑吗？
 AI：有。旧的 hippohub 标记匹配不上新标记，会追加出两份重复约定，得一起清理。"""
 out = tool("session_save", transcript=good, title="P0 会话层诊断",
-           project="Hippocampus", agent="flow-test")
+           project="Loci", agent="flow-test")
 check("归档成功且回报轮数", "已归档会话" in out, out)
 
 # ---------- ② 落库后真的切成多轮（关键）----------
 print("\n② 落库后按轮次切分（决定会话页时间线能否显示）")
 probe = subprocess.run(
     [sys.executable, "-X", "utf8", "-c",
-     "import sys;sys.path.insert(0,r'%s');import hippocampus as h;"
+     "import sys;sys.path.insert(0,r'%s');import loci as h;"
      "s,ms=h.get_session(1);print(len(ms));"
      "print('|'.join(m['role'] for m in ms))" % HERE],
     capture_output=True, text=True, env=env)
@@ -107,10 +107,10 @@ print("\n③ 反例（约定里警告过的那种写法）：用具体人名当�
 bad = """建勋：这个怎么修？
 COLE：补一条约定就行。"""
 tool("session_save", transcript=bad, title="反例-自造人名",
-     project="Hippocampus", agent="flow-test")
+     project="Loci", agent="flow-test")
 probe = subprocess.run(
     [sys.executable, "-X", "utf8", "-c",
-     "import sys;sys.path.insert(0,r'%s');import hippocampus as h;"
+     "import sys;sys.path.insert(0,r'%s');import loci as h;"
      "s,ms=h.get_session(2);print(len(ms));"
      "print('|'.join(m['role'] for m in ms))" % HERE],
     capture_output=True, text=True, env=env)
@@ -122,7 +122,7 @@ check("自造人名 → 退化成 1 条 raw（所以约定必须禁止）", n_ba
 # ---------- ④ 指纹去重 ----------
 print("\n④ 同一段对话重复归档")
 out2 = tool("session_save", transcript=good, title="P0 会话层诊断",
-            project="Hippocampus", agent="flow-test")
+            project="Loci", agent="flow-test")
 check("重复归档被指纹拦截，不写重", "已归档过" in out2, out2)
 
 # ---------- ⑤ 归档后能被检索到 ----------
@@ -135,7 +135,7 @@ print("\n⑥ 会话出现在会话列表（面板第一落点）")
 lst = tool("memory_list", limit=1)  # 冒烟：确认服务没挂
 probe = subprocess.run(
     [sys.executable, "-X", "utf8", "-c",
-     "import sys;sys.path.insert(0,r'%s');import hippocampus as h;"
+     "import sys;sys.path.insert(0,r'%s');import loci as h;"
      "rs=h.list_sessions();print(len(rs));"
      "print(rs[0]['title'],'|mem',rs[0].get('mem_count'))" % HERE],
     capture_output=True, text=True, env=env)

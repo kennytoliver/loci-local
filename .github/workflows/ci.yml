@@ -25,7 +25,7 @@ jobs:
 
       - name: 语法检查（引擎 + 面板 + 安装器）
         run: |
-          python -m py_compile hippocampus.py panel.py install_agents.py
+          python -m py_compile loci.py panel.py install_agents.py
 
       - name: 引擎端到端测试（MCP 协议 / 中文检索 / 会话层）
         run: python test_mcp.py

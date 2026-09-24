@@ -93,10 +93,10 @@ python panel.py --port 8787   # 手动访问 http://127.0.0.1:8787
 
 Claude Code：
 ```bash
-claude mcp add hippocampus -- python -X utf8 /path/to/hippocampus.py
+claude mcp add loci -- python -X utf8 /path/to/loci.py
 ```
 
-其他 MCP 客户端：command 指向你的 Python，args 为 `["-X", "utf8", "/path/to/hippocampus.py"]`，环境变量 `HIPPOCAMPUS_DB` 可指定数据库位置（默认 hippocampus.py 同目录）。
+其他 MCP 客户端：command 指向你的 Python，args 为 `["-X", "utf8", "/path/to/loci.py"]`，环境变量 `LOCI_DB` 可指定数据库位置（默认 loci.py 同目录）。
 
 **方式二·补充：命令行安装器（不用面板）**
 
@@ -110,10 +110,10 @@ python install_agents.py --rules       # 写入「记忆使用约定」，让 Ag
 **方式三：命令行**
 
 ```bash
-python hippocampus.py --cli                                # 交互模式
-python hippocampus.py --save "写操作先落库再失效" --type skill --proj 架构
-python hippocampus.py --search "缓存怎么失效"
-python hippocampus.py --stats
+python loci.py --cli                                # 交互模式
+python loci.py --save "写操作先落库再失效" --type skill --proj 架构
+python loci.py --search "缓存怎么失效"
+python loci.py --stats
 ```
 
 ## 测试
@@ -127,11 +127,11 @@ python test_panel.py   # 面板回归测试：JS 语法守卫/元素完整性/�
 
 | 文件 | 作用 |
 |---|---|
-| `hippocampus.py` | 核心引擎 + MCP Server + CLI（约 2,900 行，零依赖） |
-| `panel.py` | 单文件网页面板（零依赖，复用 hippocampus.py） |
+| `loci.py` | 核心引擎 + MCP Server + CLI（约 2,900 行，零依赖） |
+| `panel.py` | 单文件网页面板（零依赖，复用 loci.py） |
 | `test_mcp.py` | 引擎端到端测试 |
 | `test_panel.py` | 面板回归测试（JS 语法守卫） |
-| `hippocampus.db` | SQLite 数据库（首次运行自动创建；含个人数据，已在 .gitignore 中排除） |
+| `loci.db` | SQLite 数据库（首次运行自动创建；含个人数据，已在 .gitignore 中排除） |
 
 ## 隐私
 

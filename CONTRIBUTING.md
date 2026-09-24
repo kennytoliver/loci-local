@@ -41,7 +41,7 @@ Chinese or English is both fine.
 
 | File | Role |
 |---|---|
-| `hippocampus.py` | Engine: SQLite storage, Chinese retrieval, MCP server, CLI |
+| `loci.py` | Engine: SQLite storage, Chinese retrieval, MCP server, CLI |
 | `panel.py` | Single-file web panel (inline HTML/CSS/JS, no CDN) |
 | `install_agents.py` | Writes MCP config into each detected agent (with backups) |
 | `test_mcp.py` / `test_panel.py` | The test suite |

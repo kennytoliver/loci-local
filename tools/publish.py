@@ -33,7 +33,7 @@ API = "https://api.github.com/repos/%s/%s" % (OWNER, REPO)
 # 这些不上传（本地私有文件）
 SKIP_DIRS = ("docs", "backup", "__pycache__", ".git", "trash-backup", "archive")
 SKIP_FILES = ("RESTORE.md", "archive.json", "agents.json", "filelist.txt",
-              "hippocampus.db", "hippohub.db")
+              "loci.db", "hippohub.db")
 SKIP_SUFFIX = (".db", ".db-wal", ".db-shm", ".bat", ".lnk")
 
 

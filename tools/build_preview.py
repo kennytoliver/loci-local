@@ -160,12 +160,12 @@ def main():
     md = io.open(SRC, encoding="utf-8").read()
     body = render(md)
     page = """<!DOCTYPE html>
-<html lang="zh-CN"><head><meta charset="utf-8"><title>README 预览 · Hippocampus</title>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>README 预览 · Loci</title>
 <style>%s</style></head><body><div class="wrap">
 <div class="tip">本页由 <b>tools/build_preview.py</b> 从 <b>README.md</b> 自动生成，是真实文件渲染效果，
 不是另写一份内容 —— 因此永远不会和仓库里的 README 不一致。改 README 后重新跑一次即可。</div>
 %s
-<div class="foot">Hippocampus · I never forget.</div>
+<div class="foot">Loci · I never forget.</div>
 </div></body></html>""" % (CSS, body)
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     io.open(OUT, "w", encoding="utf-8").write(page)

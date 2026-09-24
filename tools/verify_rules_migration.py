@@ -1,7 +1,7 @@
 """验证 Agent 约定文件（AGENTS.md / CLAUDE.md）的写入与迁移逻辑。
 
 为什么需要它：`_write_rules()` 是"标记替换 + 否则追加"。改品牌名（MemHub → HippoHub
-→ Hippocampus）之后，旧文件里留着**旧标记**的约定块，新标记匹配不上 → 走追加分支 →
+→ Loci）之后，旧文件里留着**旧标记**的约定块，新标记匹配不上 → 走追加分支 →
 同一个文件里并存两份约定（旧的没有 session_save 那条，新的有），Agent 会读到重复且
 互相矛盾的指令，而且这种问题**肉眼看不出**（两段 Markdown 长得几乎一样）。
 
@@ -76,7 +76,7 @@ print("\n  · 场景：文件里只有旧品牌名 hippohub 的块（就是本�
 r = in_tmp(OLD_HIPPO, lambda p: IA._write_rules(p))
 check("③ 旧 hippohub 块被清理掉", "hippohub" not in r,
       f"残留={r.count('hippohub')} 处")
-check("③ 新的 hippocampus 块已写入", NEW_B in r and NEW_E in r)
+check("③ 新的 loci 块已写入", NEW_B in r and NEW_E in r)
 check("③ 全文只剩 1 个约定块（没有并存）", r.count(NEW_B) == 1, f"块数={r.count(NEW_B)}")
 check("③ 新约定含 session_save 那一节", "session_save" in r)
 

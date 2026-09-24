@@ -1483,6 +1483,18 @@ select,.formrow input[type=text]{background:var(--d2);border:1px solid var(--lin
   color:var(--faint);line-height:1.5}
 .kpi .kfoot>span:last-child{text-align:right;flex-shrink:0}
 
+/* ── 主从详情切换：内容整体换掉时淡入一次（2026-09-24）─────────────────────
+   纯 CSS，不写一行 JS：renderDetail() / 会话详情 / 技能详情都是整块 innerHTML
+   重写，新插入的节点天然会重放 animation —— 于是切换就有了呼吸感。
+   ⚠️ 只用 opacity，**不用 transform**：translateY 会临时改变
+      getBoundingClientRect，而本项目有一批量几何的闸门（measure_layers /
+      verify_link_measure / verify_slist_rows / verify_folds），动画进行中量到
+      几 px 偏移就会假报错。opacity 不参与布局，量出来的数字和以前完全一样。
+   ⚠️ 时长 0.2s 是刻意的：比切换本身的网络往返短得多，不会让人等动画。
+   系统「减少动态效果」时由全局 @media 压掉（animation-duration→0.001ms）。 */
+@keyframes detailIn{from{opacity:0}to{opacity:1}}
+.split-side>.dhead,.split-side>.dmain{animation:detailIn .2s var(--ease) both}
+
 /* 页面骨架的卡片节奏：卡片之间 20px（库的 .content 用 calc(--spacing*5)），
    区块标题（.listhead）跟着卡片走。规范第五节的 A/B/C 三套骨架都靠这两条，
    页面上就不用写内联 margin 了 */
@@ -2813,9 +2825,18 @@ function progress(on){
   if(on){clearTimeout(_barT);b.className="on"}
   else{b.className="done";_barT=setTimeout(function(){b.className=""},420)}
 }
+/* 系统「减少动态效果」——CSS 侧有全局 @media 兜底（animation/transition 全被压到 0.001ms），
+   但下面这段数字滚动是 rAF 驱动的 JS，CSS 管不到它，得在这里自己问一次。
+   结果缓存：matchMedia 每次查询都要走一遍媒体查询匹配，没必要每张卡问一次。 */
+var _REDUCED=null;
+function reduceMotion(){
+  if(_REDUCED===null){try{_REDUCED=matchMedia("(prefers-reduced-motion: reduce)").matches}catch(e){_REDUCED=false}}
+  return _REDUCED;
+}
 function countUp(el,to){
   var from=parseInt(el.textContent,10)||0;
   if(from===to){el.textContent=to;return}
+  if(reduceMotion()){el.textContent=to;return}   /* 尊重系统设置：直接落值，不做过渡 */
   var t0=performance.now(),d=520;
   (function step(t){
     var p=Math.min(1,(t-t0)/d),e=1-Math.pow(1-p,3);
@@ -3713,7 +3734,10 @@ async function loadSkills(){
   (function(){
     var max=Math.max(SKILLS.length,CFGS.length,MCPS.length,PLUGINS.length,1);
     var put=function(id,n,foot){
-      var e=document.getElementById(id);if(e)e.textContent=n;
+      /* 用页面里已有的 countUp()（顶栏那 4 个数字就用它）—— 数字滚上去而不是硬跳。
+         初值是「—」，parseInt 得 NaN→0，所以是 0→N 的滚动；重复点「重新探测」
+         就是从旧值滚到新值。reduceMotion() 时 countUp 内部直接落值。 */
+      var e=document.getElementById(id);if(e)countUp(e,n);
       var b=document.getElementById(id+"-b");
       if(b)b.style.width=Math.round(n/max*100)+"%";
       var f=document.getElementById(id+"-f");if(f)f.textContent=foot;

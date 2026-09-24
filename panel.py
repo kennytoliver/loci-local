@@ -3721,9 +3721,9 @@ function backTop(){
 async function pickSkill(i){
   SKCUR=SKILLS[i];
   var el=document.getElementById("sk-detail");
-  el.innerHTML='<div class="dmain"><div class="empty">读取中…</div></div>';
+  el.innerHTML=skHold(SKCUR.name,"读取中…");
   var r=await api("/api/skill/detail?path="+encodeURIComponent(SKCUR.path));
-  if(r.error){el.innerHTML='<div class="dmain"><div class="empty">'+esc(r.error)+'</div></div>';return}
+  if(r.error){el.innerHTML=skHold("打不开",r.error);return}
   var opts=SKTGT.map(function(t,k){
     var label=t.agent+" · "+t.scope+(t.workspace?("（"+t.workspace.split("\\").pop()+"）"):"")+
       (t.ready?"":" — 不可用");
@@ -3765,9 +3765,9 @@ async function pickSkill(i){
 async function pickCfg(i){
   CCUR=CFGS[i];
   var el=document.getElementById("sk-detail");
-  el.innerHTML='<div class="dmain"><div class="empty">读取中…</div></div>';
+  el.innerHTML=skHold(CCUR.name,"读取中…");
   var r=await api("/api/content/detail?path="+encodeURIComponent(CCUR.path));
-  if(r.error){el.innerHTML='<div class="dmain"><div class="empty">'+esc(r.error)+'</div></div>';return}
+  if(r.error){el.innerHTML=skHold("打不开",r.error);return}
   CBACKS=r.backups||[];
   el.innerHTML=
     '<div class="dhead">'+
@@ -3860,7 +3860,7 @@ async function pickPlugin(i){
      否则又造出一对点不动的死按钮（上一轮刚修过这个毛病）。 */
   CCUR={path:p.path||"",dir:p.dir||dirname(p.path||""),agent:p.agent,name:p.name};
   var el=document.getElementById("sk-detail");
-  el.innerHTML='<div class="dmain"><div class="empty">读取本地版本…</div></div>';
+  el.innerHTML=skHold(p.name,"读取本地版本…");
   var r=await api("/api/plugin/versions?agent="+encodeURIComponent(p.agent)+
                   "&path="+encodeURIComponent(p.path||""));
   var vers=(r&&r.versions)||[];
@@ -3929,9 +3929,9 @@ async function pickBackupIdx(i){
   if(!b)return;
   CCUR={path:b.path,dir:b.dir||dirname(b.path),agent:b.agent,name:b.name};
   var el=document.getElementById("sk-detail");
-  el.innerHTML='<div class="dmain"><div class="empty">读取中…</div></div>';
+  el.innerHTML=skHold(b.name,"读取中…");
   var r=await api("/api/backup/detail?path="+encodeURIComponent(b.path));
-  if(r.error){el.innerHTML='<div class="dmain"><div class="empty">'+esc(r.error)+'</div></div>';return}
+  if(r.error){el.innerHTML=skHold("打不开",r.error);return}
   var others=CBACKS.length>1?('<span class="dmi">同组还有 '+(CBACKS.length-1)+' 份</span>'):'';
   el.innerHTML=
     '<div class="dhead">'+
@@ -4342,6 +4342,15 @@ function splitSolo(node,on){
 function soloSync(){
   var el=document.getElementById("sk-detail");
   if(el)splitSolo(el,!el.querySelector(".dhead"));
+}
+/* 技能页详情栏的「过渡 / 失败」占位 —— **必须带 .dhead**。
+   否则 soloSync 判它是空栏 → 整栏 display:none：
+   · 报错时错误文案一个字符都看不见（实测详情栏宽 757px → 0）
+   · 已展开时点另一条会先塌再弹（慢盘 / 大文件可见抖动）
+   注意判据不能放宽到 .empty —— 骨架初始空态本身也是 .dmain>.empty。 */
+function skHold(title,msg){
+  return '<div class="dhead"><div class="dhtop"><h3>'+esc(title)+'</h3></div></div>'+
+         '<div class="dmain"><div class="empty">'+esc(msg)+'</div></div>';
 }
 
 function clearSessionView(){

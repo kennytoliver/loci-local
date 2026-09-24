@@ -97,6 +97,35 @@ const FULL_MIN = 1100;
     else rec(`[${theme}] 技能页·选中「${sk}」→ 恢复两栏`,
       k.solo === false && k.sideShown === true && k.mainW < 600 && k.sideW > 700, line(k));
 
+    /* ── ⑤ 回归：详情栏的「过渡/失败」态也必须撑住，不能被 soloSync 判成空栏。
+       踩过的坑：错误态原先只写 .dmain>.empty，没 .dhead → soloSync 判空 →
+       display:none，报错文案一个字符都看不见（实测详情栏宽 757px → 0），
+       而且已展开时点另一条会先塌再弹。走真实代码路径：把第一条指到不存在的目录。 */
+    const badRan = await p.evaluate(async () => {
+      if (!(window.SKILLS || []).length) return false;
+      const keep = window.SKILLS[0].path;
+      window.SKILLS[0].path = 'C:/__no_such_skill_dir__';
+      await window.pickSkill(0);
+      window.SKILLS[0].path = keep;   // 立刻还原，不污染后续用例
+      return true;
+    });
+    await sleep(1200);
+    k = (await probe(p)).skill;
+    if (!badRan) console.log(`  [${theme}] 技能页·本机没技能，⑤跳过`);
+    else rec(`[${theme}] 技能页·报错时详情栏必须可见（文案不能被自己藏掉）`,
+      k.solo === false && k.sideShown === true && k.sideW > 700, line(k));
+
+    /* ── ⑥ 不变量：占位函数 skHold() 的输出必须含 .dhead。
+       比"等加载态出现再量"更稳 —— 加载窗口只有几十毫秒，量不到。 */
+    const holdOk = await p.evaluate(() => {
+      if (typeof window.skHold !== 'function') return null;
+      const d = document.createElement('div');
+      d.innerHTML = window.skHold('t', 'm');
+      return !!d.querySelector('.dhead');
+    });
+    if (holdOk === null) rec(`[${theme}] 技能页·占位函数 skHold 必须存在`, false, '未定义');
+    else rec(`[${theme}] 技能页·占位函数 skHold 必须带 .dhead`, holdOk === true, holdOk ? '' : '缺 .dhead → 会被判成空栏');
+
     // ── 记忆页：无选中 → 塌；默认加载（会自动选中第一条）→ 恢复
     await p.evaluate(() => window.show('mem'));
     await sleep(1500);

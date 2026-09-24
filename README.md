@@ -1,8 +1,8 @@
-<p align="center"><img src="assets/icon.png" width="128" alt="Hippocampus"></p>
+<p align="center"><img src="assets/icon.png" width="128" alt="Loci"></p>
 
-<p align="center"><b>I never forget.</b><br>一个本地记忆中枢，让你的所有 AI Agent 共享同一份记忆。</p>
+<p align="center"><b>a memory palace your agents share.</b><br>一个本地记忆中枢，让你的所有 AI Agent 共享同一份记忆。</p>
 
-# Hippocampus（海马体）— 个人跨 Agent 记忆中枢
+# Loci（忆宫）— 个人跨 Agent 记忆中枢
 
 [English](README_EN.md) ｜ 简体中文
 
@@ -30,9 +30,9 @@
 
 更麻烦的是：即使同一个产品，**换个会话也可能丢上下文**（取决于它自己的会话管理），而你没有任何办法把它导出来、存起来、带走。
 
-### Hippocampus 的做法：把记忆从 harness 里剥出来
+### Loci 的做法：把记忆从 harness 里剥出来
 
-记忆不该属于某个产品，它属于你。Hippocampus 把这件事做成本地的一个 SQLite 文件，通过标准 MCP 暴露给所有 Agent：
+记忆不该属于某个产品，它属于你。Loci 把这件事做成本地的一个 SQLite 文件，通过标准 MCP 暴露给所有 Agent：
 
 - **换 harness 不再重置**：新 Agent 一开口调 `memory_context`，就能拿到你的常驻决策、偏好、趟过的坑；
 - **反向也通**：任何 Agent 写下的东西（比如在 ZCode 里说一句"记住…"），其他 Agent 都能搜到 —— 这条链路已实测跑通；
@@ -61,7 +61,7 @@
 | 会话→记忆 | 从归档会话按规则抽取候选记忆（决策/坑/偏好/事实），勾选入库，零 LLM 依赖 |
 | 会话层 | 归档对话原文（会话库存过程与原话，记忆库存结论），支持粘贴/文件/JSONL 导入、时间线回看、原话检索，重复内容自动去重 |
 | 采集中心 | 扫描本机 Agent 历史日志与 skills，人工勾选后入库（去重+白名单校验） |
-| Agent 体检 | 面板自动检测本机安装了哪些 Agent、哪些已接入 Hippocampus |
+| Agent 体检 | 面板自动检测本机安装了哪些 Agent、哪些已接入 Loci |
 | 一键接入 | 覆盖 15 个产品：WorkBuddy / ZCode / Kimi Code / DeepSeek CLI / Trae / TraeWork / VS Code / Cursor / Windsurf / Gemini CLI / Qoder / CodeBuddy 等（ZCode 使用嵌套 mcp.servers 结构）；写入前自动备份、只合并不覆盖、可移除 |
 | CLI | 交互式命令行 + 单条命令两种模式 |
 
@@ -70,8 +70,8 @@
 **环境要求**：Python 3.9+，零第三方依赖。
 
 ```bash
-git clone https://github.com/<你的名字>/hippocampus.git
-cd hippocampus
+git clone https://github.com/kennytoliver/loci-local.git
+cd loci-local
 ```
 
 **方式一：网页面板（推荐）**
@@ -151,4 +151,4 @@ python test_panel.py   # 面板回归测试：JS 语法守卫/元素完整性/�
 
 ## License
 
-MIT © Hippocampus contributors.
+MIT © Loci contributors.

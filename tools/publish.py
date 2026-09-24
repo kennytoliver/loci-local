@@ -26,7 +26,7 @@ import urllib.request
 import urllib.error
 
 OWNER = "kennytoliver"
-REPO = "hippocampus-mcp"
+REPO = "loci-local"
 BRANCH = "main"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 API = "https://api.github.com/repos/%s/%s" % (OWNER, REPO)

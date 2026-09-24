@@ -1,19 +1,19 @@
-<p align="center"><img src="assets/icon.png" width="128" alt="Hippocampus"></p>
+<p align="center"><img src="assets/icon.png" width="128" alt="Loci"></p>
 
-<p align="center"><b>I never forget.</b><br>One local memory hub shared by all your AI agents.</p>
+<p align="center"><b>a memory palace your agents share.</b><br>One local memory hub shared by all your AI agents.</p>
 
-# Hippocampus
+# Loci
 
 [简体中文](README.md) ｜ English
 
 One SQLite file, shared by every MCP-capable agent you use — no cloud, no account, no dependencies.
 
-You use Claude Code in the morning, Codex after lunch, Cursor in the evening — and every one of them starts from zero, re-asking things you already decided. Hippocampus fixes that: **one SQLite file on your machine, exposed to every MCP-capable agent, with nothing to install but Python.**
+You use Claude Code in the morning, Codex after lunch, Cursor in the evening — and every one of them starts from zero, re-asking things you already decided. Loci fixes that: **one SQLite file on your machine, exposed to every MCP-capable agent, with nothing to install but Python.**
 
 ```
 Claude Code ─┐
 Codex ───────┤
-Cursor ──────┼──►  Hippocampus  ──►  hippocampus.db   (one file, on your disk)
+Cursor ──────┼──►  Loci         ──►  hippocampus.db   (one file, on your disk)
 Windsurf ────┤     (MCP server)
 Copilot ─────┘
 ```
@@ -38,9 +38,9 @@ It bites hardest for:
 
 Worse: even within one product, **a new conversation can lose context entirely**, and there's no way to export it, keep it, or carry it with you.
 
-### What Hippocampus does: takes memory out of the harness
+### What Loci does: takes memory out of the harness
 
-Memory shouldn't belong to a product. It should belong to you. Hippocampus keeps it in a single local SQLite file and exposes it to every agent over standard MCP:
+Memory shouldn't belong to a product. It should belong to you. Loci keeps it in a single local SQLite file and exposes it to every agent over standard MCP:
 
 - **Switching no longer resets you**: a new agent calls `memory_context` and immediately gets your standing decisions, preferences and pitfalls.
 - **It works in both directions**: whatever one agent writes (say, "remember this…" in Cursor) is searchable from every other agent. This path is tested end to end.
@@ -56,8 +56,8 @@ Three things that make it different:
 ## Install
 
 ```bash
-git clone https://github.com/<you>/hippocampus.git
-cd hippocampus
+git clone https://github.com/kennytoliver/loci-local.git
+cd loci-local
 python install_agents.py --list      # what's installed on this machine
 python install_agents.py --all       # connect every agent found
 python install_agents.py --verify    # real MCP handshake, lists the 10 tools
@@ -90,7 +90,7 @@ Python 3.9+ is the only requirement. Rust-free, Node-free, cloud-free.
 - **Markdown QC report** export
 - superseded memories are **marked, never deleted** (you can still answer "what was true back then")
 
-**Automatic scanning** — no agent cooperation required. Hippocampus reads the conversation stores agents already keep on disk:
+**Automatic scanning** — no agent cooperation required. Loci reads the conversation stores agents already keep on disk:
 
 | Agent | Source |
 |---|---|
@@ -120,7 +120,7 @@ CI runs both on Ubuntu and Windows across Python 3.9 and 3.12.
 - **Search**: bigram tokenizer + TF-IDF + zero-dependency boosts (pinned ×1.35, project match ×1.30, tag match ×1.20). No embeddings — keeping the install to zero dependencies mattered more than squeezing out the last few points of recall.
 - **Quality checks**: Jaccard **and** containment similarity (calibrated against real data: a pair reading `深圳/广州番禺/佛山` vs `深圳/广州/佛山` scores J=0.54 / C=0.72 — a single 0.66 Jaccard threshold would have missed it).
 - **Time**: superseding marks rather than deletes, so the history of a decision survives.
-- **Hooks**: Some agents ship plugin-level hook mechanisms, but the event contract is not publicly documented yet. Rather than ship something that silently never fires, Hippocampus writes a plain-language usage convention into `~/.agents/AGENTS.md` instead.
+- **Hooks**: Some agents ship plugin-level hook mechanisms, but the event contract is not publicly documented yet. Rather than ship something that silently never fires, Loci writes a plain-language usage convention into `~/.agents/AGENTS.md` instead.
 
 ## Contributing
 
@@ -135,4 +135,4 @@ MIT licensed.
 ## Acknowledgements
 
 With thanks to [MemForge](https://github.com/gitstq/MemForge) (MIT) — it showed that a local-first, single-file memory store could work.
-Hippocampus is an independent implementation focused on Chinese retrieval, MCP integration, and cross-harness continuity.
+Loci is an independent implementation focused on Chinese retrieval, MCP integration, and cross-harness continuity.

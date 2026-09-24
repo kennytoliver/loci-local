@@ -1416,6 +1416,10 @@ select,.formrow input[type=text]{background:var(--d2);border:1px solid var(--lin
 .pagehead .ptitle{font-family:var(--sans);font-size:20px;font-weight:600;
   line-height:1.3;letter-spacing:-.2px;color:var(--ink);margin:0}
 .pagehead .pacts{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap}
+/* 动作区内的分组：筛选组 / 动作组之间插一条竖分隔线，让「哪个是筛选、哪个是动作」一眼可辨 */
+.pagehead .pacts .pgrp{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap}
+.pagehead .pacts .psep{width:1px;height:20px;background:var(--line);flex:0 0 1px}
+.pagehead .pacts .proj-sel{max-width:190px}
 /* 页面骨架的卡片节奏：卡片之间 20px（库的 .content 用 calc(--spacing*5)），
    区块标题（.listhead）跟着卡片走。规范第五节的 A/B/C 三套骨架都靠这两条，
    页面上就不用写内联 margin 了 */
@@ -2033,13 +2037,20 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
         <div class="pagehead">
           <h2 class="ptitle" id="page-title">记忆</h2>
           <div class="pacts">
-            <select id="proj-filter" class="proj-sel" onchange="loadList()">
-              <option value="">全部项目</option>
-            </select>
-            <button class="btn" onclick="showContext()">常驻上下文</button>
-            <button class="btn" onclick="toggleCleanup()">批量清理</button>
-            <button class="btn" onclick="backToList()">全部</button>
-            <button class="btn pri" onclick="goAdd()">＋ 记一条</button>
+            <!-- 筛选（左）与动作（右）分开：原先项目下拉和几个动作按钮挤成一排，
+                 看不出「全部项目」是筛选器、后面那些是动作。 -->
+            <div class="pgrp">
+              <select id="proj-filter" class="proj-sel" onchange="loadList()">
+                <option value="">全部项目</option>
+              </select>
+              <button class="btn" onclick="backToList()">全部</button>
+            </div>
+            <span class="psep" aria-hidden="true"></span>
+            <div class="pgrp">
+              <button class="btn" onclick="showContext()">常驻上下文</button>
+              <button class="btn" onclick="toggleCleanup()">批量清理</button>
+              <button class="btn pri" onclick="goAdd()">＋ 记一条</button>
+            </div>
           </div>
         </div>
         <p class="lead">这里是<strong>给模型检索用的记忆碎片</strong> —— 短、独立、能命中关键词，
@@ -2525,7 +2536,7 @@ function renderDetail(id){
   }
   var full=String(r.content||"");
   var short=full.length>46;
-  var title=short?(full.slice(0,46)+"…"):full;
+  var title=memTitle(full,46);
   var when=relTime(r.created_at);
   if(when.indexOf("-")<0) when+=" "+String(r.created_at).slice(11,16);
   var tags=tagList(r), proj=projName(r.project);
@@ -2679,8 +2690,27 @@ function projName(p){
   var seg=s.split(/[\\/]/);
   return seg[seg.length-1]||s;
 }
+/* 标题清洗：记忆内容本身是 Markdown（如 `# 2026-09-22 工作日志 ## #批7：…`），
+   直接当标题会踩两个坑 —— ① 露出原始标记，不像人话；② 一大批标题开头一模一样
+   （全是「# 2026-09-22 工作日志」），根本分不清谁是谁。
+   这里剥掉标记、压成一行、超长截断；列表项与详情标题共用同一个函数。 */
+function memTitle(s,max){
+  var raw=String(s==null?"":s), t=raw
+     .replace(/^\s*---[\s\S]*?\n---\s*/,"")     // YAML front matter（采集器扫进来的 md 常见）
+     .replace(/```[\s\S]*?```/g," ")
+     .replace(/^\s{0,3}#{1,6}\s*/gm,"")          // 行首 # 标题符
+     .replace(/#{2,}\s*/g," ")                   // 残留的 ##
+     .replace(/^\s{0,3}>\s?/gm,"")               // 引用符
+     .replace(/^\s{0,3}[-*+]\s+/gm,"")           // 无序列表符
+     .replace(/\*\*|__/g,"")                     // 粗体
+     .replace(/[*_`]/g,"")                       // 斜体 / 行内代码
+     .replace(/!?\[([^\]]*)\]\([^)]*\)/g,"$1");  // 链接 / 图片
+  t=t.replace(/\s+/g," ").trim();
+  if(!t)t=raw.replace(/\s+/g," ").trim();       // 兜底：清洗后为空就退回原文
+  max=max||52;
+  return t.length>max?(t.slice(0,max)+"…"):t;
+}
 function cardHtml(r,score,idx){
-  var t=String(r.content||"").replace(/\s+/g," ").trim();
   var tags=tagList(r), proj=projName(r.project);
   var tip="#"+r.id+" · P"+r.importance+" · "+agentName(r.agent)+" · "+r.created_at
     +(proj?(" · 项目 "+proj):"")+(tags.length?(" · 标签 "+tags.join("/")):"");
@@ -2688,7 +2718,7 @@ function cardHtml(r,score,idx){
       onclick="selectMem(${r.id})">
     <span class="mdot" style="background:${TC[r.mtype]||"var(--data-context)"}"></span>
     <div class="mbody">
-      <div class="mtitle">${esc(t)}</div>
+      <div class="mtitle">${esc(memTitle(r.content))}</div>
       <div class="mmeta">
         <span class="mtime">${esc(relTime(r.created_at))}</span>
         <span class="bdg">${esc(agentName(r.agent))}</span>
@@ -4023,14 +4053,14 @@ async function loadSessions(){
   document.getElementById("s-list").innerHTML = rows.length ? rows.map(function(s){
     var mn=s.mem_n||0;
     return '<div class="mem lrow" onclick="openSession('+s.id+')" title="'
-        +escAttr((s.source_path?s.source_path+' · ':'')+'点开看原文时间线')+'">'+
+        +escAttr('会话 #'+s.id+' · '+(s.source_path?s.source_path+' · ':'')+'点开看原文时间线')+'">'+
       '<div class="mbody">'+
-        '<div class="mtitle">'+esc(s.title)+'</div>'+
+        '<div class="mtitle">'+esc(memTitle(s.title))+'</div>'+
         '<div class="mmeta">'+
           '<span class="mtime">'+esc(String(s.started_at||s.created_at||"").slice(0,10))+'</span>'+
           '<span class="bdg">'+esc(s.agent||"未知来源")+'</span>'+
-          (mn?('<span class="bdg src">产出 '+mn+' 条记忆</span>'):'<span class="mtags">暂无产出</span>')+
-          '<span class="mtags">'+s.msg_count+' 轮 · #'+s.id+'</span>'+
+          (mn?('<span class="bdg src">产出 '+mn+' 条记忆</span>'):'')+
+          '<span class="mtags">'+s.msg_count+' 轮</span>'+
           '<span class="macts">'+
             '<button class="del" onclick="event.stopPropagation();extractSession('+s.id+')">抽记忆</button>'+
             '<button class="del" onclick="event.stopPropagation();openSession('+s.id+')">查看原文</button>'+

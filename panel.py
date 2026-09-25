@@ -2514,7 +2514,10 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
             <div class="shead">
               <span class="t">已归档会话</span>
               <span class="hint">按时间倒序 · 点一条看原文</span>
-              <span class="fgroup" style="margin-left:auto;flex:0 0 auto">
+              <!-- 检索框：原型 C 的会话页没画这一行，用户复查时认定它是「多出来的一条」→ 收掉。
+                   ⚠️ 用 display:none **隐藏而不是删除**：sessionSearch() 会读 #s-q 的 value，
+                   元素删了会在检索时抛 TypeError。想恢复的话去掉这个 style 即可。 -->
+              <span class="fgroup" style="margin-left:auto;flex:0 0 auto;display:none">
                 <input class="textin" id="s-q" placeholder="在原话里检索…（回车）"
                        style="width:140px"
                        onkeydown="if(event.key==='Enter')sessionSearch()"

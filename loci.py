@@ -2658,9 +2658,25 @@ TOOLS = [
         "required": ["id"]}},
 ]
 
+class ToolError(Exception):
+    """工具层「可预期的失败」：参数不合法、目标不存在等。
+
+    为什么要单独一个类：MCP 侧要把这类失败标成 isError=True ——
+    否则调用方（Agent）会把「记忆内容不能为空」当成一条正常结果读下去，
+    继续按「保存成功」往下走。
+    ⚠️ 走查实测（2026-09-25）：缺 content 时老代码会把空串当内容静默存进库，
+    连写一条空记忆进去污染检索结果 —— schema 里声明 required 是不够的。
+    """
+    pass
+
+
 def call_tool(name, args):
     if name == "memory_save":
-        mid = save_memory(args.get("content", ""), args.get("type", "fact"),
+        # content 必填：schema 声明之外，自己再兜一道（见 ToolError 注释）
+        content = (args.get("content") or "").strip()
+        if not content:
+            raise ToolError("记忆内容不能为空（content 必填）")
+        mid = save_memory(content, args.get("type", "fact"),
                           args.get("importance", 2), args.get("tags", ""),
                           args.get("project", ""),
                           args.get("agent") or DEFAULT_AGENT,
@@ -2686,17 +2702,26 @@ def call_tool(name, args):
             return "记忆库为空"
         return "\n".join(f"#{r['id']} [{r['mtype']}|★{r['importance']}] {r['content'][:80]}" for r in rows)
     if name == "memory_delete":
+        if args.get("id") in (None, ""):
+            raise ToolError("缺少参数 id（要删除的记忆编号）")
         delete_memory(int(args["id"]))
         return f"已删除记忆 #{args['id']}"
     if name == "memory_stats":
         s = stats()
         return json.dumps(s, ensure_ascii=False, indent=2)
     if name == "memory_handoff":
-        return handoff(args.get("project", ""))
+        proj = (args.get("project") or "").strip()
+        if not proj:
+            raise ToolError("缺少参数 project（要生成交接卡的项目名）")
+        return handoff(proj)
     if name == "session_save":
-        msgs = parse_transcript(args.get("transcript", ""))
+        transcript = args.get("transcript") or ""
+        if not transcript.strip():
+            raise ToolError("会话内容不能为空（transcript 必填）")
+        msgs = parse_transcript(transcript)
         if not msgs:
-            return "没有解析出任何对话内容"
+            raise ToolError("没有从这段文本里解析出对话内容"
+                            "（支持「我: / AI:」聊天文本、JSONL、JSON 数组）")
         sid, created = save_session(args.get("title", ""), args.get("project", ""),
                                     args.get("agent", ""), msgs,
                                     summary=args.get("summary", ""),
@@ -2719,9 +2744,12 @@ def call_tool(name, args):
     if name == "memory_context":
         return context_pack(args.get("project") or None, args.get("limit", 8))
     if name == "memory_pin":
+        if args.get("id") in (None, ""):
+            raise ToolError("缺少参数 id（要设为常驻的记忆编号）")
         set_pinned(int(args["id"]), int(args.get("pinned", 1)))
         return ("已设为常驻" if int(args.get("pinned", 1)) else "已取消常驻") + f"：记忆 #{args['id']}"
-    return f"未知工具: {name}"
+    raise ToolError(
+        f"未知工具: {name}（可用：" + " / ".join(sorted(t["name"] for t in TOOLS)) + "）")
 
 # ---------- 归档备份（长期备份）----------
 # 设计原则（应要求）：① 默认不启用、不占系统盘；② 只复制不移动不删除；
@@ -2848,6 +2876,9 @@ def mcp_server():
             try:
                 text = call_tool(p.get("name", ""), p.get("arguments", {}) or {})
                 reply(rid, {"content": [{"type": "text", "text": text}], "isError": False})
+            except ToolError as e:
+                # 参数不合法 / 工具名不存在这类「可预期的失败」：直接给原因，别加噪声
+                reply(rid, {"content": [{"type": "text", "text": str(e)}], "isError": True})
             except Exception as e:
                 reply(rid, {"content": [{"type": "text", "text": f"执行出错: {e}"}], "isError": True})
         elif method == "ping":
@@ -2856,6 +2887,22 @@ def mcp_server():
             reply(rid, error={"code": -32601, "message": f"method not found: {method}"})
 
 # ---------- CLI ----------
+def cli_call(name, args=None):
+    """CLI 专用：把「可预期的失败」变成一行提示。
+
+    交互式会话不该因为一次参数写错就整体退出 —— MCP 侧由协议层接住异常，
+    CLI 侧没有那层壳，得自己接。args 传可调用对象时会在 try 内部求值，
+    这样 int(rest) 这类转换错误也能被接住，而不是在调用前就炸掉。
+    """
+    try:
+        a = args() if callable(args) else (args or {})
+        return call_tool(name, a)
+    except ToolError as e:
+        return "错误: " + str(e)
+    except (ValueError, KeyError, TypeError) as e:
+        return "错误: 参数不对（" + str(e) + "）"
+
+
 def cli():
     print("Loci CLI（输入 help 查看命令, quit 退出）")
     while True:
@@ -2876,25 +2923,25 @@ def cli():
             for r in rows:
                 print(f"#{r['id']} [{r['agent']}|{r['project']}] {r['title']}  ({r['msg_count']}轮, {r['created_at']})")
         elif cmd == "recall":
-            print(call_tool("session_recall", {"query": rest}))
+            print(cli_call("session_recall", {"query": rest}))
         elif cmd == "context":
-            print(call_tool("memory_context", {"project": rest}))
+            print(cli_call("memory_context", {"project": rest}))
         elif cmd == "pin":
-            print(call_tool("memory_pin", {"id": int(rest), "pinned": 1}))
+            print(cli_call("memory_pin", lambda: {"id": int(rest), "pinned": 1}))
         elif cmd == "unpin":
-            print(call_tool("memory_pin", {"id": int(rest), "pinned": 0}))
+            print(cli_call("memory_pin", lambda: {"id": int(rest), "pinned": 0}))
         elif cmd == "save":
-            print(call_tool("memory_save", {"content": rest, "agent": "cli"}))
+            print(cli_call("memory_save", {"content": rest, "agent": "cli"}))
         elif cmd == "search":
-            print(call_tool("memory_search", {"query": rest}))
+            print(cli_call("memory_search", {"query": rest}))
         elif cmd == "list":
-            print(call_tool("memory_list", {}))
+            print(cli_call("memory_list", {}))
         elif cmd == "stats":
-            print(call_tool("memory_stats", {}))
+            print(cli_call("memory_stats", {}))
         elif cmd == "handoff":
-            print(call_tool("memory_handoff", {"project": rest}))
+            print(cli_call("memory_handoff", {"project": rest}))
         elif cmd == "del":
-            print(call_tool("memory_delete", {"id": int(rest)}))
+            print(cli_call("memory_delete", lambda: {"id": int(rest)}))
         else:
             print("未知命令，输入 help")
 
@@ -2911,12 +2958,12 @@ def main():
     ap.add_argument("--stats", action="store_true")
     a = ap.parse_args()
     if a.save:
-        print(call_tool("memory_save", {"content": a.save, "type": a.type, "importance": a.imp,
+        print(cli_call("memory_save", {"content": a.save, "type": a.type, "importance": a.imp,
                                         "tags": a.tags, "project": a.proj, "agent": a.agent}))
     elif a.search:
-        print(call_tool("memory_search", {"query": a.search}))
+        print(cli_call("memory_search", {"query": a.search}))
     elif a.stats:
-        print(call_tool("memory_stats", {}))
+        print(cli_call("memory_stats", {}))
     elif a.cli:
         cli()
     else:

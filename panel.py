@@ -1529,6 +1529,25 @@ select,.formrow input[type=text]{background:var(--d2);border:1px solid var(--lin
 .kpi .kbar{height:3px;border-radius:2px;background:var(--d3);overflow:hidden}
 .kpi .kbar>i{display:block;height:100%;border-radius:2px;width:0;
   transition:width .32s var(--ease)}
+/* 原型 C：第一张是主指标卡，条走渐变，跟后面三张的纯色条区分开 */
+.kpi.hero .kbar>i{background:linear-gradient(90deg,var(--data-fact),var(--acc2))}
+/* ── 按原型 C 补齐的三条样式（之前漏了，这是「看着不像原型」的主因之一）────────
+   ① 主指标卡 .hero：淡蓝渐变底 + 左侧竖条 —— 让「第一张是主指标」一眼看出来。
+      ⚠️ 原型把 hero 的数字写成 #cfe2ff（暗色专用，浅色主题下几乎看不见），
+         这里不改文字色，只做底和竖条 —— 两个主题都读得清。
+   ② .chip：轮次/条数这类「数字标签」。原型有这个类，面板之前没有 ——
+      于是轮次被迫挤在 .mtags 里，跟标签串成一坨。
+   ③ .tb.ok：「产出 N 条」这类正向标记。
+      ⚠️ 原型用 --t-ok-bg/--t-ok-fg，面板没有这两个变量；这里复用已有的
+         --t-skill-bg/--data-skill 这套绿 —— 不为了对齐而新造变量。 */
+.kpi.hero{position:relative;
+  background:linear-gradient(180deg,rgba(10,132,255,.09),rgba(10,132,255,0) 58%),var(--card);
+  border-color:rgba(10,132,255,.22)}
+.kpi.hero::after{content://;position:absolute;left:0;top:16px;bottom:16px;width:3px;
+  border-radius:0 3px 3px 0;background:var(--data-fact)}
+.chip{display:inline-flex;align-items:center;height:19px;padding:0 7px;border-radius:6px;
+  font-size:10.5px;color:var(--sub);background:var(--d3);white-space:nowrap;flex:0 0 auto}
+.tb.ok{background:var(--t-skill-bg);color:var(--data-skill)}
 .kpi .kfoot{display:flex;justify-content:space-between;gap:8px;font-size:11.5px;
   color:var(--faint);line-height:1.5}
 .kpi .kfoot>span:last-child{text-align:right;flex-shrink:0}
@@ -2254,7 +2273,11 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
       <section id="v-mem" hidden>
         <!-- 页面标题区：Trae 稿在数值条下方写「记忆」，右侧放动作按钮 -->
         <div class="pagehead">
-          <h2 class="ptitle" id="page-title">记忆</h2>
+          <div>
+            <h2 class="ptitle" id="page-title">记忆</h2>
+            <!-- 数据行按原型 C 放在页头内（常驻可见）—— 与会话页同一处理 -->
+            <p class="psub" id="mem-psub">正在统计…</p>
+          </div>
           <div class="pacts">
             <!-- 筛选（左）与动作（右）分开：原先项目下拉和几个动作按钮挤成一排，
                  看不出「全部项目」是筛选器、后面那些是动作。 -->
@@ -2278,38 +2301,41 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
         每条记忆的「出处」都能跳回产出它的那一轮。</p>
         <!-- 数据行（会被 pmAll() 收进页头折叠区，默认收起）+ 4 张 KPI 卡 + 类型构成条。
              数字全部由 loadStats() 从 /api/stats 现取，**一个都不写死**。 -->
-        <p class="psub" id="mem-psub">正在统计…</p>
         <div class="kgrid" id="mem-kpi">
-          <!-- ⚠️ 这里**故意不放 .kbar**：本机内容页那 4 张卡是"同一种东西的不同类别"
+          <!-- 已按原型补上 .kbar（此前我以量纲不同为由去掉，是我不对）：本机内容页那 4 张卡是"同一种东西的不同类别"
                （技能/MCP/插件/配置），同尺度比条宽才有意义；而记忆页这 4 项是
                「条数 / 会话数 / 轮次 / 项目数」四种不同量纲，共用一条刻度只会造出
-               一根 100% 和三根 0.9% 的装饰条。没有真实的比率就不画条。 -->
-          <div class="kpi">
+               一根 100% 和三根 0.9% 的装饰条。现按原型折衷：条宽各自对**自己的参考值**（记忆/200 · 会话/50 · 轮次/5000 · 项目/30），不互相比。 -->
+          <div class="kpi hero">
             <div class="ktop"><span class="kt">活跃记忆</span>
-              <span class="kic" style="color:var(--data-fact)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><ellipse cx="8" cy="4" rx="5.2" ry="2.2"/><path d="M2.8 4v8c0 1.2 2.3 2.2 5.2 2.2s5.2-1 5.2-2.2V4"/><path d="M2.8 8c0 1.2 2.3 2.2 5.2 2.2S13.2 9.2 13.2 8"/></svg></span>
+              <span class="kic" style="background:var(--t-fact-bg);color:var(--data-fact)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><ellipse cx="8" cy="4" rx="5.2" ry="2.2"/><path d="M2.8 4v8c0 1.2 2.3 2.2 5.2 2.2s5.2-1 5.2-2.2V4"/><path d="M2.8 8c0 1.2 2.3 2.2 5.2 2.2S13.2 9.2 13.2 8"/></svg></span>
             </div>
             <div class="kv"><span id="mk-total">—</span><span class="u">条</span></div>
+            <div class="kbar"><i id="mk-total-b" style="background:var(--data-fact)"></i></div><!-- 记忆 / 200 条为满格 -->
             <div class="kfoot"><span>检索时会被读到</span><span id="mk-total-f">统计中…</span></div>
           </div>
           <div class="kpi">
             <div class="ktop"><span class="kt">归档会话</span>
-              <span class="kic" style="color:var(--data-skill)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3.5h12v7H7l-3 2.5v-2.5H2z"/></svg></span>
+              <span class="kic" style="background:var(--t-skill-bg);color:var(--data-skill)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3.5h12v7H7l-3 2.5v-2.5H2z"/></svg></span>
             </div>
             <div class="kv"><span id="mk-sess">—</span><span class="u">个</span></div>
+            <div class="kbar"><i id="mk-sess-b" style="background:var(--data-skill)"></i></div><!-- 会话 / 50 个为满格（列表一次取 50） -->
             <div class="kfoot"><span>写进库的历史对话</span><span id="mk-sess-f">统计中…</span></div>
           </div>
           <div class="kpi">
             <div class="ktop"><span class="kt">对话轮次</span>
-              <span class="kic" style="color:var(--data-preference)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 4h10M3 8h10M3 12h6"/></svg></span>
+              <span class="kic" style="background:var(--t-preference-bg);color:var(--data-preference)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 4h10M3 8h10M3 12h6"/></svg></span>
             </div>
             <div class="kv"><span id="mk-turn">—</span><span class="u">轮</span></div>
+            <div class="kbar"><i id="mk-turn-b" style="background:var(--data-preference)"></i></div><!-- 轮次 / 5000 轮为满格 -->
             <div class="kfoot"><span>上面那些记忆的原料</span><span id="mk-turn-f">统计中…</span></div>
           </div>
           <div class="kpi">
             <div class="ktop"><span class="kt">覆盖项目</span>
-              <span class="kic" style="color:var(--data-decision)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M1.8 4.4c0-.7.6-1.2 1.2-1.2h3l1.3 1.6h5.7c.7 0 1.2.5 1.2 1.2v6c0 .7-.5 1.2-1.2 1.2H3c-.6 0-1.2-.5-1.2-1.2z"/></svg></span>
+              <span class="kic" style="background:var(--t-decision-bg);color:var(--data-decision)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M1.8 4.4c0-.7.6-1.2 1.2-1.2h3l1.3 1.6h5.7c.7 0 1.2.5 1.2 1.2v6c0 .7-.5 1.2-1.2 1.2H3c-.6 0-1.2-.5-1.2-1.2z"/></svg></span>
             </div>
             <div class="kv"><span id="mk-proj">—</span><span class="u">个</span></div>
+            <div class="kbar"><i id="mk-proj-b" style="background:var(--data-decision)"></i></div><!-- 项目 / 30 个为满格 -->
             <div class="kfoot"><span>有记忆归属的项目</span><span id="mk-proj-f">统计中…</span></div>
           </div>
         </div>
@@ -2386,46 +2412,62 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
       <!-- 会话层 -->
       <section id="v-session">
         <div class="pagehead">
-          <h2 class="ptitle">会话</h2>
+          <div>
+            <h2 class="ptitle">会话</h2>
+            <!-- 数据行按原型 C 放在标题下（**页头内**，常驻可见）。
+                 ⚠️ 之前放成 .lead 后面那条独立 <p class="psub">，会被 pmAll() 收进
+                 默认收起的折叠区 —— 结果是"设计稿里应该一眼看到的数字，实际看不见"。
+                 照原型改回来。 -->
+            <p class="psub" id="s-psub">正在统计…</p>
+          </div>
           <div class="pacts">
-            <button class="btn" onclick="goAdd()" title="手写一条记忆（不用从对话里抽）">＋ 记一条</button>
-            <button class="btn" onclick="runAutoScan()">扫描本机对话</button>
+            <div class="pgrp">
+              <button class="btn" onclick="goAdd()" title="手写一条记忆（不用从对话里抽）">＋ 记一条</button>
+            </div>
+            <span class="psep" aria-hidden="true"></span>
+            <div class="pgrp">
+              <button class="btn pri" onclick="runAutoScan()">扫描本机对话</button>
+            </div>
           </div>
         </div>
         <p class="lead">归档对话原文。记忆库存结论，会话库存过程与原话 —— 新 Agent 可检索复现当时的对话。</p>
-        <!-- 页头数据行（会被 pmAll() 收进折叠区，默认收起）+ 4 张 KPI 卡。
-             数字全部由 loadSessions() 现取（同一次返回算完），**一个都不写死**。
-             ⚠️ 这里**不放 .kbar**：四项是「会话数 / 轮次 / 记忆数 / 有记忆的会话数」
-             四种不同量纲，共用一条刻度只会造出一根满格加三根看不见的装饰条。
-             同记忆页的判断：没有真实比率就不画条。 -->
-        <p class="psub" id="s-psub">正在统计…</p>
+        <!-- 4 张 KPI 卡。数字全部由 loadSessions() 现取，**一个都不写死**。
+             按原型 C：第一张是 .kpi.hero，四张都带 .kbar，图标块 .kic 有彩色底。
+             ⚠️ 条宽的口径（四项量纲不同，不能互相比，所以每张各自对**自己的参考值**）：
+               已归档会话 / 列表一次最多取 50 条；对话轮次 / 5000 轮；已抽记忆 / 200 条；
+               有记忆的会话 / 会话总数（这一项才是真实比率）。
+               前三项是"刻度参考"不是真实百分比，foot 右侧写的是算出来的同一个数 —— 条与数字自洽。 -->
         <div class="kgrid" id="s-kpi">
-          <div class="kpi">
+          <div class="kpi hero">
             <div class="ktop"><span class="kt">已归档会话</span>
-              <span class="kic" style="color:var(--data-skill)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3.5h12v7H7l-3 2.5v-2.5H2z"/></svg></span>
+              <span class="kic" style="background:var(--t-fact-bg);color:var(--data-fact)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3.5h12v7H7l-3 2.5v-2.5H2z"/></svg></span>
             </div>
             <div class="kv"><span id="skpi-sess">—</span><span class="u">个</span></div>
+            <div class="kbar"><i id="skpi-sess-b"></i></div>
             <div class="kfoot"><span>写进库的历史对话</span><span id="skpi-sess-f">统计中…</span></div>
           </div>
           <div class="kpi">
             <div class="ktop"><span class="kt">对话轮次</span>
-              <span class="kic" style="color:var(--data-preference)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 4h10M3 8h10M3 12h6"/></svg></span>
+              <span class="kic" style="background:var(--t-preference-bg);color:var(--data-preference)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 4h10M3 8h10M3 12h6"/></svg></span>
             </div>
             <div class="kv"><span id="skpi-turn">—</span><span class="u">轮</span></div>
+            <div class="kbar"><i id="skpi-turn-b" style="background:var(--data-preference)"></i></div>
             <div class="kfoot"><span>原文总轮次</span><span id="skpi-turn-f">统计中…</span></div>
           </div>
           <div class="kpi">
             <div class="ktop"><span class="kt">已抽记忆</span>
-              <span class="kic" style="color:var(--data-fact)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><ellipse cx="8" cy="4" rx="5.2" ry="2.2"/><path d="M2.8 4v8c0 1.2 2.3 2.2 5.2 2.2s5.2-1 5.2-2.2V4"/><path d="M2.8 8c0 1.2 2.3 2.2 5.2 2.2S13.2 9.2 13.2 8"/></svg></span>
+              <span class="kic" style="background:var(--t-skill-bg);color:var(--data-skill)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><ellipse cx="8" cy="4" rx="5.2" ry="2.2"/><path d="M2.8 4v8c0 1.2 2.3 2.2 5.2 2.2s5.2-1 5.2-2.2V4"/><path d="M2.8 8c0 1.2 2.3 2.2 5.2 2.2S13.2 9.2 13.2 8"/></svg></span>
             </div>
             <div class="kv"><span id="skpi-mem">—</span><span class="u">条</span></div>
+            <div class="kbar"><i id="skpi-mem-b" style="background:var(--data-skill)"></i></div>
             <div class="kfoot"><span>库里现有的记忆</span><span id="skpi-mem-f">统计中…</span></div>
           </div>
           <div class="kpi">
             <div class="ktop"><span class="kt">有记忆的会话</span>
-              <span class="kic" style="color:var(--data-decision)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 9.5l3-3"/><path d="M7.6 4.6l1-1a3.2 3.2 0 014.6 4.6l-1 1"/><path d="M8.4 11.4l-1 1a3.2 3.2 0 01-4.6-4.6l1-1"/></svg></span>
+              <span class="kic" style="background:var(--t-decision-bg);color:var(--data-decision)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 9.5l3-3"/><path d="M7.6 4.6l1-1a3.2 3.2 0 014.6 4.6l-1 1"/><path d="M8.4 11.4l-1 1a3.2 3.2 0 01-4.6-4.6l1-1"/></svg></span>
             </div>
             <div class="kv"><span id="skpi-link">—</span><span class="u">个</span></div>
+            <div class="kbar"><i id="skpi-link-b" style="background:var(--data-decision)"></i></div>
             <div class="kfoot"><span>已能把结论溯源回原话</span><span id="skpi-link-f">统计中…</span></div>
           </div>
         </div>
@@ -2464,21 +2506,22 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
         </div>
 
         <!-- 骨架 A：左会话列表 + 右原文时间线 -->
-        <div class="listhead" style="margin-top:20px">
-          <span class="t">已归档会话</span>
-          <span class="fgroup">
-            <input class="textin" id="s-q" placeholder="在原话里检索…（回车或点检索）"
-                   onkeydown="if(event.key==='Enter')sessionSearch()"
-                   oninput="if(!this.value.trim())loadSessions()">
-            <button class="btn" onclick="sessionSearch()" title="在原话里检索（也可直接回车）">检索</button>
-          </span>
-        </div>
         <!-- 未选中时右边常驻一张引导卡：2026-09-24 用户拍板，**三处骨架都不再塌单列**
              （"整栏突然消失"比空着更晃眼，而且两栏宽度会跟着选中状态猛跳）。
              #s-guide（引导卡）与 #s-view（原文时间线）互斥显隐，统一走 sessionGuide()。 -->
         <div class="split">
           <div class="split-main">
-            <div class="shead"><span class="t">会话列表</span></div>
+            <div class="shead">
+              <span class="t">已归档会话</span>
+              <span class="hint">按时间倒序 · 点一条看原文</span>
+              <span class="fgroup" style="margin-left:auto;flex:0 0 auto">
+                <input class="textin" id="s-q" placeholder="在原话里检索…（回车）"
+                       style="width:140px"
+                       onkeydown="if(event.key==='Enter')sessionSearch()"
+                       oninput="if(!this.value.trim())loadSessions()">
+                <button class="btn" onclick="sessionSearch()" title="在原话里检索（也可直接回车）">检索</button>
+              </span>
+            </div>
             <div class="sbody"><div id="s-list"></div></div>
           </div>
           <aside class="split-side">
@@ -2643,14 +2686,15 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
       <!-- 本机内容：技能 / 配置文件 / MCP 三类清算（原先只有技能） -->
       <section id="v-skill" hidden>
         <div class="pagehead">
-          <h2 class="ptitle">本机内容</h2>
+          <div>
+            <h2 class="ptitle">本机内容</h2>
+            <!-- 数据行按原型 C 放在页头内（常驻可见）—— 与会话/记忆页同一处理 -->
+            <p class="psub" id="sk-psub">正在探测本机内容…</p>
+          </div>
           <div class="pacts">
             <button class="btn" onclick="loadSkills()">重新探测</button>
           </div>
         </div>
-        <!-- 数据行 + 注释结论：pmAll() 会把这两个一起收进 .pfold（默认收起），
-             第一眼看到的是下面 4 张 KPI 卡，而不是文字。 -->
-        <p class="psub" id="sk-psub">正在探测本机内容…</p>
         <p class="lead">记忆传结论，技能传能力。这里清算本机各 Agent 的三类内容：
           <b>技能</b>（能互相传的那类）、<b>配置文件</b>、<b>MCP</b>。
           全部只读；配置文件里的密钥一律不读值。传递＝复制，源目录不会被删。</p>
@@ -2659,9 +2703,9 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
              数字全部由 loadSkills() 从 /api/skills 与 /api/content 的真实结果填，
              写死过的版本被用户当场揪出来过 —— 这类数字必须能对上接口。 -->
         <div class="kgrid" id="sk-kpi">
-          <div class="kpi">
+          <div class="kpi hero">
             <div class="ktop"><span class="kt">技能</span>
-              <span class="kic" style="color:var(--data-skill)"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 2.4l1.7 3.5 3.8.5-2.8 2.7.7 3.8L8 11l-3.4 1.9.7-3.8L2.5 6.4l3.8-.5z"/></svg></span>
+              <span class="kic" style="background:var(--t-skill-bg);color:var(--data-skill)"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 2.4l1.7 3.5 3.8.5-2.8 2.7.7 3.8L8 11l-3.4 1.9.7-3.8L2.5 6.4l3.8-.5z"/></svg></span>
             </div>
             <div class="kv"><span id="kpi-skill">—</span><span class="u">个</span></div>
             <div class="kbar"><i id="kpi-skill-b" style="background:var(--data-skill)"></i></div>
@@ -2669,7 +2713,7 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
           </div>
           <div class="kpi">
             <div class="ktop"><span class="kt">MCP</span>
-              <span class="kic" style="color:var(--data-decision)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="11" height="8" rx="2"/><path d="M8 2.4V4"/><circle cx="5.8" cy="8" r=".9"/><circle cx="10.2" cy="8" r=".9"/></svg></span>
+              <span class="kic" style="background:var(--t-decision-bg);color:var(--data-decision)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="11" height="8" rx="2"/><path d="M8 2.4V4"/><circle cx="5.8" cy="8" r=".9"/><circle cx="10.2" cy="8" r=".9"/></svg></span>
             </div>
             <div class="kv"><span id="kpi-mcp">—</span><span class="u">个</span></div>
             <div class="kbar"><i id="kpi-mcp-b" style="background:var(--data-decision)"></i></div>
@@ -2685,7 +2729,7 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
           </div>
           <div class="kpi">
             <div class="ktop"><span class="kt">配置文件</span>
-              <span class="kic" style="color:var(--data-fact)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4.5h11M2.5 11.5h11"/><circle cx="6" cy="4.5" r="1.6"/><circle cx="10.5" cy="11.5" r="1.6"/></svg></span>
+              <span class="kic" style="background:var(--t-fact-bg);color:var(--data-fact)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4.5h11M2.5 11.5h11"/><circle cx="6" cy="4.5" r="1.6"/><circle cx="10.5" cy="11.5" r="1.6"/></svg></span>
             </div>
             <div class="kv"><span id="kpi-cfg">—</span><span class="u">份</span></div>
             <div class="kbar"><i id="kpi-cfg-b" style="background:var(--data-fact)"></i></div>
@@ -2914,6 +2958,10 @@ async function loadStats(){
   (function(){
     const put=(id,v)=>{const e=document.getElementById(id);if(e)countUp(e,v)};
     const setf=(id,t)=>{const e=document.getElementById(id);if(e)e.textContent=t};
+    /* 条宽按原型 C：各自对**自己的参考值**（口径写在 HTML 注释里），最小 2%。
+      ⚠️ 不叫 bar —— 这个函数里已经有构成条的 DOM 引用叫 bar 了，重名直接 SyntaxError。 */
+    const kbar=(id,pct)=>{const e=document.getElementById(id);
+      if(e)e.style.width=Math.max(2,Math.min(100,Math.round(pct)))+'%'};
     const proj=Object.keys(s.by_project||{});
     const projMax=proj.reduce((m,k)=>Math.max(m,s.by_project[k]),0);
     const sup=s.superseded||0, sess=s.sessions||0, msg=s.messages||0;
@@ -2925,6 +2973,10 @@ async function loadStats(){
     setf("mk-turn-f",sess?("均 "+Math.round(msg/sess)+" 轮/会话"):"—");
     put("mk-proj",proj.length);
     setf("mk-proj-f",projMax?("最大项目 "+projMax+" 条"):"—");
+    kbar("mk-total-b", (s.total||0)/200*100);
+    kbar("mk-sess-b",  sess/50*100);
+    kbar("mk-turn-b",  msg/5000*100);
+    kbar("mk-proj-b",  proj.length/30*100);
     const ps=document.getElementById("mem-psub");
     if(ps)ps.innerHTML="活跃 <b>"+(s.total||0)+"</b> 条记忆"
       +(sup?("（另有 <b>"+sup+"</b> 条已被取代）"):"")
@@ -4582,6 +4634,14 @@ async function sessionKpi(rows){
   try{ s=await api("/api/stats") }catch(e){ return }   /* 取不到就让卡片停在「—」 */
   var put=function(id,v){var e=document.getElementById(id);if(e)countUp(e,v)};
   var setf=function(id,t){var e=document.getElementById(id);if(e)e.textContent=t};
+  /* 条宽按原型 C 画。四项量纲不同，各自对**自己的参考值**（口径写在 HTML 注释里）：
+     会话/50 · 轮次/5000 · 记忆/200 · 有记忆的会话/会话总数（这项才是真实比率）。
+     ⚠️ 最小给 2% —— 宽度为 0 的条看起来像"没渲染出来"，而不是"真的很少"。 */
+  var bar=function(id,pct){
+    var e=document.getElementById(id);
+    if(!e)return;
+    e.style.width=Math.max(2,Math.min(100,Math.round(pct)))+'%';
+  };
   var sess=s.sessions||0, msg=s.messages||0, mem=s.total||0, sup=s.superseded||0;
   var list=rows||[], linked=list.filter(function(x){return (x.mem_n||0)>0}).length;
   put("skpi-sess",sess);
@@ -4594,6 +4654,11 @@ async function sessionKpi(rows){
   setf("skpi-link-f", sess>list.length
     ? ("基于最近 "+list.length+" 个会话")
     : (sess?("还有 "+(sess-linked)+" 个没抽过"):"—"));
+  /* 条宽放在数字之后 —— 先让数字滚到位，条再跟着长出来 */
+  bar("skpi-sess-b", sess/50*100);
+  bar("skpi-turn-b", msg/5000*100);
+  bar("skpi-mem-b",  mem/200*100);
+  bar("skpi-link-b", sess ? (linked/sess*100) : 0);
   var ps=document.getElementById("s-psub");
   if(ps)ps.innerHTML=""
     +"已归档 <b>"+sess+"</b> 个会话 · 原文 <b>"+msg+"</b> 轮 · 已抽出 <b>"+mem+"</b> 条记忆";
@@ -4613,9 +4678,12 @@ async function loadSessions(){
         '<div class="mtitle">'+esc(memTitle(s.title))+'</div>'+
         '<div class="mmeta">'+
           '<span class="tb '+tone+'">'+esc(agentName(s.agent)||"未知来源")+'</span>'+
-          '<span class="mtime">'+esc(String(s.started_at||s.created_at||"").slice(0,10))+'</span>'+
-          '<span class="mtags">'+s.msg_count+' 轮</span>'+
-          (mn?('<span class="tb skill" title="这段会话已产出 '+mn+' 条记忆，能在记忆页点「有原话」跳回来">产出 '+mn+' 条</span>'):'')+
+          /* 原型 C 的列表行日期是「09-24」短格式 —— 同页一年内的会话，年份是噪声 */
+          '<span class="mtime">'+esc(String(s.started_at||s.created_at||"").slice(5,10)||"—")+'</span>'+
+          /* 原型 C：轮次是「数字标签」走 .chip，产出行走 .tb.ok（绿）。
+             之前轮次挤在 .mtags 里（那是给标签/相关度用的），跟徽章串成一坨。 */
+          '<span class="chip">'+s.msg_count+' 轮</span>'+
+          (mn?('<span class="tb ok" title="这段会话已产出 '+mn+' 条记忆，能在记忆页点「有原话」跳回来">产出 '+mn+' 条</span>'):'')+
           '<span class="macts">'+
             '<button class="del" onclick="event.stopPropagation();extractSession('+s.id+')">抽记忆</button>'+
             '<button class="del" onclick="event.stopPropagation();openSession('+s.id+')">查看原文</button>'+

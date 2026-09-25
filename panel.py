@@ -1638,11 +1638,12 @@ select,.formrow input[type=text]{background:var(--d2);border:1px solid var(--lin
 /* ⚠️ .lead 会被 pmAll() 挪进 .pfold，所以两条都得带 order —— 只写 .lead 的话，
    折叠区退回默认 order:0，会跳到页面最上面去。 */
 #v-session>.lead,#v-session>.pfold{order:2}
-#v-session>#scan-msg{order:3}
-#v-session>#scan-out{order:4}
-#v-session>.listhead{order:5}
-#v-session>.split{order:6}
-#v-session>.panel{order:7}
+#v-session>.kgrid{order:3}                /* 4 张 KPI 卡：会话 / 轮次 / 记忆 / 有记忆的会话 */
+#v-session>#scan-msg{order:4}
+#v-session>#scan-out{order:5}
+#v-session>.listhead{order:6}
+#v-session>.split{order:7}
+#v-session>.panel{order:8}
 /* 本机内容页同理：第一眼该看「清算结果」（几个技能 / MCP / 插件），
    「本机来源探测」排到最后并**默认收起**。 */
 /* ⚠️ 同 #v-session：必须带 :not([hidden])，否则会顶掉 hidden 的 display:none */
@@ -2392,6 +2393,42 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
           </div>
         </div>
         <p class="lead">归档对话原文。记忆库存结论，会话库存过程与原话 —— 新 Agent 可检索复现当时的对话。</p>
+        <!-- 页头数据行（会被 pmAll() 收进折叠区，默认收起）+ 4 张 KPI 卡。
+             数字全部由 loadSessions() 现取（同一次返回算完），**一个都不写死**。
+             ⚠️ 这里**不放 .kbar**：四项是「会话数 / 轮次 / 记忆数 / 有记忆的会话数」
+             四种不同量纲，共用一条刻度只会造出一根满格加三根看不见的装饰条。
+             同记忆页的判断：没有真实比率就不画条。 -->
+        <p class="psub" id="s-psub">正在统计…</p>
+        <div class="kgrid" id="s-kpi">
+          <div class="kpi">
+            <div class="ktop"><span class="kt">已归档会话</span>
+              <span class="kic" style="color:var(--data-skill)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3.5h12v7H7l-3 2.5v-2.5H2z"/></svg></span>
+            </div>
+            <div class="kv"><span id="skpi-sess">—</span><span class="u">个</span></div>
+            <div class="kfoot"><span>写进库的历史对话</span><span id="skpi-sess-f">统计中…</span></div>
+          </div>
+          <div class="kpi">
+            <div class="ktop"><span class="kt">对话轮次</span>
+              <span class="kic" style="color:var(--data-preference)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 4h10M3 8h10M3 12h6"/></svg></span>
+            </div>
+            <div class="kv"><span id="skpi-turn">—</span><span class="u">轮</span></div>
+            <div class="kfoot"><span>原文总轮次</span><span id="skpi-turn-f">统计中…</span></div>
+          </div>
+          <div class="kpi">
+            <div class="ktop"><span class="kt">已抽记忆</span>
+              <span class="kic" style="color:var(--data-fact)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><ellipse cx="8" cy="4" rx="5.2" ry="2.2"/><path d="M2.8 4v8c0 1.2 2.3 2.2 5.2 2.2s5.2-1 5.2-2.2V4"/><path d="M2.8 8c0 1.2 2.3 2.2 5.2 2.2S13.2 9.2 13.2 8"/></svg></span>
+            </div>
+            <div class="kv"><span id="skpi-mem">—</span><span class="u">条</span></div>
+            <div class="kfoot"><span>库里现有的记忆</span><span id="skpi-mem-f">统计中…</span></div>
+          </div>
+          <div class="kpi">
+            <div class="ktop"><span class="kt">有记忆的会话</span>
+              <span class="kic" style="color:var(--data-decision)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 9.5l3-3"/><path d="M7.6 4.6l1-1a3.2 3.2 0 014.6 4.6l-1 1"/><path d="M8.4 11.4l-1 1a3.2 3.2 0 01-4.6-4.6l1-1"/></svg></span>
+            </div>
+            <div class="kv"><span id="skpi-link">—</span><span class="u">个</span></div>
+            <div class="kfoot"><span>已能把结论溯源回原话</span><span id="skpi-link-f">统计中…</span></div>
+          </div>
+        </div>
         <!-- 扫描结果（瞬时区：扫描前这里是空的，不占位） -->
         <div class="msg" id="scan-msg" style="display:none"></div>
         <div id="scan-out"></div>
@@ -2450,8 +2487,8 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
                 <h3 id="s-view-t">原文时间线</h3>
                 <div class="dacts" id="s-view-acts"></div>
               </div>
-              <div class="dtop">
-                <span class="dmi" id="s-view-h">点左侧任意会话查看原文；「抽取记忆」会在这里逐轮给出候选记忆</span>
+              <div class="dtop" id="s-view-h">
+                <span class="dmi">点左侧任意会话查看原文；「抽取记忆」会在这里逐轮给出候选记忆</span>
               </div>
             </div>
             <div class="dmain">
@@ -2796,6 +2833,24 @@ function rowIcon(t){
     ? 'fill="currentColor"'
     : 'fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"')
     +'>'+TI[t]+'</svg>';
+}
+
+/* ── 会话行的图标块（2026-09-25）─────────────────────────────
+   与记忆行共用同一套 .mico 尺寸，只是"按什么分色"不同：
+   记忆行按**类型**（事实/决策/踩坑…），会话行按**来源 Agent**。
+   理由：会话本身没有类型，而在一列会话里最先想分辨的就是"这段是在哪个工具里聊的"。
+   图标统一用对话气泡 —— 会话说到底都是"一段对话"，给每个 Agent 编一套图标
+   只会让列表更花，反而看不出差别。 */
+var SESS_ICON='<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"'
+  +' stroke-linecap="round" stroke-linejoin="round"><path d="M2 3.5h12v7H7l-3 2.5v-2.5H2z"/></svg>';
+function agentTone(a){
+  var s=String(a||"").toLowerCase();
+  if(s.indexOf("workbuddy")>=0) return "fact";
+  if(s.indexOf("zcode")>=0) return "preference";
+  if(s.indexOf("trae")>=0) return "skill";
+  if(s.indexOf("codex")>=0) return "decision";
+  if(s.indexOf("claude")>=0) return "error";
+  return "context";   /* 未知来源走中性灰 —— 不硬凑一个颜色，免得"看不出是什么"变成"看错了" */
 }
 let searching=false;
 
@@ -4518,22 +4573,49 @@ async function sessionSave(){
   document.getElementById("s-text").value="";
   loadSessions();loadStats();
 }
+/* 会话页 4 张 KPI 卡 + 页头数据行（2026-09-25）。
+   会话数 / 轮次 / 记忆数取自 /api/stats —— 与顶栏同源，不会出现"卡里一个数、顶栏另一个数"。
+   「有记忆的会话」只能从列表算，而列表是按 limit=50 取的：会话超过 50 个时
+   退化成「基于最近 N 个会话」而不是硬算 —— 把截断后的数字当成全局数就是编数字。 */
+async function sessionKpi(rows){
+  var s;
+  try{ s=await api("/api/stats") }catch(e){ return }   /* 取不到就让卡片停在「—」 */
+  var put=function(id,v){var e=document.getElementById(id);if(e)countUp(e,v)};
+  var setf=function(id,t){var e=document.getElementById(id);if(e)e.textContent=t};
+  var sess=s.sessions||0, msg=s.messages||0, mem=s.total||0, sup=s.superseded||0;
+  var list=rows||[], linked=list.filter(function(x){return (x.mem_n||0)>0}).length;
+  put("skpi-sess",sess);
+  setf("skpi-sess-f",msg?("共 "+msg+" 轮对话"):"还没归档过会话");
+  put("skpi-turn",msg);
+  setf("skpi-turn-f",sess?("均 "+Math.round(msg/sess)+" 轮/会话"):"—");
+  put("skpi-mem",mem);
+  setf("skpi-mem-f",sup?("另有 "+sup+" 条已被取代"):"没有被取代的");
+  put("skpi-link",linked);
+  setf("skpi-link-f", sess>list.length
+    ? ("基于最近 "+list.length+" 个会话")
+    : (sess?("还有 "+(sess-linked)+" 个没抽过"):"—"));
+  var ps=document.getElementById("s-psub");
+  if(ps)ps.innerHTML=""
+    +"已归档 <b>"+sess+"</b> 个会话 · 原文 <b>"+msg+"</b> 轮 · 已抽出 <b>"+mem+"</b> 条记忆";
+}
+
 async function loadSessions(){
-  // 行结构与记忆列表同一套：标题一行 + meta 一行（时间 · 来源 · 轮次/编号），操作 hover 才出现。
+  // 行结构与记忆列表同一套：图标块 + 标题一行 + meta 一行，操作 hover 才出现。
   // ⚠️ 必须带 lrow 类 —— 紧凑行样式挂在 .mem.lrow 上，漏了它就会掉回卡片样式
   //    （412px 的窄列放不下卡片，标题会被挤成竖排。踩过）。
   var rows=await api("/api/session/list?limit=50");
   document.getElementById("s-list").innerHTML = rows.length ? rows.map(function(s){
-    var mn=s.mem_n||0;
+    var mn=s.mem_n||0, tone=agentTone(s.agent);
     return '<div class="mem lrow" onclick="openSession('+s.id+')" title="'
         +escAttr('会话 #'+s.id+' · '+(s.source_path?s.source_path+' · ':'')+'点开看原文时间线')+'">'+
+      '<span class="mico '+tone+'" aria-hidden="true">'+SESS_ICON+'</span>'+
       '<div class="mbody">'+
         '<div class="mtitle">'+esc(memTitle(s.title))+'</div>'+
         '<div class="mmeta">'+
+          '<span class="tb '+tone+'">'+esc(agentName(s.agent)||"未知来源")+'</span>'+
           '<span class="mtime">'+esc(String(s.started_at||s.created_at||"").slice(0,10))+'</span>'+
-          '<span class="bdg">'+esc(s.agent||"未知来源")+'</span>'+
-          (mn?('<span class="bdg src">产出 '+mn+' 条记忆</span>'):'')+
           '<span class="mtags">'+s.msg_count+' 轮</span>'+
+          (mn?('<span class="tb skill" title="这段会话已产出 '+mn+' 条记忆，能在记忆页点「有原话」跳回来">产出 '+mn+' 条</span>'):'')+
           '<span class="macts">'+
             '<button class="del" onclick="event.stopPropagation();extractSession('+s.id+')">抽记忆</button>'+
             '<button class="del" onclick="event.stopPropagation();openSession('+s.id+')">查看原文</button>'+
@@ -4542,6 +4624,7 @@ async function loadSessions(){
         '</div>'+
       '</div></div>';
   }).join("") : '<div class="empty">还没有归档的会话</div>';
+  sessionKpi(rows);
 }
 async function extractSession(sid){
   var box=document.getElementById("s-view");
@@ -4567,8 +4650,8 @@ async function extractSession(sid){
   }
   CAND=rows;CAND_SID=sid;
   document.getElementById("s-view-t").textContent="抽取候选";
-  document.getElementById("s-view-h").textContent=
-    "从会话 #"+sid+" 抽出 "+rows.length+" 条候选（你=优先）。勾掉不要的，再点「入库选中」。";
+  document.getElementById("s-view-h").innerHTML=
+    '<span class="dmi">从会话 #'+sid+' 抽出 '+rows.length+' 条候选（你=优先）。勾掉不要的，再点「入库选中」。</span>';
   document.getElementById("s-view-acts").innerHTML=
     '<button class="mini" onclick="importCands()">入库选中</button>'
     +'<button class="mini" onclick="cancelExtract()">取消</button>';
@@ -4813,10 +4896,16 @@ function renderSessionView(r){
   var el=document.getElementById("s-view");
   var msgs=r.messages||[], mems=r.memories||[], s=r.session||{};
   document.getElementById("s-view-t").textContent=s.title||"原文时间线";
-  document.getElementById("s-view-h").textContent=
-    "#"+s.id+" · "+msgs.length+" 轮 · 产出 "+mems.length+" 条记忆"
-    +(s.agent?(" · 来自 "+s.agent):"")
-    +(s.started_at?(" · "+String(s.started_at).slice(0,10)):(s.created_at?(" · "+String(s.created_at).slice(0,10)):""));
+  /* 元信息行（2026-09-25）：来源 Agent 用彩色圆点徽章（复用技能/配置详情栏的 agentTag），
+     其余几项统一走 .dmi —— 与技能页同一套写法，不是给会话页另起一套。
+     新增「工作区」：同一个会话标题在不同工作区里聊过时，这是唯一的区分依据。 */
+  var ws=s.source_path?projName(s.source_path):"";
+  var day=String(s.started_at||s.created_at||"").slice(0,10);
+  document.getElementById("s-view-h").innerHTML=
+    (s.agent?agentTag(agentName(s.agent)):"")
+    +'<span class="dmi">#'+s.id+' · '+msgs.length+' 轮 · 产出 '+mems.length+' 条记忆</span>'
+    +(day?'<span class="dmi">'+esc(day)+'</span>':'')
+    +(ws?'<span class="dmi">工作区 '+esc(ws)+'</span>':'');
   document.getElementById("s-view-acts").innerHTML=
     '<button class="mini" onclick="extractSession('+s.id+')">抽取记忆</button>'
     +'<button class="mini" onclick="copySessionText('+s.id+')">复制原文</button>'
@@ -4878,8 +4967,8 @@ function skHold(title,msg){
 function clearSessionView(){
   LAST_SID=null;LAST_SES=null;
   document.getElementById("s-view-t").textContent="原文时间线";
-  document.getElementById("s-view-h").textContent=
-    "点左侧任意会话查看原文；「抽取记忆」会在这里逐轮给出候选记忆";
+  document.getElementById("s-view-h").innerHTML=
+    '<span class="dmi">点左侧任意会话查看原文；「抽取记忆」会在这里逐轮给出候选记忆</span>';
   document.getElementById("s-view-acts").innerHTML="";
   var el=document.getElementById("s-view");
   el.innerHTML="";el.style.display="none";

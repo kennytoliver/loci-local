@@ -28,7 +28,11 @@ ID_GROUPS = [
     ("清理页", ["cleanup-panel", "cleanup-msg", "cl-project", "cl-agent", "cl-before",
               "cl-sup", "cm-list", "cm-msg", "cm-proj", "sf-list", "sf-msg", "roots",
               "scan-list", "scan-info", "scan-msg", "scan-out", "sf-all",
-              "arch-dir", "arch-line", "arch-hint", "bk-list"]),
+              # 2026-09-26：清理页段1 的那行状态文字（arch-line）按原型拆成了
+              # 3 格 kv 卡片（当前状态 / 最近一份备份 / 库体积）→ 契约同步。
+              # ⚠️ 改/删任何 id 都要同步这张表，否则本闸门会红（同一类坑踩过 3 次：
+              #    FRAME_SELECTION / FRAME_EXTRA / 这里）。
+              "arch-dir", "arch-state", "arch-last", "arch-size", "arch-hint", "bk-list"]),
     ("采集页", ["ck-all", "ck-none", "ck-go"]),
     ("Agent 页", ["agents", "add-path", "agent-msg"]),
     ("记忆包页", ["pk-proj", "pack-file", "pack-with-sessions"]),

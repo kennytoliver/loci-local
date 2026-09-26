@@ -51,12 +51,20 @@ const PAGES = ['mem', 'session', 'audit', 'clean', 'collect', 'agents', 'skill',
         h: box ? Math.round(box.getBoundingClientRect().height) : -1,
         n: box ? box.querySelectorAll('.pfin > *').length : 0 };
     }), PAGES);
-    const noTgl = heads.filter((h) => !h.tgl).map((h) => h.v);
-    const notShut = heads.filter((h) => h.h !== 0 || h.aria !== 'false').map((h) => h.v + '(h=' + h.h + ',aria=' + h.aria + ')');
-    rec(`[${theme}] ① 页头折叠：9 页都有开合按钮`, noTgl.length === 0,
-      noTgl.length ? '缺：' + noTgl.join(',') : heads.map((h) => h.v + ':' + h.n).join(' '));
-    rec(`[${theme}] ① 页头折叠：9 页默认全部收起`, notShut.length === 0,
-      notShut.length ? '未收起：' + notShut.join(',') : '折叠区高度均为 0');
+    /* ⚠️ 2026-09-26：这条原来写死「9 页都要有开合按钮」，但按钮是**按需**插的 ——
+       `pmAll()` 只在页头之后还有 `.psub/.lead` 时才插。⑧ 记忆包 / ⑨ 交接卡按原型 C
+       把说明行收进了页头内部（页头之后直接就是卡片），**没有可折内容 → 不插按钮是对的**。
+       改成按需判定：有 `#pm-<v>` 容器的页必须有按钮且默认收起；另加总数下限防回退。 */
+    const withBox = heads.filter((h) => h.h !== -1);
+    const noTgl = withBox.filter((h) => !h.tgl).map((h) => h.v);
+    const notShut = withBox.filter((h) => h.h !== 0 || h.aria !== 'false')
+      .map((h) => h.v + '(h=' + h.h + ',aria=' + h.aria + ')');
+    rec(`[${theme}] ① 页头折叠：有可折内容的页都有开合按钮且默认收起`,
+      noTgl.length === 0 && notShut.length === 0 && withBox.length >= 7,
+      (noTgl.length || notShut.length)
+        ? '缺按钮：' + noTgl.join(',') + ' ｜ 未收起：' + notShut.join(',')
+        : withBox.length + '/' + heads.length + ' 页有可折内容：'
+          + withBox.map((h) => h.v + ':' + h.n).join(' '));
 
     /* ── ② 页头折叠：点开真的会展开，再点真的会收起 ── */
     await p.evaluate(() => window.show('mem'));

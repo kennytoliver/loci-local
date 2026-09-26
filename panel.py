@@ -1469,6 +1469,44 @@ select,.formrow input[type=text]{background:var(--d2);border:1px solid var(--lin
 /* 动作区内的分组：筛选组 / 动作组之间插一条竖分隔线，让「哪个是筛选、哪个是动作」一眼可辨 */
 .pagehead .pacts .pgrp{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap}
 .pagehead .pacts .psep{width:1px;height:20px;background:var(--line);flex:0 0 1px}
+/* ── ⑦ Agent 页：卡片网格（原型 C 的 .agrid / .acard）────────────────────
+   每个 Agent 一张小卡：头像 + 名称 + 配置路径 + 状态徽章 / 底部 chip + 动作按钮。
+   比原来的长条卡片好扫 —— 15 个 Agent 时一屏能看全，不用上下翻。
+   ⚠️ 头像直接复用已有的 agentBadge()（品牌色 + 缩写），不另造 .aico 类。 */
+.agrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:var(--space-3)}
+.acard{background:var(--card);border:1px solid var(--line);border-radius:var(--radius-lg);
+  padding:12px 14px;display:flex;flex-direction:column;gap:10px;transition:border-color .18s}
+.acard.on{border-color:var(--line2);box-shadow:inset 3px 0 0 var(--data-skill)}
+.acard.bad{opacity:.62}
+.acard .atop{display:flex;align-items:center;gap:10px}
+.acard .grow{flex:1 1 auto;min-width:0}
+.acard .aname{font-size:13.5px;font-weight:600;color:var(--ink);display:flex;
+  align-items:center;gap:7px;flex-wrap:wrap}
+.acard .apath{font-size:11px;color:var(--faint);margin-top:3px;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.acard .afoot{display:flex;align-items:center;gap:7px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:9px;margin-top:auto}
+
+/* ── ⑧⑨ 记忆包 / 交接卡：按原型补三个小组件 ─────────────────────────
+   原型用的 --line-soft / --fs-sm 面板没有 → 用 --line / 具体 px 替代，不新造变量。 */
+.tagline{display:flex;gap:6px;flex-wrap:wrap}
+/* ⚠️ 真库里的 project 值常是**完整路径**（各 Agent 直接传工作区路径），
+   原样铺开会把标签行撑爆。这里只做视觉截断，完整值在 title 里 —— 不截数据。 */
+.tagline > span{max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dropzone{border:1.5px dashed var(--line);border-radius:14px;padding:30px 20px;
+  text-align:center;background:var(--d2);cursor:pointer;
+  transition:border-color .15s,background .15s}
+.dropzone:hover,.dropzone.over{border-color:var(--acc);background:var(--hover)}
+.dropzone svg{width:34px;height:34px;fill:none;stroke:var(--faint);stroke-width:1.6;
+  stroke-linecap:round;stroke-linejoin:round}
+.dropzone.over svg{stroke:var(--acc)}
+.dropzone .dz{font-size:12.5px;color:var(--sub);margin-top:10px;line-height:1.8}
+.dropzone .dz small{display:block;color:var(--faint);font-size:11px;margin-top:4px}
+.mdbox{background:var(--d2);border:1px solid var(--line);border-radius:14px;padding:16px 18px;
+  font-size:13px;line-height:1.8;color:var(--ink);white-space:pre-wrap;word-break:break-word;
+  max-height:460px;overflow:auto;margin:0;font-family:var(--mono)}
+.pcard .handoff-out{background:transparent;border:0;padding:0;margin-top:0;
+  color:var(--ink);white-space:pre-wrap;font-family:var(--mono);font-size:12.5px}
+  
 .pagehead .pacts .proj-sel{max-width:190px}
 
 /* ── 页头「数据与说明」折叠区（2026-09-24 用户要求）─────────────────────────
@@ -1514,6 +1552,9 @@ select,.formrow input[type=text]{background:var(--d2);border:1px solid var(--lin
 .kgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--space-3);
   margin-bottom:var(--space-5)}
 @media (max-width:1100px){.kgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+/* 原型 C 的 .kpis.c3：采集页只有 3 张卡，均分 3 列（别的页仍是 4 列） */
+.kgrid.c3{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media (max-width:1100px){.kgrid.c3{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .kpi{background:var(--card);border:1px solid var(--line);border-radius:var(--radius-lg);
   padding:var(--space-4);display:flex;flex-direction:column;gap:10px;min-width:0}
 .kpi .ktop{display:flex;align-items:center;justify-content:space-between;gap:8px}
@@ -1543,11 +1584,147 @@ select,.formrow input[type=text]{background:var(--d2);border:1px solid var(--lin
 .kpi.hero{position:relative;
   background:linear-gradient(180deg,rgba(10,132,255,.09),rgba(10,132,255,0) 58%),var(--card);
   border-color:rgba(10,132,255,.22)}
-.kpi.hero::after{content://;position:absolute;left:0;top:16px;bottom:16px;width:3px;
+.kpi.hero::after{content:"";position:absolute;left:0;top:16px;bottom:16px;width:3px;
   border-radius:0 3px 3px 0;background:var(--data-fact)}
 .chip{display:inline-flex;align-items:center;height:19px;padding:0 7px;border-radius:6px;
   font-size:10.5px;color:var(--sub);background:var(--d3);white-space:nowrap;flex:0 0 auto}
 .tb.ok{background:var(--t-skill-bg);color:var(--data-skill)}
+/* ── 清理页：风险分级卡片（原型 C 的 .pcard / .phead / .stepno / .riskflag）──────
+   原型把 4 段按「风险从低到高」排列，段头左侧竖条 + 右上风险徽章让人一眼看出危险度。
+   ⚠️ **保留原有的 .panel / .listhead 类名**（新类只是往后追加，且 listhead 写在最前）：
+      · wrapPanels() 靠 `:scope > .panel` + `:scope > .listhead` 找折叠体
+      · FRAME_SELECTION 靠 `.pagehead`(下标0) + 4 个 `.listhead`(下标1~4) 定位
+      换掉类名这两处会同时断掉（踩过两次同类坑）。 */
+.pcard{position:relative;overflow:hidden}
+.pcard::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--line)}
+.pcard.risk-ok::before{background:var(--data-skill)}
+.pcard.risk-warn::before{background:var(--data-decision)}
+.pcard.risk-bad::before{background:var(--data-error)}
+/* ⚠️ .pcard / .pcard>.phead 的壳样式在质检页那一段已经定义过（下面 1596 行起），
+   这里**不重复写**（重复会被后定义的那条覆盖，白写一遍还容易看混）。
+   只补清理页特有的部分：序号圆、风险徽章、折叠体的内边距。 */
+.pcard>.phead>.t{display:flex;align-items:center;gap:8px}
+/* 段头右侧的「风险徽章 + 按钮」组（原型是内联 flex，这里提成类） */
+.pcard>.phead>.pr{display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex:0 1 auto}
+.stepno{display:inline-flex;align-items:center;justify-content:center;width:19px;height:19px;
+  border-radius:50%;background:var(--d3);color:var(--faint);font-size:11px;font-weight:700;flex:0 0 auto}
+.pcard.risk-ok .stepno{background:var(--t-skill-bg);color:var(--data-skill)}
+.pcard.risk-warn .stepno{background:var(--t-decision-bg);color:var(--data-decision)}
+.pcard.risk-bad .stepno{background:var(--t-error-bg);color:var(--data-error)}
+.riskflag{display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:6px;
+  font-size:10.5px;font-weight:600;white-space:nowrap;flex:0 0 auto}
+.riskflag.ok{background:var(--t-skill-bg);color:var(--data-skill)}
+.riskflag.warn{background:var(--t-decision-bg);color:var(--data-decision)}
+.riskflag.bad{background:var(--t-error-bg);color:var(--data-error)}
+/* wrapPanels() 生成的折叠体 .gbody 直接扮演原型的 .pbody（内边距）——
+   不能自己再写一层 .pbody：那层会被 wrapPanels 一起搬进 .gbody，变成双层留白。 */
+.pcard>.gbody{padding:12px 14px 14px 17px}
+.pcard.tight-body>.gbody{padding:8px 8px 8px 10px}
+.pcard>.gbody>p.hint{margin-top:0}
+.pcard>.gbody>.row{margin-top:10px}
+.btn.sm{height:26px;padding:0 9px;font-size:11.5px}
+/* 危险动作按钮：只改文字色（边框保持默认，避免硬编码 rgba —— 明暗主题各有一套变量） */
+.btn.danger{color:var(--data-error)}
+.btn.danger:hover{background:var(--t-error-bg);border-color:var(--data-error)}
+/* 段间距：原型用 .stepped 包一层 —— 但 wrapPanels 认的是 `#v-clean > .panel`
+   **直接子元素**，多包一层折叠会整页失效。所以用 margin 代替 .stepped。 */
+:is(#v-clean,#v-collect)>.pcard{margin-bottom:14px}
+:is(#v-clean,#v-collect)>.pcard:last-child{margin-bottom:0}
+/* 清理页列表行：原型用的是紧凑行，不是卡片。
+   ⚠️ **不要加 .lrow 类** —— 主从页的紧凑行（`.split-main .mem.lrow`）有自己一整套规则，
+      而清理页不在 .split-main 里；更要紧的是统一选中态那条写的是
+      `.mem.sel:not(.lrow)`，注释明确说「这里只管卡片行（质检/清理/本机内容/采集）」。
+      给清理行挂上 .lrow 会把它从本该所属的那一档里踢出去 → **选中蓝底直接没了**
+      （verify_sel_feedback 已实测报错）。所以：仍用 .mem，紧凑外观靠 #v-clean 前缀收口。
+   ⚠️ 前缀 #v-clean 是跨页护栏：别的页一行不受影响。 */
+:is(#v-clean,#v-collect) .mem{display:flex;align-items:flex-start;gap:10px;background:transparent;border:0;
+  border-radius:0;padding:9px 2px;margin-bottom:0;box-shadow:none;border-bottom:1px solid var(--line)}
+:is(#v-clean,#v-collect) .mem:last-child{border-bottom:0}
+/* 采集页：已入库的候选整行置灰（原型就是 opacity:.45）—— 一眼看出哪些不用管 */
+:is(#v-clean,#v-collect) .mem.indb{opacity:.45}
+/* ⚠️ 带 :not(.sel)：否则 hover 的灰底会压掉选中态（#v-clean 前缀特异性比 .mem.sel 那条高） */
+:is(#v-clean,#v-collect) .mem:hover:not(.sel){background:var(--hover);transform:none}
+:is(#v-clean,#v-collect) .mem .top{margin-bottom:5px}
+:is(#v-clean,#v-collect) .mem .content{font-size:12.5px;line-height:1.6}
+/* 源文件/勾选行里的图标块：.mico 的尺寸原本也挂在 .split-main 下，这里补一份 */
+:is(#v-clean,#v-collect) .mico{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;
+  border-radius:var(--radius-md);flex:0 0 auto}
+:is(#v-clean,#v-collect) .mico svg{width:16px;height:16px}
+/* 紧凑行内部：.mbody/.mtitle/.mmeta 的样式原本同样挂在 .split-main 下，
+   清理页拿不到 → 这里按同样的排版补一份（只作用于 #v-clean）。 */
+:is(#v-clean,#v-collect) .mbody{min-width:0;flex:1 1 auto}
+:is(#v-clean,#v-collect) .mtitle{font-size:13px;color:var(--ink);line-height:1.45;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+/* 记忆勾选行：正文要读得全，给两行 */
+:is(#v-clean,#v-collect) .mem.pick .mtitle{display:-webkit-box;-webkit-box-orient:vertical;
+  -webkit-line-clamp:2;white-space:normal;line-height:1.55;word-break:break-word}
+:is(#v-clean,#v-collect) .mmeta{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:4px;
+  font-size:11px;color:var(--faint)}
+:is(#v-clean,#v-collect) .mtime{color:var(--faint);font-variant-numeric:tabular-nums}
+/* 选中态：统一规则换的是 .content/.meta 的文字色，这里用的是 .mtitle/.mmeta —— 补齐。
+   ⚠️ 选中底**必须在 #v-clean 里重写一遍**：上面 `:is(#v-clean,#v-collect) .mem{background:transparent}`
+      带 id 前缀（特异性 1,1,0），而全局那条是 `.mem.sel:not(.lrow)`（0,3,0）——
+      **id 永远赢**，所以全局规则压不过这里（verify_sel_feedback 实测：四条全红）。
+      不是 lrow 的问题，是 id 前缀太强。 */
+:is(#v-clean,#v-collect) .mem.sel{background:var(--sel-bg);border-color:transparent;
+  box-shadow:inset 3px 0 0 var(--sel-accent)}
+:is(#v-clean,#v-collect) .mem.sel .mtitle,:is(#v-clean,#v-collect) .mem.sel .mmeta,
+:is(#v-clean,#v-collect) .mem.sel .mtime,:is(#v-clean,#v-collect) .mem.sel .mico{color:var(--sel-ink)}
+:is(#v-clean,#v-collect) .mem.sel .chip{background:var(--sel-accent);color:var(--sel-ink)}
+:is(#v-clean,#v-collect) .mem>input[type=checkbox]{margin:0;flex:0 0 auto}
+:is(#v-clean,#v-collect) .empty{padding:24px 12px;text-align:center;color:var(--faint);font-size:12.5px}
+
+/* 收拢一组内容的卡片壳（原型 C 的 .pcard）。面板原本没有这个类 ——
+   质检页的「七查明细」用它包住七行，头部标题与说明各占一端。
+   ⚠️ 原型用 --radius-2xl / --inner-hi / --line-soft，面板没有 → 用现有变量替代。 */
+.pcard{background:var(--card);border:1px solid var(--line);border-radius:var(--radius-lg);
+  margin-bottom:var(--space-4);overflow:hidden}
+.pcard>.phead{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);
+  padding:var(--space-4) var(--space-5);border-bottom:1px solid var(--line)}
+.pcard>.phead .t{font-size:14px;font-weight:600;color:var(--ink)}
+.pcard>.phead .hint{margin-top:0;flex:0 1 auto;text-align:right}
+.pcard .pbody{padding:var(--space-3) var(--space-4)}
+/* tight：行自己带内边距（.auditrow 就是），外壳就别再加一层，否则每行上下各空一截 */
+.pcard .pbody.tight{padding:var(--space-1) var(--space-2)}
+/* ── ④ 质检页：健康卡 + 七查明细（按原型 C，2026-09-26）─────────────────────
+   原型的健康卡是「大分数 + 评级 + 一句话总结 + 7 个维度条」，
+   比原来的圆环仪表盘信息量大：七个维度各自什么状态，一眼扫完，不用逐个点。
+   ⚠️ 原型用的 --radius-2xl / --inner-hi / --line-soft / --dim / --fs-sm / --t-warn-*
+      面板都没有 —— 用现有变量替代（--radius-lg / --line / --faint），不新造变量。 */
+.hcard{background:linear-gradient(180deg,rgba(48,209,88,.07),transparent 62%),var(--card);
+  border:1px solid var(--line);border-radius:var(--radius-lg);padding:var(--space-4);
+  margin-bottom:var(--space-4)}
+.hcard .htop{display:flex;align-items:flex-end;gap:var(--space-5);flex-wrap:wrap}
+.hcard .score{display:flex;align-items:baseline;gap:6px}
+.hcard .score b{font-size:46px;font-weight:700;letter-spacing:-2.4px;line-height:1;
+  font-variant-numeric:tabular-nums;color:var(--ink)}
+.hcard .score .hgrade{font-size:13px;font-weight:700;padding:2px 8px;border-radius:7px}
+.hcard .score .of{font-size:12px;color:var(--faint)}
+.hcard .hsum{flex:1;min-width:220px;font-size:12px;color:var(--sub);line-height:1.75}
+.hcard .hsum b{color:var(--ink)}
+.hdims{display:grid;grid-template-columns:repeat(auto-fit,minmax(143px,1fr));gap:1px;
+  margin-top:var(--space-5);background:var(--line);border:1px solid var(--line);
+  border-radius:12px;overflow:hidden}
+.hdims .d{background:var(--card);padding:11px 14px}
+.hdims .dk{font-size:10.5px;color:var(--faint);font-weight:600;letter-spacing:.3px}
+.hdims .dv{margin-top:4px;font-size:19px;font-weight:700;font-variant-numeric:tabular-nums;
+  letter-spacing:-.6px;color:var(--ink)}
+.hdims .dbar{margin-top:7px;height:4px;border-radius:2px;background:var(--d3);overflow:hidden}
+.hdims .dbar i{display:block;height:100%}
+/* 七查明细：紧凑行（原来每条是一个 .mem 卡片，一屏看不了几条） */
+.auditrow{display:flex;align-items:flex-start;gap:var(--space-3);padding:13px var(--space-3);
+  border-radius:11px}
+.auditrow+.auditrow{margin-top:2px}
+.auditrow:hover{background:var(--hover)}
+.auditrow .ano{width:22px;height:22px;border-radius:7px;flex:0 0 22px;display:grid;
+  place-items:center;font-size:11px;font-weight:700;margin-top:2px}
+.auditrow .grow{flex:1;min-width:0}
+.auditrow{cursor:pointer}
+.auditrow .cv{margin-left:auto;color:var(--faint);font-size:10px;flex:0 0 auto;padding-top:4px}
+/* 展开出来的候选：往右缩进对齐到文字列，跟上面的行形成层级 */
+.auditbody{margin:0 0 var(--space-2) 34px;padding:2px 0 6px}
+/* 警告徽章（原型 .tb.warn）。面板没有 --t-warn-*，复用 --t-decision-bg/--data-decision 那套黄 */
+.tb.warn{background:var(--t-decision-bg);color:var(--data-decision)}
 .kpi .kfoot{display:flex;justify-content:space-between;gap:8px;font-size:11.5px;
   color:var(--faint);line-height:1.5}
 .kpi .kfoot>span:last-child{text-align:right;flex-shrink:0}
@@ -2552,11 +2729,20 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
       <!-- 质检 -->
       <section id="v-audit" hidden>
         <div class="pagehead">
-          <h2 class="ptitle">记忆质检</h2>
+          <div>
+            <h2 class="ptitle">记忆质检</h2>
+            <!-- 数据行按原型 C 放在页头内（常驻可见）—— 与前三页同一处理 -->
+            <p class="psub" id="au-psub">正在统计…</p>
+          </div>
           <div class="pacts">
-            <select id="au-proj" class="proj-sel" style="max-width:200px"><option value="">全部项目</option></select>
-            <button class="btn" onclick="exportReport()">下载质检报告</button>
-            <button class="btn pri" onclick="runAudit()">开始质检</button>
+            <div class="pgrp">
+              <select id="au-proj" class="proj-sel" style="max-width:200px"><option value="">全部项目</option></select>
+            </div>
+            <span class="psep" aria-hidden="true"></span>
+            <div class="pgrp">
+              <button class="btn" onclick="exportReport()">下载质检报告</button>
+              <button class="btn pri" onclick="runAudit()">开始质检</button>
+            </div>
           </div>
         </div>
         <p class="lead">七查：重复（合并）· 疑似同义（人工判断）· 可能矛盾（以新代旧）· 长期未更新（续期/作废）· 过短 · 过粗粒度（拆分）· 元数据缺失。作废的记忆保留在库里但不参与检索。</p>
@@ -2568,7 +2754,10 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
       <!-- 清理 -->
       <section id="v-clean" hidden>
         <div class="pagehead">
-          <h2 class="ptitle">清理</h2>
+          <div>
+            <h2 class="ptitle">清理</h2>
+            <p class="psub" id="cl-psub">正在读取备份状态…</p>
+          </div>
           <div class="pacts">
             <button class="btn pri" onclick="doSnapshot()">立即备份</button>
           </div>
@@ -2576,15 +2765,21 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
         <p class="lead">删记忆、删源文件。文件走「备份 + 系统回收站」双保险，记忆删除前也会自动导出备份。</p>
 
         <!-- ① 先把它设好，再动下面的删除工具 -->
-        <div class="panel">
-          <div class="listhead">
-            <span class="t">① 备份与归档</span>
-            <span>
-              <button class="btn" onclick="pickArchiveDir()">选择存放位置…</button>
-              <button class="btn" onclick="openArchiveDir()">打开归档目录</button>
+        <div class="panel pcard risk-ok">
+          <div class="listhead phead">
+            <span class="t"><span class="stepno">1</span>备份与归档</span>
+            <span class="pr">
+              <span class="riskflag ok">安全 · 只复制</span>
+              <button class="btn sm" onclick="openArchiveDir()">打开归档目录</button>
+              <button class="btn sm" onclick="pickArchiveDir()">选择存放位置…</button>
             </span>
           </div>
-          <p class="lead" id="arch-line" style="margin-bottom:8px">加载中…</p>
+          <!-- 按原型：三项状态用 3 格 kv 卡片，而不是挤成一行文字 -->
+          <div class="kv-grid" style="margin-bottom:12px">
+            <div class="cell"><div class="k">当前状态</div><div class="v" id="arch-state">加载中…</div></div>
+            <div class="cell"><div class="k">最近一份备份</div><div class="v" id="arch-last">—</div></div>
+            <div class="cell"><div class="k">库体积</div><div class="v" id="arch-size">—</div></div>
+          </div>
           <p class="hint" id="arch-hint"></p>
           <div class="row">
             <input type="text" class="textin" id="arch-dir" placeholder="归档目录（可放在 D 盘 / 移动硬盘；留空 = 不启用）">
@@ -2594,12 +2789,13 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
             选择位置后才开始自动备份（每次打开面板检查一次，每天最多一份，默认保留 30 份）。</p>
         </div>
 
-        <div class="panel">
-          <div class="listhead">
-            <span class="t">② 记忆的源文件</span>
-            <span>
-              <button class="btn" onclick="loadSourceFiles()">重新扫描</button>
-              <button class="btn" onclick="cleanSourceFiles()">备份并移入回收站</button>
+        <div class="panel pcard risk-warn">
+          <div class="listhead phead">
+            <span class="t"><span class="stepno">2</span>记忆的源文件</span>
+            <span class="pr">
+              <span class="riskflag warn">谨慎 · 删的是来源依据</span>
+              <button class="btn sm" onclick="loadSourceFiles()">重新扫描</button>
+              <button class="btn sm" onclick="cleanSourceFiles()">备份并移入回收站</button>
             </span>
           </div>
           <p class="hint" style="margin-top:0">这些是当初采集记忆的源文件（WorkBuddy 工作区日志）。删掉文件＝删掉对应记忆的来源依据。
@@ -2608,13 +2804,14 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
           <div class="msg" id="sf-msg" style="display:none"></div>
         </div>
 
-        <div class="panel">
-          <div class="listhead">
-            <span class="t">③ 记忆逐条勾选</span>
-            <span>
+        <div class="panel pcard risk-bad">
+          <div class="listhead phead">
+            <span class="t"><span class="stepno">3</span>记忆逐条勾选</span>
+            <span class="pr">
+              <span class="riskflag bad">危险 · 硬删除</span>
               <select id="cm-proj" class="proj-sel" style="max-width:180px"><option value="">全部项目</option></select>
-              <button class="btn" onclick="loadMemPick()">列出</button>
-              <button class="btn" onclick="deletePicked()">删除选中记忆</button>
+              <button class="btn sm" onclick="loadMemPick()">列出</button>
+              <button class="btn sm danger" onclick="deletePicked()">删除选中记忆</button>
             </span>
           </div>
           <p class="hint" style="margin-top:0">勾选后点「删除选中记忆」＝硬删除（删前自动全量备份，可用「记忆包」导入还原）。</p>
@@ -2622,8 +2819,11 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
           <div class="msg" id="cm-msg" style="display:none"></div>
         </div>
 
-        <div class="panel">
-          <div class="listhead"><span class="t">④ 备份记录</span></div>
+        <div class="panel pcard tight-body">
+          <div class="listhead phead">
+            <span class="t"><span class="stepno">4</span>备份记录</span>
+            <span class="hint">按时间倒序 · 默认保留 30 份</span>
+          </div>
           <div id="bk-list"></div>
         </div>
       </section>
@@ -2631,22 +2831,54 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
       <!-- 采集中心 -->
       <section id="v-collect" hidden>
         <div class="pagehead">
-          <h2 class="ptitle">采集中心</h2>
+          <div>
+            <h2 class="ptitle">采集中心</h2>
+            <p class="psub" id="ck-psub">还没扫描本机</p>
+          </div>
           <div class="pacts">
             <button class="btn pri" onclick="doScan()">扫描本机</button>
           </div>
         </div>
-        <p class="lead">扫描本机 Agent 的历史日志与 skills，勾选后入库。已入库的条目自动置灰，不会重复写入。</p>
-        <div class="panel">
-          <div class="listhead">
+        <p class="lead">扫描范围：<b>WorkBuddy 各工作区 memory 日志</b> + <b>~/.workbuddy/skills</b>。
+          已入库的条目<b>自动置灰</b>，不会重复写入 —— 扫多少次都不会出现第二份。</p>
+        <!-- 按原型 c3：三张卡均分三列。数字全部由 doScan() 现取，**一个都不写死**，
+             未扫描时显示 —（不假装有数据）。 -->
+        <div class="kgrid c3" id="ck-kpi">
+          <div class="kpi">
+            <div class="ktop"><span class="kt">扫描到的文件</span>
+              <span class="kic" style="background:var(--t-fact-bg);color:var(--data-fact)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg></span>
+            </div>
+            <div class="kv"><span id="ckpi-files">—</span><span class="u">个</span></div>
+            <div class="kbar"><i id="ckpi-files-b" style="background:var(--data-fact)"></i></div>
+            <div class="kfoot"><span id="ckpi-files-f1">合计 —</span><span id="ckpi-files-f2">未扫描</span></div>
+          </div>
+          <div class="kpi">
+            <div class="ktop"><span class="kt">可入库条目</span>
+              <span class="kic" style="background:var(--t-skill-bg);color:var(--data-skill)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8"/><path d="M4.6 6.6L8 10l3.4-3.4"/><path d="M2.5 12.5h11"/></svg></span>
+            </div>
+            <div class="kv"><span id="ckpi-new">—</span><span class="u">条</span></div>
+            <div class="kbar"><i id="ckpi-new-b" style="background:var(--data-skill)"></i></div>
+            <div class="kfoot"><span>勾选后入库</span><span id="ckpi-new-f">未扫描</span></div>
+          </div>
+          <div class="kpi">
+            <div class="ktop"><span class="kt">已入库（去重跳过）</span>
+              <span class="kic" style="background:var(--t-context-bg);color:var(--data-context)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.2 8.4l3.2 3.2 6.4-7"/></svg></span>
+            </div>
+            <div class="kv"><span id="ckpi-old">—</span><span class="u">条</span></div>
+            <div class="kbar"><i id="ckpi-old-b" style="background:var(--data-context)"></i></div>
+            <div class="kfoot"><span>自动置灰</span><span id="ckpi-old-f">未扫描</span></div>
+          </div>
+        </div>
+        <div class="panel pcard">
+          <div class="listhead phead">
             <span class="t">扫描结果</span>
-            <span>
-              <button class="btn" id="ck-all" style="display:none" onclick="checkAll(true)">全选</button>
-              <button class="btn" id="ck-none" style="display:none" onclick="checkAll(false)">清空</button>
-              <button class="btn pri" id="ck-go" style="display:none" onclick="doCollect()">入库选中</button>
+            <span class="pr">
+              <button class="btn sm" id="ck-all" style="display:none" onclick="checkAll(true)">全选</button>
+              <button class="btn sm" id="ck-none" style="display:none" onclick="checkAll(false)">清空</button>
+              <button class="btn pri sm" id="ck-go" style="display:none" onclick="doCollect()">入库选中</button>
             </span>
           </div>
-          <p class="hint" style="margin-top:0" id="scan-info">还没扫描。扫描范围：WorkBuddy 各工作区 memory 日志、~/.workbuddy/skills。</p>
+          <p class="hint" id="scan-info">还没扫描。扫描范围：WorkBuddy 各工作区 memory 日志、~/.workbuddy/skills。</p>
           <div id="scan-list"></div>
         </div>
       </section>
@@ -2654,18 +2886,61 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
       <!-- Agent 体检 -->
       <section id="v-agents" hidden>
         <div class="pagehead">
-          <h2 class="ptitle">Agent</h2>
+          <div>
+            <h2 class="ptitle">Agent</h2>
+            <p class="psub" id="ag-psub">正在识别本机 Agent…</p>
+          </div>
           <div class="pacts">
-            <button class="btn" onclick="verifyMcp()">验证 MCP 服务</button>
-            <button class="btn pri" onclick="registerAll()">全部接入</button>
+            <div class="pgrp"><button class="btn sm" onclick="verifyMcp()">验证 MCP 服务</button></div>
+            <span class="psep"></span>
+            <div class="pgrp"><button class="btn pri sm" onclick="registerAll()">全部接入</button></div>
           </div>
         </div>
-        <p class="lead">把 Loci 接入本机所有 AI Agent：自动识别已安装的产品，一键写入 MCP 配置。写入前自动备份，只增不改其他条目。</p>
+        <p class="lead">把 Loci 接入本机所有 AI Agent：自动识别已安装的产品，一键写入 MCP 配置。
+          <b>写入前自动备份，只增不改其他条目。</b>接入后需<b>重启对应 Agent</b> 才生效。</p>
 
-        <div class="panel">
-          <div class="listhead">
+        <!-- 3 张 KPI 卡（原型 c3）。数字全部由 loadAgents() 现取，**一个都不写死**。 -->
+        <div class="kgrid c3" id="ag-kpi">
+          <div class="kpi hero">
+            <div class="ktop"><span class="kt">已接入</span>
+              <span class="kic" style="background:var(--t-skill-bg);color:var(--data-skill)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.2 8.4l3.2 3.2 6.4-7"/></svg></span>
+            </div>
+            <div class="kv"><span id="agpi-on">—</span><span class="u">个</span></div>
+            <div class="kbar"><i id="agpi-on-b"></i></div>
+            <div class="kfoot"><span id="agpi-on-f1">—</span><span id="agpi-on-f2">—</span></div>
+          </div>
+          <div class="kpi">
+            <div class="ktop"><span class="kt">待接入</span>
+              <span class="kic" style="background:var(--t-decision-bg);color:var(--data-decision)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 3.4v5.2"/><circle cx="8" cy="12" r="1"/></svg></span>
+            </div>
+            <div class="kv"><span id="agpi-todo">—</span><span class="u">个</span></div>
+            <div class="kbar"><i id="agpi-todo-b" style="background:var(--data-decision)"></i></div>
+            <div class="kfoot"><span>点「全部接入」一次写完</span><span id="agpi-todo-f">—</span></div>
+          </div>
+          <div class="kpi">
+            <div class="ktop"><span class="kt">已识别</span>
+              <span class="kic" style="background:var(--t-context-bg);color:var(--data-context)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="11" height="8" rx="2"/><path d="M8 2.4V4"/><circle cx="5.8" cy="8" r=".9"/><circle cx="10.2" cy="8" r=".9"/></svg></span>
+            </div>
+            <div class="kv"><span id="agpi-all">—</span><span class="u">个</span></div>
+            <div class="kbar"><i id="agpi-all-b" style="background:var(--data-context)"></i></div>
+            <div class="kfoot"><span id="agpi-all-f">本机识别到的 Agent</span><span>含子任务</span></div>
+          </div>
+        </div>
+
+        <div class="msg" id="agent-msg" style="display:none"></div>
+
+        <div class="panel pcard">
+          <div class="listhead phead">
+            <span class="t">本机 Agent</span>
+            <span class="hint">接入后需重启对应的 Agent 才会生效</span>
+          </div>
+          <div class="agrid" id="agents"></div>
+        </div>
+
+        <div class="panel pcard">
+          <div class="listhead phead">
             <span class="t">装在其他位置的 Agent？</span>
-            <span class="hint" style="margin:0">粘 mcp.json 路径或它所在目录</span>
+            <span class="hint">粘 mcp.json 路径或它所在目录</span>
           </div>
           <div class="row">
             <input type="text" class="textin" id="add-path" placeholder="mcp.json 路径，或 Agent 所在目录">
@@ -2676,13 +2951,6 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
           <p class="hint">「添加」＝这一次认出来；「记为扫描目录」＝记住这个目录，以后每次自动扫描都会带上它（适合自己放的 Agent 集合目录）。</p>
           <div id="roots" class="row" style="flex-wrap:wrap;margin-top:10px"></div>
         </div>
-
-        <div class="msg" id="agent-msg" style="display:none"></div>
-        <div class="listhead" style="margin-top:20px">
-          <span class="t">本机 Agent</span>
-          <span class="hint" style="margin:0">接入后需重启对应的 Agent 才会生效</span>
-        </div>
-        <div class="agents" id="agents"></div>
       </section>
 
       <!-- 记忆包 -->
@@ -2780,73 +3048,97 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
 
       <section id="v-pack" hidden>
         <div class="pagehead">
-          <h2 class="ptitle">记忆包</h2>
+          <div>
+            <h2 class="ptitle">记忆包</h2>
+            <p class="psub" id="pk-psub">导出为 JSON · 跨电脑备份或发给他人导入 · 导入时按内容自动去重</p>
+          </div>
           <div class="pacts">
-            <button class="btn pri" onclick="doExport()">导出记忆包</button>
+            <button class="btn pri sm" onclick="doExport()">导出记忆包</button>
           </div>
         </div>
-        <p class="lead">把记忆导出为 JSON 文件，跨电脑备份或发给他人导入。导入时按内容自动去重。</p>
 
-        <div class="panel">
-          <div class="listhead">
-            <span class="t">① 导出范围</span>
-            <span class="hint" style="margin:0">格式 loci-pack v1：内容 / 类型 / 重要度 / 项目 / 时间</span>
+        <div class="panel pcard risk-ok">
+          <div class="listhead phead">
+            <span class="t"><span class="stepno">1</span>导出范围</span>
+            <span class="hint">格式 loci-pack v1：内容 / 类型 / 重要度 / 项目 / 时间</span>
           </div>
           <div class="row">
-            <select id="pk-proj" class="proj-sel"><option value="">全部项目</option></select>
+            <select id="pk-proj" class="proj-sel" style="flex:0 0 220px"><option value="">全部项目</option></select>
+            <span class="chip" id="pk-count">—</span>
           </div>
           <div class="row" style="gap:8px;align-items:center;margin-top:12px">
             <input type="checkbox" id="pack-with-sessions" style="width:auto;margin:0">
             <span>同时导出「会话层（对话原文）」</span>
+            <span class="chip" id="pk-sess">—</span>
           </div>
           <p class="hint">默认只导出记忆（结论）。勾上这一项会把归档的原始对话一起打包 ——
             换电脑后原话也能恢复。导入时记忆与会话<b>两边都会自动去重</b>，重复导入不会产生第二份。</p>
         </div>
 
-        <div class="panel">
-          <div class="listhead"><span class="t">② 导入</span></div>
-          <div class="row">
-            <button class="btn" onclick="document.getElementById('pack-file').click()">选择文件并导入</button>
+        <div class="panel pcard">
+          <div class="listhead phead">
+            <span class="t"><span class="stepno">2</span>导入</span>
+            <span class="hint">只接受 Loci 导出的记忆包（.json）</span>
+          </div>
+          <!-- 按原型：拖拽区（真的支持拖拽，不是只有样子） -->
+          <div class="dropzone" id="pk-drop">
+            <svg viewBox="0 0 24 24"><path d="M12 16V4"/><path d="M7.5 8.5L12 4l4.5 4.5"/><path d="M4 16v3a1 1 0 001 1h14a1 1 0 001-1v-3"/></svg>
+            <div class="dz">把 .json 记忆包拖到这里，或点此<u>选择文件并导入</u>
+              <small>与现有记忆内容重复的条目会自动跳过</small>
+            </div>
             <input type="file" id="pack-file" accept=".json" style="display:none" onchange="doImport(this)">
           </div>
-          <p class="hint">只接受 Loci 导出的记忆包；与现有记忆内容重复的条目会自动跳过。</p>
         </div>
 
-        <div class="panel">
-          <div class="listhead">
-            <span class="t">③ 技能包</span>
-            <span class="hint" style="margin:0">把经验类记忆导出成 SKILL.md</span>
+        <div class="panel pcard">
+          <div class="listhead phead">
+            <span class="t"><span class="stepno">3</span>技能包</span>
+            <span class="hint">把经验类记忆导出成 SKILL.md</span>
           </div>
           <div class="row">
             <select id="sk-proj" class="proj-sel" style="max-width:220px"><option value="">选择项目</option></select>
             <button class="btn" onclick="skillPreview()">预览技能包</button>
             <button class="btn" onclick="skillExport()">写入 skills 目录</button>
           </div>
-          <p class="hint">写进 ~/.workbuddy/skills，各 Agent 可直接读取。</p>
+          <p class="hint">写进 <code>~/.workbuddy/skills</code>，各 Agent 可直接读取。</p>
+          <pre class="mdbox" id="skill-out" style="display:none;margin-top:14px"></pre>
         </div>
-        <div class="handoff-out" id="skill-out"></div>
       </section>
 
       <!-- 交接卡 -->
       <section id="v-handoff" hidden>
         <div class="pagehead">
-          <h2 class="ptitle">项目交接卡</h2>
+          <div>
+            <h2 class="ptitle">项目交接卡</h2>
+            <p class="psub">按项目抽取决策 / 偏好 / 坑 / 事实 · 切换 Agent 时贴给它即可无损续接</p>
+          </div>
           <div class="pacts">
-            <button class="btn pri" onclick="doHandoff()">生成交接卡</button>
-            <button class="btn txt" id="hf-copy" style="display:none" onclick="copyHandoff()">复制</button>
+            <div class="pgrp"><button class="btn sm" id="hf-copy" style="display:none" onclick="copyHandoff()">复制</button></div>
+            <span class="psep"></span>
+            <div class="pgrp"><button class="btn pri sm" onclick="doHandoff()">生成交接卡</button></div>
           </div>
         </div>
-        <p class="lead">按项目抽取决策 / 偏好 / 坑 / 事实，生成 markdown 卡片，切换 Agent 时贴给它即可无损续接。</p>
-        <div class="panel">
-          <div class="listhead">
+
+        <div class="panel pcard">
+          <div class="listhead phead">
             <span class="t">选择项目</span>
-            <span class="hint" style="margin:0">留「全部项目」＝ 库里所有记忆都带上</span>
+            <span class="hint">留「全部项目」＝ 库里所有记忆都带上</span>
           </div>
-          <div class="row">
-            <select id="hf-proj" class="proj-sel"><option value="">全部项目</option></select>
-          </div>
+          <!-- 按原型：一排可点的项目标签。真身仍是 #hf-proj（契约 id），
+               只是收起来不显示 —— 点标签会写回它并重新生成，功能一点没少。 -->
+          <div class="tagline" id="hf-tags"></div>
+          <select id="hf-proj" class="proj-sel" style="display:none"><option value="">全部项目</option></select>
+          <p class="hint">交接卡按「决策 → 偏好 → 踩坑 → 事实 → 背景」的顺序排列，<b>长内容会被截断到一行</b>，
+            贴给新 Agent 时不会一次塞爆它的上下文。</p>
         </div>
-        <div class="handoff-out" id="handoff"></div>
+
+        <div class="panel pcard" id="hf-card" style="display:none">
+          <div class="listhead phead">
+            <span class="t">交接卡预览</span>
+            <span class="hint" id="hf-meta">—</span>
+          </div>
+          <div class="handoff-out" id="handoff"></div>
+        </div>
       </section>
     </div>
   </main>
@@ -3308,15 +3600,29 @@ async function loadSourceFiles(){
   document.getElementById("sf-list").innerHTML = SFILES.length ? (
     '<div class="row" style="margin-bottom:8px"><label class="ckwrap"><input type="checkbox" id="sf-all" onchange="toggleAllSF(this.checked)"> 全选（'+SFILES.length+' 个文件）</label></div>'+
     SFILES.map(function(f,i){
-      return '<div class="mem"><div class="top">'+
+      return '<div class="mem">'+
         '<input type="checkbox" class="sfck" data-i="'+i+'">'+
-        '<span class="ttag"><i style="background:#ff9f0a"></i>'+esc(f.kind)+'</span>'+
-        '<span class="proj">'+esc(f.workspace)+'</span>'+
-        '<span class="accent">关联 '+f.memories+' 条'+(f.exact?"（精确）":"（按工作区估算）")+'</span>'+
-        '<span class="score">'+fmtSize(f.size)+' · '+esc(f.mtime)+'</span></div>'+
-        '<div class="content" style="font-size:12px;color:var(--sub);word-break:break-all">'+esc(f.file_name||f.path)+'</div>'+
-        (f.memory_items&&f.memory_items.length?('<div class="meta"><span>'+f.memory_items.map(function(m){return "#"+m.id+" "+esc(m.content.slice(0,26));}).join("　")+'</span></div>'):"")+
-      '</div>';
+        '<span class="mico" style="background:var(--t-context-bg);color:var(--data-context)">'+
+          '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">'+
+          '<path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg></span>'+
+        '<div class="mbody">'+
+          '<div class="mtitle">'+esc(f.file_name||f.path)+'</div>'+
+          '<div class="mmeta">'+
+            '<span class="chip">'+fmtSize(f.size)+'</span>'+
+            '<span class="mtime">'+esc(f.mtime||"")+'</span>'+
+            '<span class="chip">关联 '+f.memories+' 条'+(f.exact?"（精确）":"（估算）")+'</span>'+
+            '<span class="chip">'+esc(f.kind)+'</span>'+
+            (f.agent?('<span class="chip">'+esc(f.agent)+'</span>'):"")+
+            (f.workspace?('<span class="chip">'+esc(f.workspace)+'</span>'):"")+
+          '</div>'+
+          // ⚠️ 原型这里还有个「正在使用 · 建议跳过」徽章，但 /api/sourcefiles **不返回**
+          //    这个字段（已实测：只有 path/size/mtime/agent/workspace/kind/memories/
+          //    exact/memory_items）。没有的数据就不画 —— 不凭空造。
+          (f.memory_items&&f.memory_items.length
+            ?('<div class="mmeta">'+f.memory_items.map(function(m){
+                return '<span class="chip">#'+m.id+' '+esc(m.content.slice(0,26))+'</span>';}).join("")+'</div>')
+            :"")+
+        '</div></div>';
     }).join("")) : '<div class="empty">没有找到源文件</div>';
   loadBackups();
 }
@@ -3348,12 +3654,19 @@ async function loadMemPick(){
   document.getElementById("cm-list").innerHTML = MPICK.length ?
     ('<div class="row" style="margin-bottom:8px"><label class="ckwrap"><input type="checkbox" onchange="toggleAllCM(this.checked)"> 全选（'+MPICK.length+' 条）</label></div>'+
      MPICK.map(function(m,i){
-      return '<div class="mem"><div class="top">'+
+      return '<div class="mem pick">'+
         '<input type="checkbox" class="cmck" data-i="'+i+'">'+
-        '<span class="ttag"><i style="background:'+(TC[m.mtype]||"var(--data-context)")+'"></i>'+(TL[m.mtype]||m.mtype)+'</span>'+
-        (m.project?('<span class="proj">'+esc(m.project)+'</span>'):"")+
-        '<span class="score">#'+m.id+' · '+esc(m.agent||"")+' · '+m.created_at.slice(0,10)+'</span></div>'+
-        '<div class="content">'+esc(m.content)+'</div></div>';
+        '<span class="mico '+(m.mtype||"")+'">'+rowIcon(m.mtype)+'</span>'+
+        '<div class="mbody">'+
+          '<div class="mtitle">'+esc(m.content)+'</div>'+
+          '<div class="mmeta">'+
+            '<span class="chip">#'+m.id+'</span>'+
+            '<span class="chip">'+esc(TL[m.mtype]||m.mtype||"")+'</span>'+
+            (m.project?('<span class="chip">'+esc(m.project)+'</span>'):"")+
+            (m.agent?('<span class="chip">'+esc(m.agent)+'</span>'):"")+
+            '<span class="mtime">'+String(m.created_at||"").slice(0,10)+'</span>'+
+          '</div>'+
+        '</div></div>';
     }).join("")) : '<div class="empty">没有记忆</div>';
   cmmsg("共 "+r.count+" 条可选","ok");
 }
@@ -3375,10 +3688,19 @@ async function deletePicked(){
 async function loadBackups(){
   var rows=await api("/api/backups");
   document.getElementById("bk-list").innerHTML = rows.length ? rows.map(function(b){
-    return '<div class="mem"><div class="top"><span class="ttag"><i style="background:#5DCAA5"></i>备份</span>'+
-      '<span class="proj">'+b.files+' 个文件</span>'+
-      '<span class="accent">'+fmtSize(b.size)+'</span><span class="score">'+esc(b.time)+'</span></div>'+
-      '<div class="content" style="font-size:12px;color:var(--sub);word-break:break-all">'+esc(b.dir)+'</div></div>';
+    return '<div class="mem">'+
+      '<span class="mico" style="background:var(--t-skill-bg);color:var(--data-skill)">'+
+        '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">'+
+        '<path d="M3.2 8.4l3.2 3.2 6.4-7"/></svg></span>'+
+      '<div class="mbody">'+
+        '<div class="mtitle">'+esc(b.dir)+'</div>'+
+        '<div class="mmeta">'+
+          '<span class="chip">'+fmtSize(b.size)+'</span>'+
+          '<span class="mtime">'+esc(b.time||"")+'</span>'+
+          '<span class="chip">'+b.files+' 个文件</span>'+
+          '<span class="tb ok">备份</span>'+
+        '</div>'+
+      '</div></div>';
   }).join("") : '<div class="empty">还没有删除备份</div>';
 }
 
@@ -3557,9 +3879,48 @@ async function doHandoff(){
   const r=await api("/api/handoff?project="+encodeURIComponent(proj));
   const el=document.getElementById("handoff");
   el.style.display="block";
-  el.innerHTML='<div class="foldbody">'+esc(r.markdown)+'</div>';
-  foldAll();
+  /* 外层已经是 .pcard > .phead，这里只放正文（不再套 .foldbody —— 会和 mdbox 的
+     排版打架，白加一层内边距） */
+  el.innerHTML=esc(r.markdown||"");
+  var card=document.getElementById("hf-card");
+  if(card)card.style.display="block";
+  var meta=document.getElementById("hf-meta");
+  if(meta){
+    var lines=(r.markdown||"").split("\n").filter(function(x){return /^[-*]\s/.test(x)}).length;
+    var so=document.getElementById("hf-proj").selectedOptions[0];
+    meta.textContent=(so?so.textContent:"全部项目")+" · "+lines+" 条记忆";
+  }
   document.getElementById("hf-copy").style.display="inline";
+}
+
+/* ⑨ 项目标签行（原型样式）：一排可点的 chip/tb。
+   真身仍是 #hf-proj（契约 id），只是收起来 —— 点标签会写回它并重新生成。
+   ⚠️ 用 /api/stats 的 by_project 现取，按条数降序；**没有数据就不编**。 */
+async function syncHfTags(){
+  var box=document.getElementById("hf-tags"), sel=document.getElementById("hf-proj");
+  if(!box||!sel)return;
+  var cur=sel.value;
+  try{
+    var st=await api("/api/stats"), bp=st.by_project||{};
+    var keys=Object.keys(bp).sort(function(a,b){return bp[b]-bp[a]});
+    sel.innerHTML='<option value="">全部项目</option>'
+      +keys.map(function(k){return '<option value="'+escAttr(k)+'">'+esc(k)+'</option>'}).join("");
+    sel.value=cur;
+    var chipStyle='height:26px;padding:0 11px;border-radius:8px;font-size:12px;cursor:pointer';
+    box.innerHTML='<span class="'+(cur?"chip":"tb decision")+'" data-v="" style="'+chipStyle+'"'
+      +' onclick="pickHfProj(this)" title="库里所有记忆都带上">全部项目 · '+st.total+' 条</span>'
+      +keys.map(function(k){
+        var on=(k===cur);
+        return '<span class="'+(on?"tb decision":"chip")+'" data-v="'+escAttr(k)+'" style="'+chipStyle+'"'
+          +' onclick="pickHfProj(this)">'+esc(k)+' · '+(bp[k]||0)+' 条</span>';
+      }).join("");
+  }catch(e){}
+}
+function pickHfProj(el){
+  var sel=document.getElementById("hf-proj");
+  sel.value=el.dataset.v||"";
+  syncHfTags();
+  doHandoff();
 }
 async function copyHandoff(){
   await navigator.clipboard.writeText(document.getElementById("handoff").textContent);
@@ -3577,31 +3938,60 @@ async function doScan(){
   catch(e){document.getElementById("scan-info").textContent="扫描失败："+e;btn.disabled=false;btn.textContent="扫描本机";return}
   btn.disabled=false;btn.textContent="重新扫描";
   const el=document.getElementById("scan-list");
-  const nIn=rows.filter(r=>r.in_db).length;
-  document.getElementById("scan-info").textContent=
-    rows.length?`共发现 ${rows.length} 个候选（${nIn} 个已入库置灰）。勾选后点「入库选中」。`
-               :"没有发现可采集的文件。";
+  const nIn=rows.filter(r=>r.in_db).length, nNew=rows.length-nIn;
+  const bytes=rows.reduce((a,r)=>a+(r.size||0),0);
+  document.getElementById("scan-info").textContent = rows.length
+    ? ("共发现 "+rows.length+" 个候选（"+nIn+" 个已入库置灰）。勾选后点「入库选中」。")
+    : "没有发现可采集的文件。";
   ["ck-all","ck-none","ck-go"].forEach(id=>{
     document.getElementById(id).style.display=rows.length?"inline-block":"none"});
-  // 表格化（规范 Table 组件：静音表头 + 细描边行 + 彩色状态）。整行是 label，点哪都能勾。
-  // 状态列**只在"待入库"时出徽章**（2026-09-23 评审第⑤条）：绝大多数时候整列都是
-  // "已入库" —— 一列 23 行说同一句话，等于没信息；已入库的行本来就有三重标记
-  // （`.indb` 灰底 + 左侧 3px inset 条 + 勾选框 disabled），不需要再挂个徽章重复。
-  el.innerHTML = rows.length ? (
-    '<div class="stable">'+
-      '<div class="shead-row"><span></span><span>内容预览</span><span>类型</span>'+
-      '<span>来源</span><span>日期</span><span>状态</span></div>'+
-      rows.map(it=>`
-        <label class="srow${it.in_db?" indb":""}" title="${escAttr(it.path)}">
-          <span><input type="checkbox" class="ck" data-p="${escAttr(it.path)}" ${it.in_db?"disabled":""} ${it.in_db?"":"checked"}></span>
-          <span class="spath">${esc(it.preview)}</span>
-          <span class="cell">${esc(it.kind)}</span>
-          <span class="cell">${esc(it.source)}</span>
-          <span class="cell">${esc(it.date)}</span>
-          <span>${it.in_db?'':'<span class="bdg pin">待入库</span>'}</span>
-        </label>`).join("")+
-    '</div>'
-  ) : '<div class="empty">没有发现可采集的文件</div>';
+  var goBtn=document.getElementById("ck-go");
+  if(goBtn)goBtn.textContent="入库选中（"+nNew+"）";   // 按原型：按钮上直接写可入库条数
+  // ── 页头数据行 + 3 张 KPI 卡：数字全部现取（未扫描时是 —，不假装有数据）──
+  var ps=document.getElementById("ck-psub");
+  if(ps)ps.textContent = rows.length
+    ? ("已扫描 "+rows.length+" 个文件 · 可入库 "+nNew+" 条 · 已入库 "+nIn+" 条")
+    : "还没扫描本机";
+  var setK=function(id,v){var e=document.getElementById(id);if(e){if(window.countUp)countUp(e,v);else e.textContent=v}};
+  var setF=function(id,t){var e=document.getElementById(id);if(e)e.textContent=t};
+  var barK=function(id,p){var e=document.getElementById(id);
+    if(e)e.style.width=Math.max(2,Math.min(100,Math.round(p)))+'%'};
+  setK("ckpi-files",rows.length); setK("ckpi-new",nNew); setK("ckpi-old",nIn);
+  setF("ckpi-files-f1","合计 "+fmtSize(bytes));
+  setF("ckpi-files-f2", rows.length?"已扫描":"未扫描");
+  setF("ckpi-new-f","新 "+nNew);
+  setF("ckpi-old-f", rows.length?(Math.round(nIn/rows.length*100)+"%"):"未扫描");
+  barK("ckpi-files-b",100);
+  barK("ckpi-new-b", rows.length?nNew/rows.length*100:2);
+  barK("ckpi-old-b", rows.length?nIn/rows.length*100:2);
+  // ── 行：按原型用紧凑行（.mico + .mtitle + .mmeta 徽章/chip），已入库的整行置灰 ──
+  // ⚠️ 外观是紧凑行，但**class 里不带 lrow** —— 统一选中态那条规则是
+  //    `.mem.sel:not(.lrow)`，挂上 lrow 会被踢出「卡片行」那一档（清理页刚踩过）。
+  var ICO_LOGBOOK='<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" '
+    +'stroke-linecap="round" stroke-linejoin="round"><path d="M3.2 4.2h9.6v7.6H3.2z"/>'
+    +'<path d="M6 4.2V2.8h4v1.4"/></svg>';
+  var ICO_SKILL='<svg viewBox="0 0 16 16" fill="currentColor">'
+    +'<path d="M8 2.4l1.7 3.5 3.8.5-2.8 2.7.7 3.8L8 11l-3.4 1.9.7-3.8L2.5 6.4l3.8-.5z"/></svg>';
+  el.innerHTML = rows.length ? rows.map(function(it){
+    var t=it.kind||"";
+    var tone=/技能|skill/i.test(t)?"skill":(/日志/.test(t)?"context":"preference");
+    return '<label class="mem'+(it.in_db?" indb":"")+'" title="'+escAttr(it.path)+'">'
+      +'<input type="checkbox" class="ck" data-p="'+escAttr(it.path)+'"'
+        +(it.in_db?' disabled':' checked')+'>'
+      +'<span class="mico '+tone+'">'+(tone==="skill"?ICO_SKILL:ICO_LOGBOOK)+'</span>'
+      +'<div class="mbody">'
+        +'<div class="mtitle">'+esc(it.preview)+'</div>'
+        +'<div class="mmeta">'
+          +'<span class="tb '+tone+'">'+esc(t)+'</span>'
+          +'<span class="mtime">'+esc(it.date||"")+'</span>'
+          +'<span class="chip">'+esc(it.source||"")+'</span>'
+        +'</div>'
+      +'</div>'
+      +(it.in_db
+        ? '<span class="chip" style="align-self:center">已入库</span>'
+        : '<span class="tb warn" style="align-self:center">新</span>')
+      +'</label>';
+  }).join("") : '<div class="empty">没有发现可采集的文件</div>';
 }
 function checkAll(v){
   document.querySelectorAll(".ck:not([disabled])").forEach(c=>c.checked=v)}
@@ -3859,18 +4249,25 @@ function wrapPanels(viewId, keys){
    ⚠️ `.listhead` / `.dhead` / 质检页那 7 组 .listhead 的框**保留** ——
       它们才是真的"圈住一组内容"。 */
 var FRAME_SELECTION={
-  "agents/listhead[1]":0, "agents/listhead[2]":1,
-  "audit/listhead[1]":1, "audit/listhead[2]":1, "audit/listhead[3]":1,
-  "audit/listhead[4]":1, "audit/listhead[5]":1, "audit/listhead[6]":1,
-  "audit/listhead[7]":1,
+  /* ⚠️ 2026-09-26：Agent 页按原型把「本机 Agent」网格提到「装在其他位置」之前，
+     两个 listhead 的下标因此对调；且两块都改用 .pcard 包（自带边框），
+     再叠一层 .framed 外框就是双框 → 两个都设 0。 */
+  "agents/listhead[1]":0, "agents/listhead[2]":0,
+  "audit/auditrow[1]":1, "audit/auditrow[2]":1, "audit/auditrow[3]":1,
+  "audit/auditrow[4]":1, "audit/auditrow[5]":1, "audit/auditrow[6]":1,
+  "audit/auditrow[7]":1,
   "clean/listhead[1]":0, "clean/listhead[2]":0, "clean/listhead[3]":0,
   "clean/listhead[4]":0,
   "collect/listhead[1]":0,
   "handoff/listhead[1]":0,
   "mem/dhead[2]":1, "mem/shead[1]":0,
   "pack/listhead[1]":0, "pack/listhead[2]":0, "pack/listhead[3]":0,
-  "session/dhead[4]":1, "session/listhead[1]":0, "session/listhead[2]":1,
-  "session/shead[3]":0,
+  /* ⚠️ 2026-09-26：会话页删掉了外层 .listhead（原型里没那行"已归档会话+检索框"），
+     同页 FRAME_SEL 命中项的序号整体左移 1 —— 下面这几个 key 必须跟着改。
+     frameKeyOf() 用的是 peers.indexOf(e)（同页命中下标、跨类累加），
+     少一个元素，后面全部错位，本来要画框的会指到别的元素上（verify_frames 立刻红）。 */
+  "session/dhead[3]":1, "session/listhead[1]":1,
+  "session/shead[2]":0,
   "skill/grphead[3]":0, "skill/grphead[4]":0, "skill/grphead[5]":0,
   "skill/grphead[6]":0, "skill/grphead[7]":0,
   "skill/listhead[1]":0, "skill/shead[2]":0
@@ -3879,11 +4276,13 @@ var FRAME_SELECTION={
    把下面更多内容圈进来 —— 用绝对定位的 ::after 画，不占布局。 */
 var FRAME_EXTRA={
   "agents/listhead[2]":5,
-  "audit/listhead[1]":5, "audit/listhead[2]":7, "audit/listhead[3]":7,
-  "audit/listhead[4]":4, "audit/listhead[5]":6, "audit/listhead[6]":2,
-  "audit/listhead[7]":6
+  "audit/auditrow[1]":5, "audit/auditrow[2]":7, "audit/auditrow[3]":7,
+  "audit/auditrow[4]":4, "audit/auditrow[5]":6, "audit/auditrow[6]":2,
+  "audit/auditrow[7]":6
 };
-var FRAME_SEL=".pagehead,.listhead,.shead,.dhead,.grphead";
+var FRAME_SEL=".pagehead,.listhead,.shead,.dhead,.grphead,.auditrow";
+/* ⚠️ .auditrow 是 2026-09-26 加进来的：质检页的七查明细从「七段 .listhead」改成了「七行 .auditrow」，
+   原来那 7 个框如果不同步换载体，就会整片失效（verify_frames 从 11 掉到 4）。 */
 /* 与标注模式的 keyOf 必须逐字一致，否则清单对不上 */
 function frameKeyOf(e){
   var sec=e.closest("section[id^='v-']");
@@ -5144,28 +5543,51 @@ async function shutdownPanel(){
 async function renderHealth(){
   var proj=document.getElementById("au-proj").value;
   var h=await api("/api/health"+(proj?("?project="+encodeURIComponent(proj)):""));
-  // 四维扣分条：按维度顺序取 --chart-1..4（规范的图表五色就是给分类对比用的）
-  var bars=Object.keys(h.penalties||{}).map(function(k,i){
-    var v=h.penalties[k], pct=Math.round(v/25*100);
-    return '<div class="hrow"><span class="lab">'+k+'</span>'+
-      '<span class="hbar"><i style="width:'+pct+'%;background:var(--chart-'+((i%5)+1)+')"></i></span>'+
-      '<span class="val">-'+v.toFixed(1)+'</span></div>';
+  /* 七查维度（按原型 C 的 .hdims）。
+     ⚠️ /api/health 把「缺项目 / 缺标签」**分开**返回，这里合成原型的第 7 项「元数据缺失」——
+        原型画的就是七查七个格子，拆成八格会跟标题的"七查"对不上。
+     顺序固定：同一项永远在同一格，跨时间对比才有意义（不按条数排）。 */
+  var c=h.counts||{};
+  var dims=[
+    ["重复",       c["重复组"]||0],
+    ["疑似同义",   c["疑似同义"]||0],
+    ["可能矛盾",   c["可能矛盾"]||0],
+    ["长期未更新", c["长期未更新"]||0],
+    ["过短",       c["过短"]||0],
+    ["过粗粒度",   c["过粗粒度"]||0],
+    ["元数据缺失", (c["缺项目"]||0)+(c["缺标签"]||0)]
+  ];
+  var mx=Math.max.apply(null,dims.map(function(d){return d[1]}))||1;
+  var dimHtml=dims.map(function(d){
+    var v=d[1];
+    /* 0 条 = 干净 → 条给满格绿色（"这一项没事"本身就是要传递的信息）；
+       有问题 → 按相对最大项给宽度，最小 6% 保证看得见（1 条不该是一条看不见的线）。 */
+    var pct=v?Math.max(6,Math.round(v/mx*100)):100;
+    return '<div class="d"><div class="dk">'+d[0]+'</div>'+
+      '<div class="dv" style="color:'+(v?"var(--data-decision)":"var(--ok)")+'">'+v+'</div>'+
+      '<div class="dbar"><i style="width:'+pct+'%;background:'+
+        (v?"var(--data-decision)":"var(--data-skill)")+'"></i></div></div>';
   }).join("");
-  var chips=Object.keys(h.counts||{}).map(function(k){
-    var v=h.counts[k];
-    return '<span class="hchip'+(v>0?" warn":"")+'">'+k+" "+v+'</span>';
-  }).join("");
+  /* 一句话总结：说清"几项干净、问题集中在哪"—— 比只丢一个分数有用得多。
+     干净项为 0 时不能说"七项全干净"，所以分开处理。 */
+  var clean=dims.filter(function(d){return d[1]===0}).length;
+  var bad=dims.filter(function(d){return d[1]>0})
+    .sort(function(a,b){return b[1]-a[1]})
+    .map(function(d){return "<b>"+d[1]+" 条"+d[0]+"</b>"});
+  var summary = clean===7
+    ? "七项全干净 —— 这个库没有需要处理的问题。"
+    : "七项里 <b>"+clean+" 项干净</b>。待处理集中在："+bad.join("、")+"。";
   var g=String(h.grade||"A").toLowerCase();
   document.getElementById("health").innerHTML=
-    '<div class="hgauge">'+
-      '<div class="hring" style="background:conic-gradient(var(--chart-1) 0 '+h.score+
-        '%,var(--muted) '+h.score+'% 100%)">'+
-        '<div class="hval"><b>'+h.score+'</b><i>/100</i></div>'+
-      '</div>'+
-      '<span class="hgrade '+g+'">'+h.grade+" · "+(h.grade_text||"")+'</span>'+
-    '</div>'+
-    '<div class="hbars">'+bars+'</div>'+
-    '<div class="hchips">'+(chips||'<span class="hchip">库里还没有记忆，没有可检查的项</span>')+'</div>';
+    '<div class="hcard"><div class="htop">'+
+      '<div class="score"><b>'+h.score+'</b>'+
+        '<span class="hgrade '+g+'">'+esc(h.grade||"A")+' 级</span>'+
+        '<span class="of">/ 100</span></div>'+
+      '<div class="hsum">'+summary+'</div>'+
+    '</div><div class="hdims">'+dimHtml+'</div></div>';
+  var ps=document.getElementById("au-psub");
+  if(ps)ps.innerHTML="七查 · 全库 <b>"+(h.scanned||h.total||"—")+"</b> 条 · 评级 <b>"
+    +esc(h.grade||"—")+"</b>"+(h.grade_text?("（"+esc(h.grade_text)+"）"):"");
 }
 async function splitMem(id){
   if(!confirm("把 #"+id+" 拆分成多条子记忆？\n\n原文默认保留（标记作废），拆分出的子条继承项目/类型/来源。")) return;
@@ -5199,69 +5621,106 @@ async function runAudit(){
   var proj=document.getElementById("au-proj").value;
   amsg("正在质检（重复/矛盾/过期）…");
   var r=await api("/api/audit"+(proj?("?project="+encodeURIComponent(proj)):""));
-  var h="";
-  h+='<div class="listhead"><span class="t">重复记忆 · '+r.duplicates.length+' 组</span></div>';
-  h+= r.duplicates.length ? r.duplicates.map(function(g,i){
-      var ids=g.map(function(x){return x.id}).join(",");
-      return '<div class="mem"><div class="top"><span class="ttag"><i style="background:var(--data-decision)"></i>重复组 '+(i+1)+'</span>'+
-        '<span class="proj">'+g.length+' 条同义</span></div><div class="content">'+
-        g.map(function(x){return memLine(x,"")}).join("")+'</div>'+
-        '<div class="meta"><span>合并后保留最新一条，其余标记作废</span>'+
-        '<span><button class="del" onclick="mergeGroup(\''+ids+'\')">合并</button></span></div></div>';
-    }).join("") : '<div class="empty">没有发现重复</div>';
-  h+='<div class="listhead"><span class="t">疑似同义 · '+(r.suspects||[]).length+' 对</span></div>';
-  h+= (r.suspects||[]).length ? r.suspects.map(function(c){
-      return '<div class="mem"><div class="top"><span class="ttag"><i style="background:var(--data-preference)"></i>疑似同义</span>'+
-        '<span class="score">相似度 '+c.similarity+'</span></div><div class="content">'+
-        memLine(c.a,"")+memLine(c.b,"")+'</div>'+
-        '<div class="meta"><span>措辞不同但可能是同一件事，请人工判断</span>'+
-        '<span><button class="del" onclick="mergeGroup(\''+c.a.id+','+c.b.id+'\')">合并</button></span></div></div>';
-    }).join("") : '<div class="empty">没有疑似同义项</div>';
-  h+='<div class="listhead"><span class="t">可能矛盾 · '+r.conflicts.length+' 对</span></div>';
-  h+= r.conflicts.length ? r.conflicts.map(function(c){
-      return '<div class="mem"><div class="top"><span class="ttag"><i style="background:#ff453a"></i>新旧冲突</span>'+
-        '<span class="score">相似度 '+c.similarity+'</span></div><div class="content">'+
-        memLine(c.older,' ── 旧版说法')+
-        memLine(c.newer,' ── 新版说法')+'</div>'+
-        '<div class="meta"><span>若新版说法已取代旧版，可作废旧版</span>'+
-        '<span><button class="del" onclick="supersedePair('+c.older.id+','+c.newer.id+')">以新代旧</button> '+
-        '<button class="del" onclick="retireOne('+c.older.id+')">作废旧的</button></span></div></div>';
-    }).join("") : '<div class="empty">没有发现矛盾</div>';
-  h+='<div class="listhead"><span class="t">过粗粒度 · '+(r.coarse||[]).length+' 条（整篇日志塞成一条，建议拆分）</span></div>';
-  h+= (r.coarse||[]).length ? r.coarse.map(function(x){
-      return '<div class="mem"><div class="top"><span class="ttag"><i style="background:#ff9f0a"></i>'+x.content.length+' 字</span>'+
-        '<span class="proj">'+esc(x.project||"—")+'</span><span class="score">#'+x.id+'</span></div>'+
-        '<div class="content">'+esc(x.content.slice(0,200))+'…</div>'+
-        '<div class="meta"><span>拆成多条后检索更精准，原文会保留</span>'+
-        '<span><button class="del" onclick="splitMem('+x.id+')">拆分成多条</button></span></div></div>';
-    }).join("") : '<div class="empty">没有过粗的记忆</div>';
-  h+='<div class="listhead"><span class="t">过短 · '+(r.tiny||[]).length+' 条（<20 字）</span></div>';
-  h+= (r.tiny||[]).length ? r.tiny.map(function(x){
-      return '<div class="mem"><div class="top"><span class="ttag"><i style="background:#8e8e93"></i>过短</span><span class="score">#'+x.id+'</span></div>'+
-        '<div class="content">'+esc(x.content)+'</div>'+
-        '<div class="meta"><span>信息量不足，建议补充或删除</span>'+
-        '<span><button class="del" onclick="retireOne('+x.id+')">作废</button></span></div></div>';
-    }).join("") : '<div class="empty">没有过短的记忆</div>';
-  h+='<div class="listhead"><span class="t">元数据缺失 · 缺项目 '+(r.no_project||[]).length+' / 缺标签 '+(r.no_tags||[]).length+'</span></div>';
-  h+= ((r.no_project||[]).length+(r.no_tags||[]).length) ?
-      '<div class="mem"><div class="content">'+
-      (r.no_project||[]).slice(0,8).map(function(x){return "#"+x.id+" 缺项目："+esc(x.content.slice(0,36))}).join("<br>")+
-      ((r.no_tags||[]).slice(0,6).map(function(x){return "#"+x.id+" 缺标签："+esc(x.content.slice(0,32))}).join("<br>"))+
-      '</div><div class="meta"><span>补上项目/标签能显著提升按项目检索的命中率</span></div></div>'
-      : '<div class="empty">元数据齐全</div>';
-  h+='<div class="listhead"><span class="t">长期未更新 · '+r.stale.length+' 条（≥'+r.stale_days+' 天）</span></div>';
-  h+= r.stale.length ? r.stale.map(function(x){
-      return '<div class="mem"><div class="top"><span class="ttag"><i style="background:#8e8e93"></i>'+x.days+' 天未确认</span>'+
-        (x.project?('<span class="proj">'+esc(x.project)+'</span>'):"")+'</div><div class="content">'+
-        memLine(x,"")+'</div><div class="meta"><span>仍然有效就续期，不再适用就作废</span>'+
-        '<span><button class="del" onclick="touchOne('+x.id+')">续期</button> '+
-        '<button class="del" onclick="retireOne('+x.id+')">作废</button></span></div></div>';
-    }).join("") : '<div class="empty">没有过期项</div>';
+  /* 七查明细（按原型 C）：每项压成一行 .auditrow —— 序号 + 名称 + 说明 + 条数徽章，
+     **点行才展开候选**。以前是七段全铺开：0 值的项也要各占一个空块，页面被撑得很长，
+     真正有问题的项反而被淹掉。现在有问题的排前面、默认展开，干净的缩成一行绿徽章。
+     顺序按"待处理条数"降序 —— 一眼看到最该先处理的。 */
+  var secs=[
+    {k:"过粗粒度", tip:"一条里塞了多件事，检索时容易「整条命中但只用到一句」。超过 200 字即入列。",
+     n:(r.coarse||[]).length,
+     rows:function(){return (r.coarse||[]).map(function(x){
+       return '<div class="mem"><div class="top"><span class="ttag"><i style="background:#ff9f0a"></i>'+x.content.length+' 字</span>'+
+         '<span class="proj">'+esc(x.project||"—")+'</span><span class="score">#'+x.id+'</span></div>'+
+         '<div class="content">'+esc(x.content.slice(0,200))+'…</div>'+
+         '<div class="meta"><span>拆成多条后检索更精准，原文会保留</span>'+
+         '<span><button class="del" onclick="splitMem('+x.id+')">拆分成多条</button></span></div></div>';
+     }).join("")}},
+    {k:"重复", tip:"同一件事写了两遍以上。合并后只保留一条，其余标记作废。",
+     n:r.duplicates.length,
+     rows:function(){return r.duplicates.map(function(g,i){
+       var ids=g.map(function(x){return x.id}).join(",");
+       return '<div class="mem"><div class="top"><span class="ttag"><i style="background:var(--data-decision)"></i>重复组 '+(i+1)+'</span>'+
+         '<span class="proj">'+g.length+' 条同义</span></div><div class="content">'+
+         g.map(function(x){return memLine(x,"")}).join("")+'</div>'+
+         '<div class="meta"><span>合并后保留最新一条，其余标记作废</span>'+
+         '<span><button class="del" onclick="mergeGroup(\''+ids+'\')">合并</button></span></div></div>';
+     }).join("")}},
+    {k:"元数据缺失", tip:"缺项目 / 缺标签。补上能显著提升「按项目检索」的命中率。",
+     n:(r.no_project||[]).length+(r.no_tags||[]).length,
+     rows:function(){return '<div class="mem"><div class="content">'+
+         (r.no_project||[]).slice(0,8).map(function(x){return "#"+x.id+" 缺项目："+esc(x.content.slice(0,36))}).join("<br>")+
+         ((r.no_tags||[]).slice(0,6).map(function(x){return "#"+x.id+" 缺标签："+esc(x.content.slice(0,32))}).join("<br>"))+
+         '</div><div class="meta"><span>补上项目/标签能显著提升按项目检索的命中率</span></div></div>';}},
+    {k:"过短", tip:"不到 20 字，信息量不足，建议补充或删除。",
+     n:(r.tiny||[]).length,
+     rows:function(){return (r.tiny||[]).map(function(x){
+       return '<div class="mem"><div class="top"><span class="ttag"><i style="background:#8e8e93"></i>过短</span><span class="score">#'+x.id+'</span></div>'+
+         '<div class="content">'+esc(x.content)+'</div>'+
+         '<div class="meta"><span>信息量不足，建议补充或删除</span>'+
+         '<span><button class="del" onclick="retireOne('+x.id+')">作废</button></span></div></div>';
+     }).join("")}},
+    {k:"疑似同义", tip:"措辞不同但可能是同一件事，需要人工判断。",
+     n:(r.suspects||[]).length,
+     rows:function(){return (r.suspects||[]).map(function(c){
+       return '<div class="mem"><div class="top"><span class="ttag"><i style="background:var(--data-preference)"></i>疑似同义</span>'+
+         '<span class="score">相似度 '+c.similarity+'</span></div><div class="content">'+
+         memLine(c.a,"")+memLine(c.b,"")+'</div>'+
+         '<div class="meta"><span>措辞不同但可能是同一件事，请人工判断</span>'+
+         '<span><button class="del" onclick="mergeGroup(\''+c.a.id+','+c.b.id+'\')">合并</button></span></div></div>';
+     }).join("")}},
+    {k:"可能矛盾", tip:"同一个问题前后说法不一致。若新版已取代旧版，可作废旧版。",
+     n:r.conflicts.length,
+     rows:function(){return r.conflicts.map(function(c){
+       return '<div class="mem"><div class="top"><span class="ttag"><i style="background:#ff453a"></i>新旧冲突</span>'+
+         '<span class="score">相似度 '+c.similarity+'</span></div><div class="content">'+
+         memLine(c.older,' ── 旧版说法')+
+         memLine(c.newer,' ── 新版说法')+'</div>'+
+         '<div class="meta"><span>若新版说法已取代旧版，可作废旧版</span>'+
+         '<span><button class="del" onclick="supersedePair('+c.older.id+','+c.newer.id+')">以新代旧</button> '+
+         '<button class="del" onclick="retireOne('+c.older.id+')">作废旧的</button></span></div></div>';
+     }).join("")}},
+    {k:"长期未更新", tip:"很久没有确认过。仍然有效就续期，不再适用就作废。",
+     n:r.stale.length,
+     rows:function(){return r.stale.map(function(x){
+       return '<div class="mem"><div class="top"><span class="ttag"><i style="background:#8e8e93"></i>'+x.days+' 天未确认</span>'+
+         (x.project?('<span class="proj">'+esc(x.project)+'</span>'):"")+'</div><div class="content">'+
+         memLine(x,"")+'</div><div class="meta"><span>仍然有效就续期，不再适用就作废</span>'+
+         '<span><button class="del" onclick="touchOne('+x.id+')">续期</button> '+
+         '<button class="del" onclick="retireOne('+x.id+')">作废</button></span></div></div>';
+     }).join("")}}
+  ];
+  var h='<div class="pcard"><div class="phead"><span class="t">七查明细</span>'+
+    '<span class="hint">按待处理条数排序 · 点一项展开候选</span></div><div class="pbody tight">';
+  h+=secs.map(function(x,i){
+    var open=x.n>0;                       /* 有问题的默认展开，干净的收起 */
+    return '<div class="auditrow'+(open?" open":"")+'" id="aur-'+i+'" onclick="toggleAudit('+i+')">'+
+      '<span class="ano" style="background:'+(open?"var(--t-decision-bg)":"var(--t-skill-bg)")+
+        ';color:'+(open?"var(--data-decision)":"var(--data-skill)")+'">'+(i+1)+'</span>'+
+      '<div class="grow"><div style="font-size:14px;font-weight:500">'+x.k+'</div>'+
+        '<div class="hint" style="margin-top:3px">'+x.tip+'</div></div>'+
+      (open?('<span class="tb warn">'+x.n+' 条</span>'):'<span class="tb ok">干净</span>')+
+      '<span class="cv">'+(open?"收起":"展开")+'</span>'+
+    '</div>'+
+    '<div class="auditbody" id="aub-'+i+'" style="display:'+(open?"block":"none")+'">'+
+      (open?x.rows():'<div class="empty">这一项没有问题。</div>')+'</div>';
+  }).join("");
+  h+='</div></div>';
   document.getElementById("audit-out").innerHTML=h;
   renderHealth();
   amsg("质检完成：扫描 "+r.scanned+" 条 · 重复 "+r.duplicates.length+" 组 · 疑似同义 "+
        (r.suspects||[]).length+" 对 · 矛盾 "+r.conflicts.length+" 对 · 过期 "+r.stale.length+" 条",
        (r.conflicts.length||r.duplicates.length)?"err":"ok");
+}
+/* 展开/收起一项（纯 class 切换，不做动画 —— 几何类闸门会被动画中的偏移误伤） */
+function toggleAudit(i){
+  var b=document.getElementById("aub-"+i), row=document.getElementById("aur-"+i);
+  if(!b)return;
+  var open=b.style.display==="none";
+  b.style.display=open?"block":"none";
+  if(row){
+    row.classList.toggle("open",open);
+    var cv=row.querySelector(".cv"); if(cv)cv.textContent=open?"收起":"展开";
+  }
 }
 async function mergeGroup(ids){
   var arr=ids.split(",").map(function(x){return parseInt(x,10)});
@@ -5374,19 +5833,31 @@ async function verifyMcp(){
 async function loadArchive(){
   var r=await api("/api/archive");
   window._ARCH=r;
-  var el=document.getElementById("arch-line"); if(!el)return;
   var cfg=r.cfg||{}, snaps=r.snapshots||[];
-  if(!cfg.dir){
-    el.innerHTML='<b style="color:#ff9f0a">⚠ 归档未启用</b> —— 为避免占用系统盘，默认不自动备份。请先选择存放位置。';
-    document.getElementById("arch-hint").textContent="建议选空间大的盘（如 D 盘或移动硬盘）；本机记忆库当前 " +
-      (r.db||"") ;
-  }else{
-    el.innerHTML='✅ 存档位置：<code>'+esc(cfg.dir)+'</code> ｜ 已有 <b>'+snaps.length+'</b> 份数据库备份，共 '+
-      (r.total/1048576).toFixed(2)+' MB ｜ 保留最近 '+cfg.keep+' 份'+
-      (cfg.auto?' ｜ 自动备份：开':' ｜ 自动备份：关');
-    document.getElementById("arch-hint").textContent = snaps.length ?
-      ('最新一份：'+snaps[0].mtime+'（'+snaps[0].name+'）') : '还没有数据库备份，点「立即备份」生成第一份。';
+  // 按原型：状态拆成 3 格（当前状态 / 最近一份备份 / 库体积），不再挤成一行长文字
+  var elSt=document.getElementById("arch-state"), elLa=document.getElementById("arch-last"),
+      elSz=document.getElementById("arch-size"), elHi=document.getElementById("arch-hint");
+  if(elSt){
+    if(!cfg.dir){
+      elSt.innerHTML='<span style="color:var(--data-decision)">未启用</span>';
+      elLa.textContent="—";
+      elSz.textContent=r.db||"—";
+      elHi.textContent="为避免占用系统盘，默认不自动备份。请先选择存放位置"
+        +"（建议选空间大的盘，如 D 盘或移动硬盘；本机记忆库当前 "+(r.db||"")+"）。";
+    }else{
+      elSt.innerHTML='<span style="color:var(--data-skill)">已启用</span>'
+        +(cfg.auto?'<span style="color:var(--faint);font-weight:400"> · 自动</span>'
+                  :'<span style="color:var(--faint);font-weight:400"> · 手动</span>');
+      elLa.textContent = snaps.length ? (snaps[0].mtime+"（"+snaps[0].name+"）") : "还没有";
+      elSz.textContent = snaps.length
+        ? ((r.total/1048576).toFixed(2)+" MB · "+snaps.length+" 份") : (r.db||"—");
+      elHi.textContent="保留最近 "+cfg.keep+" 份 ｜ 存档位置："+cfg.dir;
+    }
   }
+  var el=document.getElementById("cl-psub");
+  if(el) el.textContent = cfg.dir
+    ? ("存档位置已设置 · "+snaps.length+" 份备份 · 共 "+(r.total/1048576).toFixed(2)+" MB")
+    : "破坏性动作按风险从低到高排列 · 每段执行前都会先自动导出一份全量备份";
   document.getElementById("arch-dir").value = cfg.dir||"";
 }
 async function pickArchiveDir(){
@@ -5452,33 +5923,70 @@ async function loadAgents(){
   const rows=await api("/api/agents");
   AGENTS=rows;
   loadScanRoots();
+  // 记忆条数按来源 Agent 分 —— 取 /api/stats 的 by_agent；没有计数就不画（不编数字）
+  var byAgent={};
+  try{ var _st=await api("/api/stats"); byAgent=_st.by_agent||{}; }catch(e){}
   document.getElementById("agents").innerHTML=rows.map((a,i)=>{
-    let dot,txt,cls,acts="",tag="";
-    if(a.state==="residue"){dot="off";txt="已卸载 · 有残留配置";cls="badge-no"}
-    else if(!a.installed){dot="off";txt="未安装";cls="badge-no"}
-    else if(a.loci_registered && a.paths_ok){dot="on";txt="已接入 Loci";cls="badge-ok"}
-    else if(a.loci_registered){dot="warn";txt="已配置 · 但引擎路径失效（点「一键接入」修复）";cls="badge-warn"}
-    else if(!a.writable){dot="warn";txt="已安装 · 暂不支持自动写入（可手动配）";cls="badge-warn"}
-    else{dot="warn";txt="已安装 · 未接入";cls="badge-warn"}
-    if(a.source==="discovered") tag='<span class="badge-new">自动发现</span>';
-    if(a.source==="manual") tag='<span class="badge-new">手动添加</span>';
+    /* 六态语义保持原样（这是踩过假绿的判据：已接入必须带 paths_ok）；
+       这里只换外观：dot+badge → .tb 徽章，长文案缩短并塞进 title。 */
+    let tone,txt,tip;
+    if(a.state==="residue"){tone="off";txt="已卸载 · 有残留配置";tip="Agent 已卸载，但配置文件里还留着 Loci 的条目"}
+    else if(!a.installed){tone="off";txt="未安装";tip="本机没检测到这个 Agent"}
+    else if(a.loci_registered && a.paths_ok){tone="on";txt="已接入";tip="MCP 配置已写入，且启动路径有效"}
+    else if(a.loci_registered){tone="warn";txt="引擎路径失效";tip="已写入配置，但指向的 loci.py 路径不存在 —— 点「一键接入」修复"}
+    else if(!a.writable){tone="warn";txt="不支持自动写入";tip="已安装，但这个 Agent 的配置格式暂不支持自动改写，可手动配"}
+    else{tone="warn";txt="未接入";tip="已安装，还没接入 Loci"}
+    let tag="";
+    if(a.source==="discovered") tag='<span class="chip">自动发现</span>';
+    if(a.source==="manual") tag='<span class="chip">手动添加</span>';
     var btns=[];
     if(a.installed && a.writable){
       btns.push(a.loci_registered
-        ? `<button class="mini warn" onclick="unregisterAgentAt(${i})">移除接入</button>`
-        : `<button class="mini" onclick="registerAgentAt(${i})">一键接入</button>`);
+        ? `<button class="btn sm" onclick="unregisterAgentAt(${i})">移除接入</button>`
+        : `<button class="btn sm pri" onclick="registerAgentAt(${i})">一键接入</button>`);
     }
     if(a.source==="manual" || a.source==="discovered"){
-      btns.push(`<button class="mini" onclick="forgetAgentAt(${i})">移出列表</button>`);
+      btns.push(`<button class="btn sm" onclick="forgetAgentAt(${i})">移出列表</button>`);
     }
-    if(btns.length) acts='<div class="acts">'+btns.join("")+'</div>';
-    return `<div class="agent">
-      <div class="aname">${agentBadge(a.name)}<span class="dot ${dot}"></span>${esc(a.name)}${tag}</div>
-      <div class="astat ${cls}">${txt}</div>
-      <div class="astat" style="color:var(--faint);word-break:break-all">${esc(a.config)}</div>
-      ${acts}
-    </div>`;
+    var badge = tone==="on"
+      ? '<span class="tb ok" title="'+escAttr(tip)+'">'+esc(txt)+'</span>'
+      : (tone==="warn"
+        ? '<span class="tb warn" title="'+escAttr(tip)+'">'+esc(txt)+'</span>'
+        : '<span class="chip" title="'+escAttr(tip)+'">'+esc(txt)+'</span>');
+    var mn=byAgent[a.name]||0;
+    return '<div class="acard'+(tone==="on"?" on":"")+(tone==="off"?" bad":"")+'">'
+      +'<div class="atop">'+agentBadge(a.name,34)
+        +'<div class="grow">'
+          +'<div class="aname">'+esc(a.name)+'</div>'
+          +'<div class="apath" title="'+escAttr(a.config)+'">'+esc(a.config)+'</div>'
+        +'</div>'+badge
+      +'</div>'
+      +'<div class="afoot">'
+        +(mn?('<span class="chip">记忆 '+mn+'</span>'):'<span class="chip">未检出记忆</span>')
+        +tag
+        +'<span class="grow"></span>'
+        +btns.join("")
+      +'</div></div>';
   }).join("");
+  // ── 页头数据行 + 3 张 KPI 卡（数字全部现取）──
+  var nOn=rows.filter(function(a){return a.loci_registered&&a.paths_ok}).length;
+  var nTodo=rows.filter(function(a){return a.installed&&!(a.loci_registered&&a.paths_ok)}).length;
+  var nAll=rows.length, pct=nAll?Math.round(nOn/nAll*100):0;
+  var elPs=document.getElementById("ag-psub");
+  if(elPs)elPs.innerHTML="本机识别到 <b>"+nAll+"</b> 个 Agent · 已接入 <b>"+nOn+"</b> 个";
+  var setK=function(id,v){var e=document.getElementById(id);if(e){if(window.countUp)countUp(e,v);else e.textContent=v}};
+  var setF=function(id,t){var e=document.getElementById(id);if(e)e.textContent=t};
+  var barK=function(id,p){var e=document.getElementById(id);
+    if(e)e.style.width=Math.max(2,Math.min(100,Math.round(p)))+'%'};
+  setK("agpi-on",nOn); setK("agpi-todo",nTodo); setK("agpi-all",nAll);
+  setF("agpi-on-f1", rows.filter(function(a){return a.loci_registered&&a.paths_ok})
+        .map(function(a){return a.name}).slice(0,4).join(" · ")||"—");
+  setF("agpi-on-f2", pct+"%");
+  setF("agpi-todo-f", nAll?(Math.round(nTodo/nAll*100)+"%"):"—");
+  setF("agpi-all-f", "本机识别到的 Agent");
+  barK("agpi-on-b",pct);
+  barK("agpi-todo-b", nAll?nTodo/nAll*100:2);
+  barK("agpi-all-b",100);
 }
 
 function doExport(){
@@ -5489,8 +5997,9 @@ function doExport(){
   const a=document.createElement("a");a.href=url;a.click();
 }
 
-async function doImport(inp){
-  const f=inp.files[0];if(!f)return;
+/* 导入的核心逻辑抽出来 —— 「选文件」和「拖进来」走同一条路，不写两遍 */
+async function doImportFile(f){
+  if(!f)return;
   try{
     const pack=JSON.parse(await f.text());
     const r=await api("/api/pack/import",{method:"POST",
@@ -5498,7 +6007,38 @@ async function doImport(inp){
     if(r.error){alert(r.error)}
     else{alert(`导入完成：新增 ${r.imported} 条，跳过重复 ${r.skipped} 条`);refresh()}
   }catch(e){alert("文件不是有效的 JSON 记忆包")}
+}
+async function doImport(inp){
+  const f=inp.files[0];if(!f)return;
+  await doImportFile(f);
   inp.value="";
+}
+/* 拖拽区：点一下 = 打开选文件；拖进来 = 直接导入。
+   ⚠️ dragover / dragenter 必须 preventDefault，否则浏览器会直接打开这个文件。 */
+(function bindDropzone(){
+  var dz=document.getElementById("pk-drop"), fi=document.getElementById("pack-file");
+  if(!dz||!fi)return;
+  dz.addEventListener("click",function(e){ if(e.target!==fi) fi.click(); });
+  ["dragenter","dragover"].forEach(function(t){
+    dz.addEventListener(t,function(e){e.preventDefault();e.stopPropagation();dz.classList.add("over")})});
+  ["dragleave","dragend"].forEach(function(t){
+    dz.addEventListener(t,function(e){e.preventDefault();dz.classList.remove("over")})});
+  dz.addEventListener("drop",function(e){
+    e.preventDefault();e.stopPropagation();dz.classList.remove("over");
+    var f=e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0];
+    if(f)doImportFile(f);
+  });
+})();
+
+/* 记忆包页的两个统计 chip（数据来自 /api/stats，不写死） */
+async function syncPackInfo(){
+  try{
+    var st=await api("/api/stats");
+    var a=document.getElementById("pk-count");
+    if(a)a.textContent="全部 "+st.total+" 条 · "+Object.keys(st.by_project||{}).length+" 个项目";
+    var b=document.getElementById("pk-sess");
+    if(b)b.textContent=st.sessions+" 个会话 · "+st.messages.toLocaleString()+" 轮";
+  }catch(e){}
 }
 
 document.getElementById("f-imp").addEventListener("click",function(){
@@ -5506,7 +6046,7 @@ document.getElementById("f-imp").addEventListener("click",function(){
   this.innerHTML="<b>"+"★".repeat(v)+"</b>"+"★".repeat(4-v);
 });
 
-function refresh(){loadStats();loadAgents();searching?doSearch():loadList()}
+function refresh(){loadStats();loadAgents();syncPackInfo();syncHfTags();searching?doSearch():loadList()}
 refresh();
 </script>
 </body>

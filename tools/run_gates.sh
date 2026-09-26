@@ -91,7 +91,13 @@ for entry in "${GATES[@]}"; do
     printf 'PASS  %ss\n' "$dt"; pass=$((pass+1))
   else
     printf 'FAIL (exit=%d)  %ss\n' "$code" "$dt"; fail=$((fail+1)); failed_names+=("$name")
-    echo "$out" | grep -iE 'FAIL|✗|失败|error|Traceback' | head -8 | sed 's/^/      /'
+    # 失败时**把完整输出落盘**再打印末尾 —— 之前只用 grep 过滤关键字，
+    # 而 verify_scan_sources 的失败信息不含 FAIL/✗/error 等词，于是它红了三次
+    # 都没留下任何线索（每次单独复跑又全过）。别再过滤，直接存全量。
+    LOGDIR="tools/.gate-logs"; mkdir -p "$LOGDIR"
+    printf '%s\n' "$out" > "$LOGDIR/$name.log"
+    echo "      ↓ 完整输出已存 $LOGDIR/$name.log，末尾 15 行："
+    printf '%s\n' "$out" | tail -15 | sed 's/^/      /'
   fi
   LINES+=("$(printf '%-24s %-10s %3ss' "$name" "$([ $code -eq 0 ] && echo PASS || echo "FAIL($code)")" "$dt")")
 done

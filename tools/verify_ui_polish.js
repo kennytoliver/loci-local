@@ -80,32 +80,40 @@ function check(name, ok, detail) {
   await page.mouse.move(2, 2);
   await sleep(200);
 
-  /* ── ③ 采集表状态列：只在"待入库"出徽章 ──────────────────── */
+  /* ── ③ 采集结果行：只在"待入库"出行内徽章 ──────────────────── */
+  /* ⚠️ 2026-09-26：采集页按原型 C 把「.stable 六列表格」改成紧凑行
+     （.mem + .mico + .mtitle + .mmeta），原来那套 .srow/.bdg 不存在了 ——
+     闸门跟着实现改，别写死旧 DOM（这是第 3 次同类：smoke_panel 等 .hring、
+     verify_frames 等 .listhead、这里等 .srow）。顺手把断言加强：
+     从"有行 + 没有已入库徽章"改成"每行徽章数必须对得上"。 */
   await page.evaluate(() => window.show('collect'));
   await sleep(600);
   try { await page.evaluate('doScan()'); } catch (e) { /* 页面切回来时可能已自动扫 */ }
   await page.waitForFunction(
-    () => document.querySelectorAll('#scan-list .stable .srow').length > 0,
+    () => document.querySelectorAll('#scan-list .mem').length > 0,
     { timeout: 30000 }
   ).catch(() => {});
   const scan = await page.evaluate(() => {
-    const rows = Array.prototype.slice.call(document.querySelectorAll('#scan-list .stable .srow'));
-    const badges = Array.prototype.map.call(
-      document.querySelectorAll('#scan-list .stable .srow .bdg'),
-      (b) => (b.textContent || '').trim()
-    );
+    const rows = Array.prototype.slice.call(document.querySelectorAll('#scan-list .mem'));
+    const indb = rows.filter((r) => r.classList.contains('indb'));
+    const pend = rows.filter((r) => !r.classList.contains('indb'));
     return {
       rows: rows.length,
-      inDb: document.querySelectorAll('#scan-list .stable .srow.indb').length,
-      badges,
-      stateBadges: badges.filter((t) => t.indexOf('已入库') >= 0).length,
-      pinBadges: badges.filter((t) => t.indexOf('待入库') >= 0).length,
+      inDb: indb.length,
+      pend: pend.length,
+      newInPending: pend.filter((r) => r.querySelector('.tb.warn')).length,
+      newInDb: indb.filter((r) => r.querySelector('.tb.warn')).length,
+      inDbGreys: indb.filter((r) => parseFloat(getComputedStyle(r).opacity) < 0.6).length,
     };
   });
-  check('采集表渲染出行', scan.rows > 0, scan.rows + ' 行，其中 ' + scan.inDb + ' 行已入库');
-  check('状态列不再出现"已入库"徽章', scan.stateBadges === 0, '已入库徽章 ' + scan.stateBadges + ' 个');
-  check('已入库的行改用"灰底 + 左侧 inset 条"表达（不是靠徽章）',
-    scan.inDb === 0 || scan.rows > scan.inDb, '已入库行靠 .indb 样式区分');
+  check('采集结果渲染出行', scan.rows > 0, scan.rows + ' 行，其中 ' + scan.inDb + ' 行已入库');
+  check('「新」徽章只出现在待入库的行上（已入库的不重复挂）',
+    scan.newInDb === 0 && scan.newInPending === scan.pend,
+    '待入库 ' + scan.pend + ' 行 / 带徽章 ' + scan.newInPending
+    + ' ｜ 已入库却挂徽章 ' + scan.newInDb + ' 个');
+  check('已入库的行靠"整行置灰"表达（不是靠徽章）',
+    scan.inDb === 0 || scan.inDbGreys === scan.inDb,
+    '已入库 ' + scan.inDb + ' 行 / 其中置灰 ' + scan.inDbGreys + ' 行');
 
   await browser.close();
   const failed = results.filter((r) => !r.ok);

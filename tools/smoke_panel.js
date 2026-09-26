@@ -190,29 +190,30 @@ const rec = (name, pass, info = '') =>
     rec(`[${theme}] 八个页面都有 20px 标题区且不溢出`,
       pageHeads.length === 0, pageHeads.length ? pageHeads.join(' / ') : '8/8 通过');
 
-    // 质检仪表（规范 Chart 组件）：环形进度 + 四色扣分条 + 计数 chips
-    // 仪表是异步画的，且是「两次接口串行」：show('audit') → runAudit() 等 /api/audit
-    // → renderHealth() 再等 /api/health，两个都回来才画出环。
-    // ⚠️ 2026-09-21 踩坑：原来等 80×100ms(=8s)，而真实耗时约 6.4s（两个接口各 3.2s），
-    //    余量不足 1s → 约 1/3 概率假失败（html=0B，看着像"仪表没渲染"）。
-    //    真根因在 loci.py 的 O(n^2) 配对（每对重复 tokenize）已修（3.2s→0.3s）。
-    //    这里同时把预算放宽到 20s，并回报实测等待时长 + 设一条宽松上限，
-    //    这样以后万一又慢了会明确失败，而不是偶发假失败。
+    // 质检健康卡（2026-09-26 改版成原型的 .hcard）：大分数 + 评级 + 七维度格
+    //   旧版是「环形进度(.hring) + 四色扣分条(.hbar) + 计数 chips(.hchip)」—— 那几个类
+    //   已经不存在了，断言跟着换，**顺便加强**：从"有环、有条、有 chips"这种弱断言
+    //   改成"7 个维度格、每格有数值、每条有实际宽度"（全 0 宽也能过旧断言）。
+    // ⚠️ 等待条件也必须一起换：还等 .hring 的话会白等满 20s 再报"没渲染"，
+    //    看起来像性能问题，其实是断言过期。
     const gauge = await page.evaluate(async () => {
       const WAIT_MS = 20000;
       const t0 = Date.now();
       window.show('audit');
-      while (Date.now() - t0 < WAIT_MS && !document.querySelector('#health .hring')) {
+      while (Date.now() - t0 < WAIT_MS && !document.querySelector('#health .hcard .hdims .d')) {
         await new Promise((r) => setTimeout(r, 50));
       }
       const waited = Date.now() - t0;
-      const bars = [...document.querySelectorAll('#health .hbar i')]
-        .map((e) => getComputedStyle(e).backgroundColor);
+      const dims = [...document.querySelectorAll('#health .hdims .d')];
+      const bars = [...document.querySelectorAll('#health .hdims .dbar i')];
       const empty = (document.querySelector('#health') || {}).innerHTML || '';
       const o = {
-        ring: !!document.querySelector('#health .hring'),
-        barColors: new Set(bars).size, bars: bars.length,
-        chips: document.querySelectorAll('#health .hchip').length,
+        card: !!document.querySelector('#health .hcard'),
+        score: (document.querySelector('#health .score b') || {}).textContent || '',
+        dims: dims.length,
+        dimsWithVal: dims.filter((d) => ((d.querySelector('.dv') || {}).textContent || '').trim() !== '').length,
+        bars: bars.length,
+        barsW: bars.map((e) => Math.round(e.getBoundingClientRect().width)),
         grade: (document.querySelector('#health .hgrade') || {}).textContent || '',
         htmlLen: empty.length,
         waited: waited,
@@ -223,10 +224,12 @@ const rec = (name, pass, info = '') =>
       }
       return o;
     });
-    rec(`[${theme}] 质检仪表 = 环形进度 + 多色扣分条`,
-      gauge.ring && gauge.bars >= 4 && gauge.barColors >= 4 && gauge.chips >= 1,
-      `环=${gauge.ring} 条=${gauge.bars}/色${gauge.barColors} chips=${gauge.chips} `
-      + `等级=${gauge.grade.slice(0, 6)} html=${gauge.htmlLen}B 等待=${gauge.waited}ms`);
+    rec(`[${theme}] 质检健康卡 = 大分数 + 评级 + 七维度格`,
+      gauge.card && /^\d+$/.test(gauge.score) && gauge.dims === 7
+      && gauge.dimsWithVal === 7 && gauge.bars === 7 && gauge.barsW.every((w) => w > 0),
+      `卡=${gauge.card} 分=${gauge.score} 格=${gauge.dims}(有值${gauge.dimsWithVal}) `
+      + `条=${gauge.bars} 宽=${gauge.barsW.join('/')} 等级=${gauge.grade.slice(0, 6)} `
+      + `html=${gauge.htmlLen}B 等待=${gauge.waited}ms`);
     // 性能回归哨兵：正常约 0.6s（两个接口各 0.3s）。给 5s 上限 —— 余量约 8 倍不会假失败，
     // 但哪天又退回 6.4s（两个接口各 3.2s）这里会明确报出来，而不是偶发超时。
     rec(`[${theme}] 质检页渲染耗时在预算内（<5s）`,

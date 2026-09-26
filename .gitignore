@@ -65,3 +65,4 @@ github_token.txt
 gh_token.txt
 .gh_token
 credentials.json
+tools/.gate-logs/

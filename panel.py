@@ -220,6 +220,9 @@ def forget_agent(path):
     save_custom(keep)
     return {"ok": True, "removed": len(items) - len(keep)}
 
+_TK_TRIED = []   # 最近一次 _tk_python() 试过哪些解释器 —— 失败时写进错误信息，便于定位
+
+
 def _tk_python():
     """找一个自带 tkinter 的解释器（虚拟环境常缺 tkinter，回退到系统 Python）"""
     cands = [sys.executable]
@@ -230,12 +233,18 @@ def _tk_python():
     home = os.path.expanduser("~")
     local = os.environ.get("LOCALAPPDATA", "")
     # Windows 官方 py launcher（最通用，能列出版本与路径，避免猜盘符）
+    # ⚠️ 2026-09-27 真 bug：panel.py **模块级没有 import re**（只在个别函数里局部 import），
+    #    所以这里的 re.search 会抛 NameError → 被下面那个 except 静默吞掉 →
+    #    py 的候选永远加不进 cands → 只剩虚拟环境那几个（都没 tkinter）→ 恒返回 None。
+    #    后果：清理页「选择存放位置…」与 Agent 页「浏览…」全弹"没找到带图形界面的 Python"。
+    #    教训：`except Exception: pass` 会把"写错代码"伪装成"环境不具备"。
+    import re
     try:
         import subprocess as _sp
         out = _sp.run(["py", "-0p"], capture_output=True, text=True, timeout=8).stdout or ""
         for line in out.splitlines():
             m = re.search(r"([A-Za-z]:\\[^\s]+\.exe)", line)
-            if m:
+            if m and m.group(1) not in cands:
                 cands.append(m.group(1))
     except Exception:
         pass
@@ -244,10 +253,12 @@ def _tk_python():
               os.path.join(home, "anaconda3", "python.exe"),
               os.path.join(home, "miniconda3", "python.exe")]
     seen = set()
+    _TK_TRIED.clear()
     for c in cands:
         if not c or c in seen:
             continue
         seen.add(c)
+        _TK_TRIED.append(c)
         if not os.path.exists(c):
             continue
         try:
@@ -263,7 +274,9 @@ def pick_folder():
     """弹系统文件夹选择框：自动挑选一个带 tkinter 的解释器（子进程运行，避免与 HTTP 线程冲突）"""
     py = _tk_python()
     if not py:
-        return {"error": "本机没找到带图形界面的 Python，无法弹出选择框；请直接把路径粘贴到输入框"}
+        names = "、".join(os.path.basename(x) for x in _TK_TRIED[:5]) or "无"
+        return {"error": "本机没找到带图形界面的 Python（已试 %d 个：%s）；"
+                         "请直接把路径粘贴到输入框" % (len(_TK_TRIED), names)}
     code = ("import tkinter as tk\n"
             "from tkinter import filedialog\n"
             "r=tk.Tk(); r.withdraw()\n"
@@ -1298,6 +1311,19 @@ nav{flex:1;padding:12px 10px;overflow-y:auto}
              color var(--duration-fast) var(--ease-out)}
 .nav:hover{background:var(--sidebar-accent);color:var(--sidebar-accent-foreground)}
 .nav.on{background:var(--sidebar-primary);color:var(--sidebar-primary-foreground)}
+/* ── 侧栏导航的分类分组（2026-09-26，用户确认的方案）─────────────────
+   需求：单层分类（分类名 → 页面）、**不折叠**、**无数量角标**、分类名**不可点**；
+        页面项保留原有的蓝色高亮（.nav.on 原样不动）。
+   审美依据（全部沿用现有 token，不新增变量）：
+     · 分类名 11px + --faint —— 与页脚 `.sfoot` 同一档，都是"辅助文字"，
+       视觉层级自然降到"标签"而不是"可点项"，不需要边框/底色去区分；
+     · 子项缩进 8px（用户原话"小小的分层"）—— 刚好看出层级，又不浪费窄栏宽度；
+     · 分类名之间靠 padding-top 分隔，**不画分割线**（窄栏里多一条线就多一层噪音）。
+   ⚠️ 侧栏内容因此变高约 100px；nav 已有 overflow-y:auto，超高会自动滚动。 */
+nav > .ngrp{padding:10px 12px 4px;font-size:11px;color:var(--faint);
+  line-height:1;user-select:none}
+nav > .ngrp:first-child{padding-top:2px}
+nav > .ngrp-body{padding-left:8px}
 
 /* ── 主区 ───────────────────────── */
 .main{flex:1;display:flex;flex-direction:column;min-width:0}
@@ -1711,6 +1737,17 @@ select,.formrow input[type=text]{background:var(--d2);border:1px solid var(--lin
   letter-spacing:-.6px;color:var(--ink)}
 .hdims .dbar{margin-top:7px;height:4px;border-radius:2px;background:var(--d3);overflow:hidden}
 .hdims .dbar i{display:block;height:100%}
+/* A：KPI 卡跳转后的高亮 —— 只动 background，不动几何（见 skJump 注释）
+   ⚠️ 选择器**不能**限定成 `#sk-list .skflash`：技能页的分组头没有 .panel 祖先，
+      skJump 的兜底会把 .skflash 加到 #sk-list **自身**上，后代选择器匹不到自己
+      （实测 animationName=none，高亮不出现）。用裸类名，够精确也够通用。 */
+@keyframes skflash{0%{background:var(--sel-bg)}60%{background:var(--sel-bg)}100%{background:transparent}}
+.skflash{animation:skflash 1.15s ease-out}
+#sk-kpi .kpi{cursor:pointer}
+/* ⚠️ 窄屏时上面 JS 设的 N 列会挤成一团 → 这里强制降级（!important 是必要的：
+   内联 style 的优先级高于样式表，不覆盖就压不住） */
+@media (max-width:1100px){.hdims{grid-template-columns:repeat(4,minmax(0,1fr)) !important}}
+@media (max-width:640px){.hdims{grid-template-columns:repeat(2,minmax(0,1fr)) !important}}
 /* 七查明细：紧凑行（原来每条是一个 .mem 卡片，一屏看不了几条） */
 .auditrow{display:flex;align-items:flex-start;gap:var(--space-3);padding:13px var(--space-3);
   border-radius:11px}
@@ -1971,9 +2008,14 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
    规范原话「图表是整个系统里颜色能量最强的地方，其余表面要保持安静」，
    所以这里是全页唯一允许用满 --chart-* 的地方。
    环形用 conic-gradient + ::after 掏空中间（和库 ui_kit 的 .donut 同一手法），纯 CSS 零依赖。 */
-.health{display:grid;grid-template-columns:auto minmax(0,1fr);gap:var(--space-5) var(--space-8);
-  align-items:center;background:var(--card);border:1px solid var(--line);
-  border-radius:var(--radius-lg);padding:var(--space-5) var(--space-6);margin-bottom:var(--space-5)}
+/* ⚠️ 2026-09-27 真 bug：这里原本是 `grid` 两列（`auto minmax(0,1fr)`），
+   配套的是**旧结构**——左列圆环仪表 `.hgauge`、右列扣分条 `.hbars`。
+   后来 renderHealth() 改成只吐一个 `.hcard`，于是卡片只占第一列、
+   右边整列空着（用户截图报的"只填了一边"）；而且 `.hcard` 自带卡片底 + 边框，
+   套在 `.health` 的卡片底里还成了"卡中卡"。
+   现在 #health 只是一个占满整行的普通容器，外观全交给内层 `.hcard`。
+   （下面 .hgauge/.hring/.hval/.hbar/.hrow/.hchip 是旧结构的遗留样式，已无元素使用。） */
+.health{display:block;background:none;border:0;padding:0;margin-bottom:0}
 .health .hgauge{display:flex;flex-direction:column;align-items:center;gap:var(--space-3)}
 .health .hring{width:132px;height:132px;border-radius:50%;position:relative;
   transition:background .5s var(--ease)}
@@ -2419,16 +2461,28 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
       </div>
     </div>
     <nav>
-      <a class="nav on" data-v="session"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-3.2-6.4"/><path d="M4 20l1.6-4.2"/><circle cx="9" cy="12" r="1"/><circle cx="13" cy="12" r="1"/><circle cx="17" cy="12" r="1"/></svg><span>会话</span></a>
-      <a class="nav" data-v="mem"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5.5" rx="7.5" ry="3"/><path d="M4.5 5.5v6c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3v-6"/><path d="M4.5 11.5v6c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3v-6"/></svg><span>记忆</span></a>
-      <a class="nav" data-v="audit"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9.5 16.5 4 11"/><path d="M20 13v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-5"/></svg><span>质检</span></a>
-      <a class="nav" data-v="clean"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7"/><path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12"/><path d="M10 11v6M14 11v6"/></svg><span>清理</span></a>
-      <a class="nav" data-v="collect"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 4v8l5.5 3.5"/></svg><span>采集</span></a>
-      <a class="nav" data-v="agents"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="7" width="16" height="12" rx="3"/><path d="M12 3v4"/><circle cx="9" cy="13" r="1.2"/><circle cx="15" cy="13" r="1.2"/></svg><span>Agent</span></a>
-      <a class="nav" data-v="skill"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.4 5.3 5.6.7-4.2 3.9 1.1 5.6L12 15.8 7.1 18.5l1.1-5.6L4 9l5.6-.7z"/></svg><span>本机内容</span></a>
-      <a class="nav" data-v="pack"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.5L12 4l8.5 4.5v7L12 20l-8.5-4.5z"/><path d="M3.5 8.5L12 13l8.5-4.5M12 13v7"/></svg><span>记忆包</span></a>
-      <a class="nav" data-v="handoff"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="6" width="17" height="12" rx="3"/><path d="M8 11h8M8 14h5"/></svg><span>交接卡</span></a>
-    </nav>
+        <div class="ngrp">日常</div>
+        <div class="ngrp-body">
+          <a class="nav on" data-v="session"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-3.2-6.4"/><path d="M4 20l1.6-4.2"/><circle cx="9" cy="12" r="1"/><circle cx="13" cy="12" r="1"/><circle cx="17" cy="12" r="1"/></svg><span>会话</span></a>
+          <a class="nav" data-v="mem"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5.5" rx="7.5" ry="3"/><path d="M4.5 5.5v6c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3v-6"/><path d="M4.5 11.5v6c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3v-6"/></svg><span>记忆</span></a>
+        </div>
+        <div class="ngrp">流转</div>
+        <div class="ngrp-body">
+          <a class="nav" data-v="collect"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 4v8l5.5 3.5"/></svg><span>采集</span></a>
+          <a class="nav" data-v="pack"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.5L12 4l8.5 4.5v7L12 20l-8.5-4.5z"/><path d="M3.5 8.5L12 13l8.5-4.5M12 13v7"/></svg><span>记忆包</span></a>
+          <a class="nav" data-v="handoff"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="6" width="17" height="12" rx="3"/><path d="M8 11h8M8 14h5"/></svg><span>交接卡</span></a>
+        </div>
+        <div class="ngrp">维护</div>
+        <div class="ngrp-body">
+          <a class="nav" data-v="audit"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9.5 16.5 4 11"/><path d="M20 13v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-5"/></svg><span>质检</span></a>
+          <a class="nav" data-v="clean"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7"/><path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12"/><path d="M10 11v6M14 11v6"/></svg><span>清理</span></a>
+        </div>
+        <div class="ngrp">配置</div>
+        <div class="ngrp-body">
+          <a class="nav" data-v="agents"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="7" width="16" height="12" rx="3"/><path d="M12 3v4"/><circle cx="9" cy="13" r="1.2"/><circle cx="15" cy="13" r="1.2"/></svg><span>Agent</span></a>
+          <a class="nav" data-v="skill"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.4 5.3 5.6.7-4.2 3.9 1.1 5.6L12 15.8 7.1 18.5l1.1-5.6L4 9l5.6-.7z"/></svg><span>技能 / MCP</span></a>
+        </div>
+      </nav>
     <div class="sfoot">v__APP_VERSION__ · 本地运行</div>
     <button id="backtop" onclick="backTop()" title="回到顶部" aria-label="回到顶部">↑</button>
   </aside>
@@ -2542,6 +2596,7 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
             <input type="text" id="f-tags" placeholder="标签，逗号分隔（可选）">
             <span class="imp" id="f-imp" data-v="2" title="重要度 1-4，点击切换"><b>★★</b>★★</span>
             <button class="btn pri" onclick="doSave()">保存</button>
+            <button class="btn" onclick="cancelSave()" title="放弃这次录入，清空已填内容">取消</button>
           </div>
         </div>
         <div class="panel" id="cleanup-panel" style="display:none">
@@ -2598,6 +2653,16 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
             <p class="psub" id="s-psub">正在统计…</p>
           </div>
           <div class="pacts">
+          <!-- 检索框（用户 2026-09-27 定的位置 B：页头这一行、紧贴动作按钮左边）。
+               搜的是**已归档会话的原话**；回车或点「检索」都行，清空自动回列表。
+               ⚠️ 不要挪回 .shead 里 —— 那是旧版的位置，用户明确否掉过。 -->
+          <div class="pgrp">
+            <input class="textin" id="s-q" placeholder="在已归档会话里检索原话…" style="width:200px"
+                   onkeydown="if(event.key==='Enter')sessionSearch()"
+                   oninput="if(!this.value.trim())loadSessions()">
+            <button class="btn" onclick="sessionSearch()" title="在原话里检索（也可直接回车）">检索</button>
+          </div>
+          <span class="psep" aria-hidden="true"></span>
             <div class="pgrp">
               <button class="btn" onclick="goAdd()" title="手写一条记忆（不用从对话里抽）">＋ 记一条</button>
             </div>
@@ -2691,16 +2756,6 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
             <div class="shead">
               <span class="t">已归档会话</span>
               <span class="hint">按时间倒序 · 点一条看原文</span>
-              <!-- 检索框：原型 C 的会话页没画这一行，用户复查时认定它是「多出来的一条」→ 收掉。
-                   ⚠️ 用 display:none **隐藏而不是删除**：sessionSearch() 会读 #s-q 的 value，
-                   元素删了会在检索时抛 TypeError。想恢复的话去掉这个 style 即可。 -->
-              <span class="fgroup" style="margin-left:auto;flex:0 0 auto;display:none">
-                <input class="textin" id="s-q" placeholder="在原话里检索…（回车）"
-                       style="width:140px"
-                       onkeydown="if(event.key==='Enter')sessionSearch()"
-                       oninput="if(!this.value.trim())loadSessions()">
-                <button class="btn" onclick="sessionSearch()" title="在原话里检索（也可直接回车）">检索</button>
-              </span>
             </div>
             <div class="sbody"><div id="s-list"></div></div>
           </div>
@@ -2958,7 +3013,7 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
       <section id="v-skill" hidden>
         <div class="pagehead">
           <div>
-            <h2 class="ptitle">本机内容</h2>
+            <h2 class="ptitle">技能 / MCP</h2>
             <!-- 数据行按原型 C 放在页头内（常驻可见）—— 与会话/记忆页同一处理 -->
             <p class="psub" id="sk-psub">正在探测本机内容…</p>
           </div>
@@ -3113,6 +3168,8 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
             <p class="psub">按项目抽取决策 / 偏好 / 坑 / 事实 · 切换 Agent 时贴给它即可无损续接</p>
           </div>
           <div class="pacts">
+            <input class="textin" id="hf-q" placeholder="搜索项目…" style="width:150px"
+                   oninput="filterHfTags()" title="按项目名过滤下面的标签（不改变已生成的交接卡）">
             <div class="pgrp"><button class="btn sm" id="hf-copy" style="display:none" onclick="copyHandoff()">复制</button></div>
             <span class="psep"></span>
             <div class="pgrp"><button class="btn pri sm" onclick="doHandoff()">生成交接卡</button></div>
@@ -3127,9 +3184,11 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
           <!-- 按原型：一排可点的项目标签。真身仍是 #hf-proj（契约 id），
                只是收起来不显示 —— 点标签会写回它并重新生成，功能一点没少。 -->
           <div class="tagline" id="hf-tags"></div>
+          <!-- ⚠️ 收起不显示：上面的标签行已覆盖同一功能，两个入口并存用户说"功能矛盾"。
+           元素必须留着（引擎契约 id，syncHfTags/pickHfProj 都写它）。 -->
           <select id="hf-proj" class="proj-sel" style="display:none"><option value="">全部项目</option></select>
-          <p class="hint">交接卡按「决策 → 偏好 → 踩坑 → 事实 → 背景」的顺序排列，<b>长内容会被截断到一行</b>，
-            贴给新 Agent 时不会一次塞爆它的上下文。</p>
+          <p class="hint">点上面的标签直接生成；项目多了用搜索框过滤。
+            交接卡按「决策 → 偏好 → 踩坑 → 事实 → 背景」排序，<b>长内容截断到一行</b>，贴给新 Agent 时不会塞爆上下文。</p>
         </div>
 
         <div class="panel pcard" id="hf-card" style="display:none">
@@ -3198,11 +3257,23 @@ function show(v){
   document.querySelectorAll(".nav").forEach(n=>n.classList.toggle("on",n.dataset.v===v));
   ["mem","session","audit","clean","collect","agents","skill","pack","handoff"].forEach(x=>document.getElementById("v-"+x).hidden=(x!==v));
   if(v==="session") loadSessions();
+  /* ⚠️ 2026-09-27 自检发现：原先只有 session/audit/clean/skill 四页会在切回时重新取数，
+     另外几页的数字**停在"打开面板那一刻"**（实测：接口已 3041，记忆页仍显示 3039）。
+     这几页现在都有 KPI 卡了，数字不刷新会让人以为"没在更新"。逐页补上：
+       · mem    → loadStats()    重取记忆/会话/轮次/项目
+       · agents → loadAgents()   重取 Agent 清单与接入数
+       · pack   → syncPackInfo() 重取条数/会话数 chip
+       · handoff→ syncHfTags()   重取项目标签行的条数
+     collect 页**故意不自动扫**（扫描是重操作，必须由用户点按钮触发）。 */
+  if(v==="mem") loadStats();
   if(v==="audit") runAudit();
   if(v==="clean"){loadSourceFiles();loadArchive();
     // 清理页的 4 个 Panel 也支持折叠（用户要求），渲染完再包
     setTimeout(function(){wrapPanels("v-clean",["cl-a","cl-b","cl-c","cl-d"])},150);}
   if(v==="skill") loadSkills();
+  if(v==="agents") loadAgents();
+  if(v==="pack"){ syncPackInfo(); setTimeout(function(){defaultSelectFirst("sk-proj")},600); }
+  if(v==="handoff"){ syncHfTags().then(function(){filterHfTags()}).catch(function(){}); }
   try{ if(location.hash!=="#"+v) history.replaceState(null,"","#"+v); }catch(e){}
   // ⚠️ 这里不能同步调 secApply()：脚本顶部就会跑一次初始化 show()，而 SEC_FOLD
   //    定义在脚本末尾 —— 同步调用会撞上"还没定义"。延到当前 tick 之后再调。
@@ -3850,6 +3921,26 @@ async function doSearch(){
   renderDetail(SELID);
 }
 
+/* 「取消」：放弃这次录入 —— 清空所有已填字段 + 把重要度复位 + 滚回顶部。
+   2026-09-27 用户报的：「记一条」只有保存没有取消，不想记了只能关整个面板。
+   ⚠️ 不隐藏表单本身（表单是常驻卡片，随页面滚动）——只清内容，避免动布局。 */
+function cancelSave(){
+  var f=document.getElementById("form"); if(!f)return;
+  var filled=0;
+  f.querySelectorAll("input[type=text],input[type=search],textarea").forEach(function(e){
+    if(e.value && e.value.trim())filled++;
+    e.value="";
+  });
+  f.querySelectorAll("select").forEach(function(e){ e.selectedIndex=0; });
+  var imp=document.getElementById("f-imp");
+  if(imp){ imp.dataset.v="2"; imp.innerHTML="<b>★★</b>★★"; }
+  var ck=f.querySelector("input[type=checkbox]"); if(ck)ck.checked=false;
+  /* ⚠️ 必须删 .open —— .formcard{display:none} / .formcard.open{display:block}，
+     只清空输入框不删这个类 → 表单一直挂着，用户说"点了取消没用，模块还在"。 */
+  f.classList.remove("open");
+  toast(filled?"已取消 — 清掉 "+filled+" 项已填内容":"已取消","ok");
+  window.scrollTo({top:0,behavior:"smooth"});
+}
 async function doSave(){
   progress(true);
   const content=document.getElementById("f-content").value.trim();
@@ -3915,6 +4006,15 @@ async function syncHfTags(){
           +' onclick="pickHfProj(this)">'+esc(k)+' · '+(bp[k]||0)+' 条</span>';
       }).join("");
   }catch(e){}
+}
+/* C 按项目名过滤标签行（只是藏掉不匹配的，不动数据、不影响已生成的交接卡） */
+function filterHfTags(){
+  var q=((document.getElementById("hf-q")||{}).value||"").trim().toLowerCase();
+  var box=document.getElementById("hf-tags"); if(!box)return;
+  [].slice.call(box.children).forEach(function(sp){
+    var hit=!q||(sp.textContent||"").toLowerCase().indexOf(q)>=0;
+    sp.style.display=hit?"":"none";
+  });
 }
 function pickHfProj(el){
   var sel=document.getElementById("hf-proj");
@@ -4159,7 +4259,15 @@ function wrapGroups(root, onlyFirstOpen){
     var key="skg"+i;
     h.classList.add("ghead");
     h.id="gh-"+key;
-    h.onclick=function(){toggleGroup(key)};
+    /* ⑤ 2026-09-27：原来整条标题栏绑 onclick → **点里面的按钮也会连带折叠**
+       （事件冒泡上来），用户看到的就是"功能按钮被折叠吞了"。
+       改成方案②：只有落在右侧按钮/控件区时不触发折叠，其余照旧。
+       ⚠️ 只改这一处判断，DOM 结构一个字符没动（用户要求"别移出去，怕引新 bug"）。 */
+    h.onclick=function(ev){
+      if(ev.target.closest(".pr")||ev.target.closest("button")
+         ||ev.target.closest("select")||ev.target.closest("input")) return;
+      toggleGroup(key);
+    };
     // 箭头放**最右**：放标题前面会把标题文字挤开、看着"排列不准"（用户反馈）
     if(!h.querySelector(".cv"))h.insertAdjacentHTML("beforeend",'<span class="cv">▼</span>');
     var body=document.createElement("div");
@@ -4207,7 +4315,16 @@ function wrapPanels(viewId, keys){
     h.dataset.wrapped="1";
     h.classList.add("ghead");
     h.id="gh-"+key;
-    h.onclick=function(){toggleGroup(key)};
+    /* ⑤ 2026-09-27：原来整条标题栏绑 onclick → **点里面的按钮也会连带折叠**
+       （事件冒泡上来），用户看到的就是"功能按钮被折叠吞了"。
+       改成方案②：只有落在右侧按钮/控件区时不触发折叠，其余照旧。
+       ⚠️ 只改这一处判断，DOM 结构一个字符没动。
+       ⚠️ 这个模式在文件里有**两处**（通用 wrapPanels + 清理页专用那套），必须都改。 */
+    h.onclick=function(ev){
+      if(ev.target.closest(".pr")||ev.target.closest("button")
+         ||ev.target.closest("select")||ev.target.closest("input")) return;
+      toggleGroup(key);
+    };
     if(!h.querySelector(".cv"))h.insertAdjacentHTML("beforeend",'<span class="cv">▼</span>');
     var body=document.createElement("div");
     body.className="gbody";body.id="g-"+key;
@@ -4465,6 +4582,7 @@ async function loadSkills(){
   var box=document.getElementById("sk-list");
   if(!box)return;
   box.innerHTML='<div class="empty">正在探测本机内容…</div>';
+  setTimeout(bindSkKpi,0);   /* A：每次探测完重绑一次 KPI 卡的点击（幂等） */
   var r,c;
   try{
     var both=await Promise.all([api("/api/skills"),api("/api/content")]);
@@ -5585,6 +5703,16 @@ async function renderHealth(){
         '<span class="of">/ 100</span></div>'+
       '<div class="hsum">'+summary+'</div>'+
     '</div><div class="hdims">'+dimHtml+'</div></div>';
+  /* ④ 七格铺满：.hdims 原本是 repeat(auto-fit,minmax(143px,1fr)) —— 7 个格子
+     在 1460px 下排成 4 列时，最后一格右边会空出正好一格（露 .hdims 的灰底，
+     像"加载失败"，2026-09-27 用户报的）。
+     改成**按实际格子数设列数**（格子数会随检查项变化，写死 7 不保险）：
+     桌面按格数均分；窄屏由下面的媒体查询降级到 4/2 列。 */
+  (function(){
+    var g=document.querySelector('#health .hdims'); if(!g)return;
+    var n=g.querySelectorAll('.d').length; if(!n)return;
+    g.style.gridTemplateColumns='repeat('+n+',minmax(0,1fr))';
+  })();
   var ps=document.getElementById("au-psub");
   if(ps)ps.innerHTML="七查 · 全库 <b>"+(h.scanned||h.total||"—")+"</b> 条 · 评级 <b>"
     +esc(h.grade||"—")+"</b>"+(h.grade_text?("（"+esc(h.grade_text)+"）"):"");
@@ -6030,6 +6158,44 @@ async function doImport(inp){
   });
 })();
 
+/* A 技能/MCP 页：4 张 KPI 卡可点 → 跳到对应分组。
+   2026-09-27 用户提的需求，并明确"别只显示那个分组，会引入特别多的 bug"——
+   所以这里只做**滚动 + 高亮**，页面信息量不变。
+   ⚠️ 用**索引**找分组（#sk-list 的 .ghead 顺序），不依赖内部 key，页面结构变了也不会崩。
+   高亮用 background 动画（**不用 transform** —— 本项目有一批量几何的闸门，
+   transform 会临时改变 getBoundingClientRect，动画进行中量到偏移就假报错）。 */
+function skJump(i){
+  var hs=[].slice.call(document.querySelectorAll("#sk-list .ghead"));
+  var h=hs[i]; if(!h)return;
+  var body=h.nextElementSibling;
+  if(body&&body.classList.contains("hide"))h.click();   // 收起状态才点开
+  setTimeout(function(){
+    h.scrollIntoView({behavior:"smooth",block:"center"});
+    var box=h.closest(".panel")||h.parentElement;
+    box.classList.add("skflash");
+    setTimeout(function(){box.classList.remove("skflash")},1200);
+  },90);
+}
+function bindSkKpi(){
+  var cards=[].slice.call(document.querySelectorAll("#sk-kpi .kpi"));
+  cards.forEach(function(c,i){
+    var name=((c.querySelector(".kt")||{}).textContent||"").trim();
+    c.style.cursor="pointer";
+    c.title="点击跳到「"+name+"」分组";
+    c.onclick=function(){skJump(i)};
+  });
+}
+/* ② 下拉默认选中第一个**有值**的选项。
+   2026-09-27 用户报"预览技能包出不来"——实测功能正常，是默认停在空的
+   「选择项目」上，点预览只弹一句"先选一个项目"，用户以为坏了。
+   ⚠️ 只在用户**没选过**（value 为空）时才自动选，不覆盖用户的选择。 */
+function defaultSelectFirst(id){
+  var s=document.getElementById(id); if(!s)return;
+  if(s.value)return;
+  for(var i=0;i<s.options.length;i++){
+    if(s.options[i].value){ s.value=s.options[i].value; break; }
+  }
+}
 /* 记忆包页的两个统计 chip（数据来自 /api/stats，不写死） */
 async function syncPackInfo(){
   try{

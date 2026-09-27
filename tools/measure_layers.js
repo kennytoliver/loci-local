@@ -107,7 +107,7 @@ const PAGES = [
     // 真实 DOM 复核：每页的内容区底 + 卡片底/描边
     // 注意 .content 与部分容器是 rgba(0,0,0,0)（透明，实际透出 body），
     // 直接读 backgroundColor 会把"透明"当成白色算错，所以必须向上找有效背景。
-    const dom = await page.evaluate((pages) => {
+    const dom = await page.evaluate(async (pages) => {
       const alphaOf = (c) => {
         const m = (c || '').match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?/);
         return m ? (m[4] === undefined ? 1 : +m[4]) : 0;
@@ -128,9 +128,25 @@ const PAGES = [
         content: effBg(document.querySelector('.content') || document.body),
         pages: {},
       };
-      // 卡片类名不止 .panel：质检页的仪表是 .health，主从页是 .split-main/.split-side。
+      // 卡片类名不止 .panel：质检页的健康卡是 .hcard，主从页是 .split-main/.split-side。
       // 只认 .panel 会漏掉质检页（它的 #health/#audit-out 内容全靠 JS 填，静态 HTML 里没有 .panel）。
-      const CARD_SEL = '.panel, .health, .split-main, .split-side';
+      // ⚠️ 2026-09-27：这里原先是 `.health` —— 那时卡片壳挂在 #health 上。
+      //    后来 renderHealth() 改成只吐一个 .hcard，外层 #health 退化成纯容器
+      //    （display:block、无底色无描边），于是本闸门读到"面差为 0"报红。
+      //    跟不动实现就会假红：**卡片是谁，就量谁** → 改认 .hcard。
+      const CARD_SEL = '.panel, .hcard, .split-main, .split-side';
+      // ⚠️ 2026-09-27：本脚本是加载 `#mem` 进来的，**从没进过质检页** —— 旧版卡片壳 `.health`
+      //    是写死在 HTML 里的静态元素，隔页也能读到计算样式，所以一直没暴露。
+      //    改成 .hcard 后它是 runAudit() → renderHealth() 异步画的，不进页面就没有。
+      //    所以这里先切到质检页并等卡片画出来，量完再切回（其余页读计算样式不受显隐影响）。
+      if (typeof window.show === 'function') {
+        window.show('audit');
+        for (let i = 0; i < 90 && !document.querySelector('#health .hcard'); i++) {
+          await new Promise((r) => setTimeout(r, 100));
+        }
+        window.show('mem');
+        await new Promise((r) => setTimeout(r, 250));
+      }
       for (const [id] of pages) {
         const sec = document.getElementById('v-' + id);
         if (!sec) continue;

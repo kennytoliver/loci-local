@@ -18,6 +18,14 @@
 
 计数与 EXPECTED 比对，**漂移即红**。
 
+⚠️ 本闸门的**已知边界**（说破，免得以为它全覆盖）
+------------------------------------------------
+1. **只抓单语句静默**：`len(body) != 1` 就不算（带 `print` 的自然不算，但
+   `except: x = None` + `continue` 这种**两句话的静默**也漏）→ 多余语句靠 review。
+2. **不抓 `return <变量>` 型部分结果**：`return out` / `return hits` 这类"返回已收集的部分"
+   是静默的，但机械计数会把大量**合法**的 `return out` 一起算进来 → 不纳入自动判定，
+   改由**人工注释规约**（代码里以「静默部分结果：」开头的那几条）。
+
 红了怎么办
 ----------
 1. 先确认新增/删除的静默点**都写清了"为什么吞掉是安全的"**（这是本项目立的规矩）；
@@ -31,12 +39,15 @@ import os
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-TARGETS = ["loci.py", "panel.py"]
+TARGETS = ["loci.py", "panel.py", "install_agents.py"]
 
 # ⚠️ 改动代码后这里红了：先核对上面"红了怎么办"，再同步这几个数字。
+# install_agents.py 是**写用户 Agent 配置**的脚本，风险高，所以纳进来做"未来防护"
+# （它当前 2 处 except 都带 print/exit，不是静默，故期望 0）。
 EXPECTED = {
     "loci.py": {"pass": 10, "continue": 12, "return_empty": 9},
     "panel.py": {"pass": 7, "continue": 4, "return_empty": 2},
+    "install_agents.py": {"pass": 0, "continue": 0, "return_empty": 0},
 }
 
 _EMPTY_CALLS = ("list", "dict", "set", "tuple")

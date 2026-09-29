@@ -79,6 +79,23 @@ const PROBE = () => {
   for (const v of VIEWS) {
     await page.evaluate((x) => window.show(x), v);
     await sleep(900);
+    /* ⚠️ 2026-09-29 定位并修：本闸门原来有个「看运气」的缺陷 ——
+       质检页**不会在 show() 里自动加载**（要用户点按钮才跑质检），而它的 7 个 .auditrow
+       是 FRAME_SELECTION 里占比最大的条目。不主动触发，就只剩 session/mem 的 3 个静态框，
+       total 不足 MIN_EXPECTED 直接 FAIL。
+       表现：跑在闸门序列里 = PASS（前面 verify_audit_perf 已把质检数据备好）；
+             单独跑 / 面板刚起 = FAIL（只量到 3 个框）。
+       ➜ 根因是**依赖前置执行状态**（不是时序）。这里自己触发一次质检，让本闸门自给自足。 */
+    if (v === 'audit') {
+      await page.evaluate(() => { try { window.runAudit && window.runAudit(); } catch (e) {} });
+      await sleep(2000);
+    }
+    /* 第二层：补一次打标。panel 的 show() 用 `setTimeout(frameTitles,700)` 猜渲染完成，
+       runAudit() 是**异步**的（完成时刻 > 700ms）→ 等它渲染出 .auditrow 时，打标早跑完了。
+       本闸门测的是**几何（框有没有被父容器裁掉）**，不是打标时机，所以这里主动补打一次，
+       让结果只取决于布局。frameTitles() 幂等，重复调用无副作用。 */
+    await page.evaluate(() => { try { window.frameTitles && window.frameTitles(); } catch (e) {} });
+    await sleep(120);
     let rows = [];
     try { rows = await page.evaluate(PROBE); } catch (e) { rows = []; }
     total += rows.length;
@@ -105,7 +122,8 @@ const PROBE = () => {
 
   await browser.close();
   /* 防空跑：视图没渲染出来时 PROBE 会返回 0 个元素，那样"0 个被裁"就是假通过。
-     至少要看到 10 个框才算量到了东西（当前基线 13 个）。 */
+     基线 10 = session 2（dhead[3]+listhead[1]）+ mem 1（dhead[2]）+ audit 7（auditrow[1..7]）。
+     audit 那 7 个靠上面主动触发质检才有 —— 改动 FRAME_SELECTION 后请同步核对此基线。 */
   const MIN_EXPECTED = 10;
   const enough = total >= MIN_EXPECTED;
   if (!enough) console.log('  FAIL 只量到 ' + total + ' 个框（少于 ' + MIN_EXPECTED + '）—— 可能视图没渲染出来，等于没测');

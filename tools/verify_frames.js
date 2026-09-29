@@ -79,16 +79,21 @@ const PROBE = () => {
   for (const v of VIEWS) {
     await page.evaluate((x) => window.show(x), v);
     await sleep(900);
-    /* ⚠️ 2026-09-29 定位并修：本闸门原来有个「看运气」的缺陷 ——
-       质检页**不会在 show() 里自动加载**（要用户点按钮才跑质检），而它的 7 个 .auditrow
-       是 FRAME_SELECTION 里占比最大的条目。不主动触发，就只剩 session/mem 的 3 个静态框，
-       total 不足 MIN_EXPECTED 直接 FAIL。
-       表现：跑在闸门序列里 = PASS（前面 verify_audit_perf 已把质检数据备好）；
-             单独跑 / 面板刚起 = FAIL（只量到 3 个框）。
-       ➜ 根因是**依赖前置执行状态**（不是时序）。这里自己触发一次质检，让本闸门自给自足。 */
+    /* ⚠️ 2026-09-29 修：旧版这里赌的是**一场 ±100ms 的赛跑**。
+       质检页在 show('audit') 里**会自动跑质检**（panel.py:3254 `if(v==="audit") runAudit();`），
+       但 /api/audit 是**异步**的（冷调用实测 ~511ms、热 ~661ms，服务端无缓存），
+       而 frameTitles 的最后一趟打标定在 show()+700ms —— 渲染晚于打标，就量不到那 7 个
+       .auditrow 框，只能量到 session/mem 的 3 个静态框，低于 MIN_EXPECTED 直接 FAIL。
+       谁赢取决于机器负载与 SQLite 页缓存热度：
+         · 冷面板（页缓存冷）→ 稳定只量到 3 个框 → FAIL
+         · 闸门序列里（前面的闸门暖过缓存）→ 多半 PASS，但**并非必然**
+       ➜ 修法：等 .auditrow 真出现 + 每次测量前补一次 frameTitles()，不再赌这场赛跑。
+       （更正说明：本注释早先写过"质检页不会自动加载"—— 那与源码冲突，是误读，已按实测口径重写。） */
     if (v === 'audit') {
       await page.evaluate(() => { try { window.runAudit && window.runAudit(); } catch (e) {} });
-      await sleep(2000);
+      // 等首行渲染出来（最多 10s），而不是赌固定 sleep
+      await page.waitForSelector('.auditrow', { timeout: 10000 }).catch(() => {});
+      await sleep(300);   // 首行出现 ≠ 七行都出来，再给一点余量
     }
     /* 第二层：补一次打标。panel 的 show() 用 `setTimeout(frameTitles,700)` 猜渲染完成，
        runAudit() 是**异步**的（完成时刻 > 700ms）→ 等它渲染出 .auditrow 时，打标早跑完了。

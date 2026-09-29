@@ -1387,7 +1387,7 @@ def workspaces(limit=12):
     """本机的 WorkBuddy 工作区（项目级 skill 藏在各工作区里）。
 
     工作区列表从会话 jsonl 的 cwd 字段读 —— 只读文件头，不解析整个会话。
-    目录名（c-Users-user-WorkBuddy-2026-09-21-13-44-31）里的 `-`
+    目录名（c-Users-<用户名>-WorkBuddy-2026-09-21-13-44-31）里的 `-`
     跟真实路径的 `-` 有歧义，反推不出来，所以必须读 cwd。
     """
     base = os.path.join(os.path.expanduser("~"), ".workbuddy", "projects")

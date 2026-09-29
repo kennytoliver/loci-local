@@ -1,5 +1,5 @@
-import time, sys
-sys.path.insert(0, r"D:/repo")
+import os, sys, time
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import loci as hippo
 
 for name, fn in [("quality_scan", hippo.quality_scan), ("health_score", hippo.health_score),

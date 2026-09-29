@@ -515,7 +515,7 @@ def _entry_path_ok(text):
 
     为什么需要它：`"配置里有 loci 这个名字" != "真的能用"`。
     真实事故（2026-09-25 逮到）：TraeWork 的配置一直指向
-    `C:\\Users\\user\\Hippocampus\\hippocampus.py` —— 09-23 项目搬到 D 盘后就没更新过，
+    `C:\\Users\\<用户名>\\Hippocampus\\hippocampus.py` —— 09-23 项目搬到 D 盘后就没更新过，
     名字在、路径早没了，可面板一直报「已接入」。用户以为记忆是通的，其实是死的。
     所以体检必须同时验**名字**和**路径**，否则就是假绿。
     """

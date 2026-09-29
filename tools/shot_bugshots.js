@@ -8,7 +8,7 @@ catch (e) { console.error('缺少 puppeteer-core，请设置 NODE_PATH。'); pro
 const CHROME = [process.env.CHROME_PATH,
   'C:/Program Files/Google/Chrome/Application/chrome.exe'].filter(Boolean).find((p) => fs.existsSync(p));
 
-const OUT = 'C:/Users/user/AppData/Local/Temp/hp_shots/';
+const OUT = path.join(require('os').tmpdir(), 'hp_shots') + '/';
 
 (async () => {
   const BASE = (process.argv[2] || 'http://127.0.0.1:8787').replace(/\/$/, '');

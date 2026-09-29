@@ -16,7 +16,7 @@ import subprocess
 import sys
 import tempfile
 
-HERE = r"D:/repo"
+HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _tmp = tempfile.NamedTemporaryFile(prefix="hc_flow_", suffix=".db", delete=False)
 _tmp.close()
 env = dict(os.environ)

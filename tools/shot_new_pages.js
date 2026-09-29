@@ -26,7 +26,6 @@ const CHROME = [
   'C:/Program Files/Google/Chrome/Application/chrome.exe',
   'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe',
   process.env.LOCALAPPDATA + '/Google/Chrome/Application/chrome.exe',
-  'C:/Users/user/AppData/Local/Google/Chrome/Application/chrome.exe',
 ].find((p) => p && fs.existsSync(p));
 if (!CHROME) { console.error('[截图] 没找到 Chrome（可设 CHROME_PATH）'); process.exit(2); }
 

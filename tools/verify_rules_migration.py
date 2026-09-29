@@ -12,7 +12,7 @@ import os
 import sys
 import tempfile
 
-sys.path.insert(0, r"D:/repo")
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import install_agents as IA
 
 OLD_HIPPO = """<!-- hippohub:begin -->

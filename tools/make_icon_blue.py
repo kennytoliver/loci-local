@@ -10,8 +10,9 @@ import zlib
 import os
 from collections import Counter
 
-SRC = r"D:\repo\assets\icon.png"
-DST = r"D:\repo\assets\icon-blue.png"
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SRC = os.path.join(BASE_DIR, "assets", "icon.png")
+DST = os.path.join(BASE_DIR, "assets", "icon-blue.png")
 BASE = (11, 87, 208)          # #0b57d0 —— Google Blue 700，与青绿主体对比度优于 #4285f4
 NAVY_REF_LUM = 0.2126 * 14 + 0.7152 * 48 + 0.0722 * 109   # 原深蓝底亮度 ≈ 45.2
 

@@ -19,9 +19,14 @@ set -u
 
 cd "$(dirname "$0")/.." || exit 1
 
-NODE="${NODE:-C:/Users/user/.workbuddy/binaries/node/versions/22.22.2-3/node.exe}"
-PY="${PY:-C:/Users/user/.workbuddy/binaries/python/envs/default/Scripts/python.exe}"
-export NODE_PATH="${NODE_PATH:-C:/Users/user/.workbuddy/binaries/node/workspace/node_modules}"
+NODE="${NODE:-$(ls "$HOME"/.workbuddy/binaries/node/versions/*/node.exe 2>/dev/null | head -1)}"
+PY="${PY:-$(ls "$HOME"/.workbuddy/binaries/python/envs/*/Scripts/python.exe 2>/dev/null | head -1)}"
+NODE="${NODE:-$(command -v node 2>/dev/null)}"
+PY="${PY:-$(command -v python 2>/dev/null)}"
+if [ -z "${NODE_PATH:-}" ]; then
+  export NODE_PATH="$HOME/.workbuddy/binaries/node/workspace/node_modules"
+  [ -d "$NODE_PATH" ] || export NODE_PATH="$(npm root -g 2>/dev/null)"
+fi
 BASE="${BASE:-http://127.0.0.1:8787}"
 FILTER="${1:-}"
 

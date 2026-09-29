@@ -33,6 +33,7 @@ GATES=(
   "check_js_syntax|$NODE tools/check_js_syntax.js $BASE"
   "audit_tokens|$NODE tools/audit_tokens.js $BASE"
   "check_design|$PY tools/check_design.py panel.py"
+  "audit_silent_skips|$PY tools/audit_silent_skips.py"
   "test_mcp|$PY test_mcp.py"
   "test_panel|$PY test_panel.py"
   "verify_conn_drop|$PY tools/verify_conn_drop.py"

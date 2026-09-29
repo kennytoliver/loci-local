@@ -24,32 +24,70 @@ import loci as hippo
 def _custom_path():
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "agents.json")
 
+# ⚠️ 2026-09-28：agents.json 读取失败时的警告暂存在这里，由 /api/stats 透出到面板
+#    （前端 loadStats 见到 warn 字段就提示一次），不再只藏在 stderr 里、肉眼看不到。
+_STORE_WARN = ""
+
 def _load_store():
     """agents.json 统一读写：{"agents":[...], "scan_roots":[...]}
-    兼容旧格式（纯 list）。"""
+    兼容旧格式（纯 list）。
+
+    ⚠️ 2026-09-28 修（外部审查 P0）：原来解析失败就 `return 空 dict`，而 save_custom()
+    是"读-改-写"链 —— 于是「文件半截损坏」被当成「本来就是空的」，用户下次在面板做任何
+    写操作，就把自己的 Agent 列表 / 扫描目录**覆盖成空**。
+    这和 `_tk_python()` 少 `import re` 那次是同一个病：坏数据伪装成"环境就是空的"。
+    现在解析失败先把原文件改名 `.corrupt-<时间戳>` 留证（不删），再返回空结构。
+    """
     p = _custom_path()
     d = {"agents": [], "scan_roots": []}
     if not os.path.exists(p):
         return d
     try:
         data = json.loads(_file_text(p) or "{}")
-    except Exception:
+    except Exception as e:
+        global _STORE_WARN
+        keep = p + ".corrupt-" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        try:
+            os.rename(p, keep)
+            _STORE_WARN = ("agents.json 不是合法 JSON，原文件已留成 %s；"
+                           "本次显示为空配置，请检查后重新保存" % os.path.basename(keep))
+            print("[loci] agents.json 不是合法 JSON(%s)，原文件已留成 %s" % (e, keep),
+                  file=sys.stderr)
+        except Exception as e2:
+            _STORE_WARN = "agents.json 不是合法 JSON，且备份失败；为避免覆盖，本次不写入配置"
+            print("[loci] agents.json 不是合法 JSON(%s)，且备份失败(%s)；本次不覆盖它"
+                  % (e, e2), file=sys.stderr)
         return d
     if isinstance(data, list):
         d["agents"] = data
     elif isinstance(data, dict):
         d["agents"] = data.get("agents") or []
         d["scan_roots"] = data.get("scan_roots") or []
+    _STORE_WARN = ""      # 读取成功 → 解除之前的损坏警告
     return d
 
 def _save_store(d):
+    """原子落盘：先写同目录临时文件再 os.replace 覆盖。
+
+    ⚠️ 2026-09-28 修：原来直接 open(p,"w") 写 —— 写一半崩了/断电就留下半截 JSON，
+    下次 _load_store() 读成空 → 用户配置被清空。os.replace 在 Windows 上也是原子的。
+    """
+    p = _custom_path()
+    tmp = p + ".tmp"
     try:
-        with open(_custom_path(), "w", encoding="utf-8") as f:
+        with open(tmp, "w", encoding="utf-8") as f:
             json.dump(d, f, ensure_ascii=False, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, p)
         return True
     except Exception:
+        try:
+            if os.path.exists(tmp):
+                os.remove(tmp)
+        except Exception:
+            pass      # 容错：清理临时文件失败不影响结果（返回 False 已表达失败）
         return False
-
 def load_custom():
     """用户手动添加的 Agent"""
     return _load_store()["agents"]
@@ -247,7 +285,7 @@ def _tk_python():
             if m and m.group(1) not in cands:
                 cands.append(m.group(1))
     except Exception:
-        pass
+        pass      # 容错：py -0p 输出格式不符就跳过该行，后面还有候选路径兜底
     cands += [os.path.join(local, "Programs", "Python", "Python313", "python.exe"),
               os.path.join(local, "Programs", "Python", "Python312", "python.exe"),
               os.path.join(home, "anaconda3", "python.exe"),
@@ -267,7 +305,8 @@ def _tk_python():
             if r.returncode == 0:
                 return c
         except Exception:
-            continue
+            continue      # 容错：某个候选 Python 跑不起来/超时就试下一个
+                          #   （当年 `import re` 缺失被吞，就是从这里伪装成"本机没有图形 Python"）
     return None
 
 def pick_folder():
@@ -467,7 +506,7 @@ def _dir_nonempty(d):
             for _ in it:
                 return True
     except Exception:
-        pass
+        pass      # 容错：目录不可读 = 当作没有内容（存在性探测的安全默认）
     return False
 
 # ---------- 本机 Agent 体检 ----------
@@ -526,7 +565,7 @@ def scan_agents():
                 # 名字对了还不够，启动脚本得真的在（见 _entry_path_ok 的注释：TraeWork 假绿事故）
                 paths_ok = _entry_path_ok(_t) if registered else False
             except Exception:
-                pass
+                pass      # 容错：单个 Agent 配置解析失败 → 该条按"未接入"显示，不影响其他 Agent
         out.append({"name": a["name"], "state": state,
                     "installed": state == "installed",
                     "writable": a["write"],
@@ -587,7 +626,7 @@ def scan_source_files():
                 try:
                     st = os.stat(p)
                 except OSError:
-                    continue
+                    continue      # 容错：文件在遍历途中消失 → 跳过（展示用列表）
                 out.append({"path": p, "size": st.st_size,
                             "mtime": datetime.datetime.fromtimestamp(st.st_mtime).strftime("%Y-%m-%d %H:%M"),
                             "agent": "WorkBuddy", "workspace": name, "kind": "工作区日志"})
@@ -615,12 +654,17 @@ def _to_recycle_bin(paths):
     if os.name != "nt":
         d = os.path.join(TRASH_ROOT, ".trash")
         os.makedirs(d, exist_ok=True)
+        ok = 0
         for p in paths:
             try:
                 shutil.move(p, os.path.join(d, os.path.basename(p)))
-            except Exception:
-                pass
-        return {"ok": True, "recycled": len(paths), "note": "非 Windows：已移入 .trash 目录"}
+                ok += 1
+            except Exception as e:
+                print("[loci] 移入 .trash 失败(%s)：%s" % (e, p), file=sys.stderr)
+        # ⚠️ 2026-09-28：原来无条件 ok=True、recycled=len(paths) —— 搬失败也报"成功"。
+        #    现在按真实成功数报，ok 只在全部成功时为真。
+        return {"ok": ok == len(paths), "recycled": ok,
+                "note": "非 Windows：已移入 .trash 目录"}
     import ctypes
     from ctypes import wintypes
 
@@ -718,7 +762,7 @@ def list_backups():
                 try:
                     size += os.path.getsize(os.path.join(root, f))
                 except OSError:
-                    pass
+                    pass      # 容错：单个文件取不到大小就跳过，目录体积是展示用统计
         out.append({"dir": d, "files": n, "size": size, "time": name})
     return out
 
@@ -849,7 +893,7 @@ def scan_sources():
                 try:
                     text = _file_text(p)
                 except Exception:
-                    continue
+                    continue      # 容错：单个文件读不了就跳过，不拖垮整个采集源列表
                 if not text.strip():
                     continue
                 date = fn[:-3] if fn[:4].isdigit() else datetime.datetime.fromtimestamp(
@@ -865,7 +909,7 @@ def scan_sources():
             try:
                 text = _file_text(p)
             except Exception:
-                continue
+                continue      # 容错：同上 —— 单个 SKILL.md 读不了就跳过
             if not text.strip():
                 continue
             date = datetime.datetime.fromtimestamp(os.path.getmtime(p)).strftime("%Y-%m-%d")
@@ -879,7 +923,7 @@ def scan_sources():
         try:
             it["in_db"] = _file_text(it["path"]).strip() in existing
         except Exception:
-            it["in_db"] = False
+            it["in_db"] = False   # 静默部分结果：读不出就当作"未入库"（偏保守，避免误报已导入）
     return out
 
 def collect(paths):
@@ -1069,7 +1113,7 @@ def verify_mcp(timeout=20):
             p.stdin.close()
             p.terminate()
         except Exception:
-            pass
+            pass      # 容错：进程可能已自行退出，terminate 失败忽略
 
 
 # ---------- 闲置自动退出 ----------
@@ -1411,15 +1455,8 @@ h2{font-family:var(--sans);font-size:20px;font-weight:600;letter-spacing:-.2px;m
 
 /* ── Agent 体检 ──────────────────── */
 /* 卡片网格：自适应列宽（15 款产品，窄窗口自动降列） */
-.agents{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px}
-.agent{background:var(--card);border:1px solid var(--line);border-radius:var(--radius-lg);
-  padding:var(--space-4) var(--space-5);box-shadow:var(--shadow-2xs)}
-.agent .aname{font-size:14px;font-weight:600;display:flex;align-items:center;gap:9px}
-.agent .astat{font-size:11px;margin-top:8px}
 .dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0}
 .dot.on{background:var(--ok)}.dot.off{background:var(--faint)}.dot.warn{background:var(--warn)}
-.badge-ok{color:var(--ok)}.badge-warn{color:var(--warn)}.badge-no{color:var(--faint)}
-.agent .acts{margin-top:11px;display:flex;gap:8px}
 .mini{border:1px solid var(--line2);background:var(--card);color:var(--ink);
   border-radius:var(--radius-md);padding:5px 12px;font-size:12px;cursor:pointer;
   font-family:var(--sans);transition:background var(--duration-fast) var(--ease-out)}
@@ -1724,7 +1761,15 @@ select,.formrow input[type=text]{background:var(--d2);border:1px solid var(--lin
 .hcard .score{display:flex;align-items:baseline;gap:6px}
 .hcard .score b{font-size:46px;font-weight:700;letter-spacing:-2.4px;line-height:1;
   font-variant-numeric:tabular-nums;color:var(--ink)}
-.hcard .score .hgrade{font-size:13px;font-weight:700;padding:2px 8px;border-radius:7px}
+.hcard .score .hgrade{font-size:13px;font-weight:700;padding:2px 8px;border-radius:7px;
+  box-shadow:inset 0 0 0 1px currentColor}
+/* 评级配色：2026-09-28 从旧的 `.health .hgrade.a/.b/.c/.d` 迁过来。
+   那几条挂在 `#health` 容器上（class="health"），等于靠"祖先还叫 .health"活命 ——
+   隐性依赖，删旧结构样式时会暗伤质检页（外部审查就是这么抓到我误判的）。
+   现在就近挂在自己的类上，作用域自洽。 */
+.hcard .score .hgrade.a,.hcard .score .hgrade.b{color:var(--ok)}
+.hcard .score .hgrade.c{color:var(--warn)}
+.hcard .score .hgrade.d{color:var(--bad)}
 .hcard .score .of{font-size:12px;color:var(--faint)}
 .hcard .hsum{flex:1;min-width:220px;font-size:12px;color:var(--sub);line-height:1.75}
 .hcard .hsum b{color:var(--ink)}
@@ -1912,7 +1957,6 @@ select,.formrow input[type=text]{background:var(--d2);border:1px solid var(--lin
 @media(max-width:760px){
   .side{display:none}
   .stats{gap:20px}
-  .agents{grid-template-columns:1fr}
 }
 /* ───────── 设计语言升级 + 动效（纯 CSS，零依赖） ───────── */
 :root{
@@ -1929,12 +1973,12 @@ select,.formrow input[type=text]{background:var(--d2);border:1px solid var(--lin
 section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
 
 /* 卡片入场（stagger：渲染时写入 --i） */
-.agent,.stat{animation:cardIn .34s var(--ease) both;animation-delay:calc(var(--i,0)*32ms)}
+.stat{animation:cardIn .34s var(--ease) both;animation-delay:calc(var(--i,0)*32ms)}
 
 /* 悬停微交互（.kpi 是 2026-09-24 加的 KPI 卡，共用同一条：抬 2px + 描边提一档，
    都不参与布局，所以量尺寸的闸门读到的数字不变） */
-.mem,.agent,.stat,.kpi{transition:transform .18s var(--ease),border-color .18s var(--ease),background .18s var(--ease)}
-.mem:hover,.agent:hover,.kpi:hover{transform:translateY(-2px);border-color:var(--line2)}
+.mem,.stat,.kpi{transition:transform .18s var(--ease),border-color .18s var(--ease),background .18s var(--ease)}
+.mem:hover,.kpi:hover{transform:translateY(-2px);border-color:var(--line2)}
 .btn,.mini,.del,.nav{transition:transform .12s var(--ease),background .16s var(--ease),color .16s var(--ease)}
 .btn:active,.mini:active,.del:active{transform:scale(.965)}
 /* 键盘焦点可见环：亮色蓝 / 暗色白（规范 --ring） */
@@ -2004,80 +2048,21 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
 .ico{width:16px;height:16px;flex-shrink:0;opacity:.85}
 .nav.on .ico{opacity:1}
 
-/* ── 健康度仪表（套规范 Chart 组件：环形占比 + 五色分类条 + 计数 chips）──
-   规范原话「图表是整个系统里颜色能量最强的地方，其余表面要保持安静」，
-   所以这里是全页唯一允许用满 --chart-* 的地方。
-   环形用 conic-gradient + ::after 掏空中间（和库 ui_kit 的 .donut 同一手法），纯 CSS 零依赖。 */
-/* ⚠️ 2026-09-27 真 bug：这里原本是 `grid` 两列（`auto minmax(0,1fr)`），
-   配套的是**旧结构**——左列圆环仪表 `.hgauge`、右列扣分条 `.hbars`。
-   后来 renderHealth() 改成只吐一个 `.hcard`，于是卡片只占第一列、
-   右边整列空着（用户截图报的"只填了一边"）；而且 `.hcard` 自带卡片底 + 边框，
-   套在 `.health` 的卡片底里还成了"卡中卡"。
-   现在 #health 只是一个占满整行的普通容器，外观全交给内层 `.hcard`。
-   （下面 .hgauge/.hring/.hval/.hbar/.hrow/.hchip 是旧结构的遗留样式，已无元素使用。） */
+/* ── #health（质检页那张健康卡的容器）────────────────────────
+   2026-09-27：它原本是 grid 两列（auto minmax(0,1fr)），配套旧结构「左列圆环仪表
+   `.hgauge` + 右列扣分条 `.hbars`」。renderHealth() 后来改成只吐一个 `.hcard`，
+   容器却没跟着改 → 卡片只占第一列、右边整列空着（用户截图报的"只填了一边"），
+   而且 `.hcard` 自带卡片底套在外层卡片底里还成了"卡中卡"。
+   现在它只是个占满整行的普通容器，外观全交给内层 `.hcard`。
+   2026-09-28：旧结构那批样式（.hgauge/.hring/.hval/.hbars/.hrow/.hbar/.hchips/.hchip）
+   已按修正边界删干净（`.hgrade` 的颜色/描边迁到了 `.hcard .score .hgrade`）——
+   这里只留下面这一条容器规则。 */
 .health{display:block;background:none;border:0;padding:0;margin-bottom:0}
-.health .hgauge{display:flex;flex-direction:column;align-items:center;gap:var(--space-3)}
-.health .hring{width:132px;height:132px;border-radius:50%;position:relative;
-  transition:background .5s var(--ease)}
-.health .hring::after{content:"";position:absolute;inset:16px;border-radius:50%;background:var(--card)}
-.health .hval{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-  gap:2px;z-index:1}
-.health .hval b{font-size:34px;font-weight:500;line-height:1;font-variant-numeric:tabular-nums}
-.health .hval i{font-size:12px;color:var(--sub);font-style:normal;margin-top:11px}
-.health .hgrade{font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px;
-  box-shadow:inset 0 0 0 1px currentColor}
-.health .hgrade.a,.health .hgrade.b{color:var(--ok)}
-.health .hgrade.c{color:var(--warn)}
-.health .hgrade.d{color:var(--bad)}
-.health .hbars{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-3) var(--space-6)}
-.health .hrow{display:flex;align-items:center;gap:var(--space-3);font-size:12px;color:var(--sub)}
-.health .hrow .lab{width:80px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.health .hbar{flex:1;height:6px;border-radius:999px;background:var(--muted);overflow:hidden}
-.health .hbar i{display:block;height:100%;border-radius:999px;
-  transition:width .5s var(--ease)}
-.health .hrow .val{width:38px;text-align:right;color:var(--ink);
-  font-variant-numeric:tabular-nums;flex-shrink:0}
-.health .hchips{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:var(--space-2);
-  border-top:1px solid var(--line);padding-top:var(--space-4)}
-.health .hchip{font-size:11.5px;color:var(--sub);border:1px solid var(--line);
-  border-radius:999px;padding:2px 9px;white-space:nowrap}
-.health .hchip.warn{color:var(--warn);border-color:var(--warn)}
 
-/* ── 可勾选文件表（套规范 Table 组件：静音表头 + 细描边行 + 彩色状态）── */
-/* 用户反馈：这张表原来没有外框、长内容还会压到邻列叠字。
-   加外框 + 每个单元格自己裁 —— `min-width:0` 是关键：grid 子项默认不肯缩，
-   会被长字符串（比如完整时间戳）顶出去盖到下一列。 */
-.stable{display:flex;flex-direction:column;border:1px solid var(--line);
-  border-radius:var(--radius-lg);padding:var(--space-2) 0;background:var(--card)}
-.stable .shead-row>span,.stable .srow>span{min-width:0;overflow:hidden;
-  text-overflow:ellipsis;white-space:nowrap}
-.stable .shead-row,.stable .srow{
-  display:grid;grid-template-columns:26px minmax(0,1fr) 56px 156px 76px 62px;
-  gap:var(--space-3);align-items:center}
-.stable .shead-row{padding:0 var(--space-4) var(--space-2);font-size:11px;font-weight:600;
-  letter-spacing:.06em;text-transform:uppercase;color:var(--sub)}
-.stable .srow{padding:var(--space-3) var(--space-4);border-radius:var(--radius-md);
-  cursor:pointer;background:transparent;border:0;width:100%;text-align:left;
-  transition:background var(--duration-fast) var(--ease-out)}
-.stable .srow:hover{background:var(--hover)}
-/* FIX-6：状态不能只靠"淡淡的面"。实测亮色下 --d2 对卡片只有 1.05:1（暗色 1.24:1，
-   亮色差 5 倍）＝ 等于没有提示；行内文字落在 --faint 上暗色只有 3.93:1。
-   所以补一个**形状信号**（左侧 3px 条），底色提到 --d3，文字回到 --sub。
-   ⚠️ 用 inset 阴影而不是 border-left —— border 会改变行宽/行高。 */
-.stable .srow.indb{background:var(--d3);box-shadow:inset 3px 0 0 var(--line2);opacity:1}
-.stable .srow.indb .spath,
-.stable .srow.indb .cell{color:var(--sub)}
-.stable .srow.indb .bdg.state{color:var(--sub)}
-.stable .srow.indb .ck{opacity:.45}
 /* Agent 徽标：品牌色圆角方块 + 首字母（不用厂商 logo：零依赖 + 避免商标问题） */
 .abadge{display:inline-flex;align-items:center;justify-content:center;
   border-radius:7px;color:#fff;font-weight:600;line-height:1;flex-shrink:0;
   letter-spacing:0;user-select:none}
-.agent .aname{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.stable .srow .spath{font-size:13px;color:var(--sub);overflow:hidden;
-  text-overflow:ellipsis;white-space:nowrap}
-.stable .srow:hover .spath{color:var(--ink)}
-.stable .srow .cell{font-size:12px;color:var(--sub);overflow:hidden;
   text-overflow:ellipsis;white-space:nowrap}
 
 /* 退出服务按钮：平时低调，悬停变警示色 */
@@ -3299,8 +3284,10 @@ function backToList(){document.getElementById("q").value="";show("mem");loadList
 
 async function api(path,opt){const r=await fetch(path,opt);return r.json()}
 
+var _warnShown="";   /* 同一条配置损坏警告只弹一次，避免每次 refresh 都刷屏 */
 async function loadStats(){
   const s=await api("/api/stats");
+  if(s.warn && s.warn!==_warnShown){ _warnShown=s.warn; toast(s.warn,"err"); }
   const cards=[
     [s.total,"记忆总数"],
     [s.pinned||0,"常驻记忆"],
@@ -4154,7 +4141,7 @@ async function runAutoScan(silent){
     scanmsg(names.length?("正在扫描本机对话（"+names.join(" / ")+"）…"):"正在探测本机对话来源…");
     progress(true);
   }
-  var r=await api("/api/autoscan?subagent=1&extract=1");
+  var r=await api("/api/autoscan?subagent=1&extract=1",{method:"POST"});
   progress(false);
   SCANCAND=r.candidates||[];
   var used=(r.used||[]).map(function(u){return u.agent+" "+u.sessions+" 个"});
@@ -4448,8 +4435,6 @@ if(location.search.indexOf("frames")>=0){
         .trim().split(/\s+/)[0]||e.tagName.toLowerCase();
       return sid.replace(/^v-/,"")+"/"+cls+"["+peers.indexOf(e)+"]";
     }
-    function badge(k){
-      return k+(want[k]===1?" ✓ 要框":(want[k]===0?" ✗ 不要":"")); }
     function colorOf(k){
       return want[k]===1?C_YES:(want[k]===0?C_NO:C_UNDEC); }
     function paint(){
@@ -5989,7 +5974,7 @@ async function loadArchive(){
   document.getElementById("arch-dir").value = cfg.dir||"";
 }
 async function pickArchiveDir(){
-  var r=await api("/api/archive/pick");
+  var r=await api("/api/archive/pick",{method:"POST"});
   if(r.error){toast(r.error,"err");return}
   document.getElementById("arch-dir").value=r.path;
   toast("已选择，点「保存」生效","ok");
@@ -6022,7 +6007,7 @@ async function doSnapshot(){
 
 async function pickFolder(){
   msg("正在弹出系统文件夹选择框…（若无反应，请直接在输入框粘贴路径）");
-  var r=await api("/api/agent/pick-folder");
+  var r=await api("/api/agent/pick-folder",{method:"POST"});
   if(r.error){msg(r.error,"err");return}
   document.getElementById("add-path").value=r.path;
   msg("已选择：" + r.path + "\n点「添加」把它加入列表","ok");
@@ -6403,7 +6388,10 @@ class Handler(BaseHTTPRequestHandler):
         elif u.path == "/selftest":
             self._send(200, SELFTEST, "text/html; charset=utf-8")
         elif u.path == "/api/stats":
-            self._json(hippo.stats())
+            _st = hippo.stats()
+            if _STORE_WARN:              # agents.json 等配置损坏的警告，透出到面板
+                _st["warn"] = _STORE_WARN
+            self._json(_st)
         elif u.path == "/api/list":
             rows = hippo.list_memories(
                 project=q.get("project", [None])[0] or None,
@@ -6445,11 +6433,10 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"cfg": cfg, "snapshots": snaps, "count": len(snaps),
                         "total": sum(s["size"] for s in snaps),
                         "db": hippo.DB_PATH})
-        elif u.path == "/api/open-folder":
-            # 走 q 而不是 body —— do_GET 里没有 body 这个名字（老代码在这儿 NameError）
-            self._json(open_folder(q.get("path", [""])[0]))
-        elif u.path == "/api/archive/pick":
-            self._json(pick_folder())
+        # ⚠️ 2026-09-29：/api/open-folder 的 GET 路由已删 —— 它会弹资源管理器（副作用），
+        #   只保留 do_POST 版本（前端本来就走 POST，见 5055 / 5993 行）。
+        # ⚠️ 同理：/api/archive/pick 与 /api/agent/pick-folder 也已移到 do_POST ——
+        #   它们会弹 tkinter 模态文件夹选择框（timeout 300s），可被 <img src> 反复触发。
         elif u.path == "/api/backups":
             self._json(list_backups())
         elif u.path == "/api/ping":
@@ -6481,11 +6468,8 @@ class Handler(BaseHTTPRequestHandler):
                 q.get("before", [None])[0] or None,
                 q.get("superseded", ["0"])[0] in ("1", "true"),
                 int(q.get("limit", ["20"])[0])))
-        elif u.path == "/api/autoscan":
-            r = hippo.auto_scan_agents(
-                include_subagent=q.get("subagent", ["1"])[0] != "0",
-                extract=q.get("extract", ["1"])[0] != "0")
-            self._json(r)
+        # ⚠️ 2026-09-29：/api/autoscan 已移到 do_POST —— 它会抽取落库（有副作用），
+        #   而跨站 <img src>/<script src> 只能发 GET，改成 POST 才能从根上断掉这条路。
         elif u.path == "/api/conv-sources":
             # 本机有哪些 Agent 真的存了对话 —— 现场探测磁盘，不返回写死名单
             self._json({"sources": hippo.detect_conversation_sources(),
@@ -6539,8 +6523,6 @@ class Handler(BaseHTTPRequestHandler):
             self._json(hippo.plan_skill_copy(q.get("src", [""])[0], q.get("target", [""])[0]))
         elif u.path == "/api/agent/verify":
             self._json(verify_mcp())
-        elif u.path == "/api/agent/pick-folder":
-            self._json(pick_folder())
         elif u.path == "/api/pack/export":
             proj = q.get("project", [None])[0] or None
             _ws = (q.get("include_sessions", ["0"])[0] or "0") not in ("0", "", "false")
@@ -6565,6 +6547,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         _touch()
         u = urlparse(self.path)
+        q = parse_qs(u.query)
         length = int(self.headers.get("Content-Length", 0))
         try:
             body = json.loads(self.rfile.read(length).decode("utf-8") or "{}")
@@ -6708,11 +6691,21 @@ class Handler(BaseHTTPRequestHandler):
                         "note": "" if results else "没有需要接入的 Agent（未安装或不支持自动写入）"})
         elif u.path == "/api/open-folder":
             self._json(open_folder(body.get("path", "")))
+        elif u.path == "/api/autoscan":
+            # 2026-09-29 从 do_GET 移来：有副作用的接口一律走 POST（详见 do_GET 里的说明）
+            r = hippo.auto_scan_agents(
+                include_subagent=q.get("subagent", ["1"])[0] != "0",
+                extract=q.get("extract", ["1"])[0] != "0")
+            self._json(r)
+        elif u.path == "/api/agent/pick-folder":
+            self._json(pick_folder())     # 2026-09-29 从 do_GET 移来（会弹模态框）
+        elif u.path == "/api/archive/pick":
+            self._json(pick_folder())     # 同上
         else:
             self._send(404, '{"error":"not found"}')
 
     def log_message(self, *a):
-        pass
+        pass      # 有意静音：屏蔽 http.server 的每请求访问日志，免得刷屏
 
 
 def main():
@@ -6764,7 +6757,7 @@ def main():
             if _r.get("ok") and not _r.get("skipped"):
                 print("  · 已生成今日数据库备份：%s" % _r.get("path"))
     except Exception:
-        pass
+        pass      # 容错：启动时的自动快照是尽力而为，失败不影响面板启动
     if a.open:
         threading.Timer(0.8, lambda: webbrowser.open(url)).start()
     srv.serve_forever()

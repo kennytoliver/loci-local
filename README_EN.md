@@ -130,6 +130,8 @@ Issues and PRs are welcome. The one hard rule: **no third-party dependencies** â
 
 Working daily on Windows across four agents. Pre-1.0: the panel is Chinese-first, an English UI is on the roadmap.
 
+**Platform support**: Loci is **Windows-first**. Recycle-bin deletion (via the system Shell API), agent install-path detection, and panel process control follow Windows semantics. macOS / Linux can run it, but those features **degrade** â€” for example, "delete" moves files into a local `.trash` folder instead of the system recycle bin.
+
 MIT licensed.
 
 ## Acknowledgements

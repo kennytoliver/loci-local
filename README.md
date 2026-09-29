@@ -62,12 +62,16 @@
 | 会话层 | 归档对话原文（会话库存过程与原话，记忆库存结论），支持粘贴/文件/JSONL 导入、时间线回看、原话检索，重复内容自动去重 |
 | 采集中心 | 扫描本机 Agent 历史日志与 skills，人工勾选后入库（去重+白名单校验） |
 | Agent 体检 | 面板自动检测本机安装了哪些 Agent、哪些已接入 Loci |
-| 一键接入 | 覆盖 15 个产品：WorkBuddy / ZCode / Kimi Code / DeepSeek CLI / Trae / TraeWork / VS Code / Cursor / Windsurf / Gemini CLI / Qoder / CodeBuddy 等（ZCode 使用嵌套 mcp.servers 结构）；写入前自动备份、只合并不覆盖、可移除 |
+| 一键接入 | 覆盖 15 个产品 —— **12 个可直接写入配置**（WorkBuddy / ZCode / Kimi Code / DeepSeek CLI / Trae / TraeWork / VS Code / Cursor / Windsurf / Gemini CLI / Qoder / CodeBuddy），**3 个仅检测**（Claude Code / Codex / GitHub Copilot CLI，请按各自官方方式手动接入）；写入前自动备份、只合并不覆盖、可移除（ZCode 使用嵌套 mcp.servers 结构） |
 | CLI | 交互式命令行 + 单条命令两种模式 |
 
 ## 快速开始
 
 **环境要求**：Python 3.9+，零第三方依赖。
+
+> **平台支持**：本项目 **Windows 优先**。回收站删除（走系统 Shell API）、Agent 安装路径探测、
+> 面板进程启停等按 Windows 语义实现；macOS / Linux 可以运行，但上述功能会**降级**
+> （例如"删除"改为移入同目录 `.trash`，不保证进系统回收站）。
 
 ```bash
 git clone https://github.com/kennytoliver/loci-local.git

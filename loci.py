@@ -14,7 +14,7 @@ Loci（忆宫）— 个人跨 Agent 记忆中枢（零依赖单文件）
   python loci.py --save "内容" --type decision --imp 4 --tags a,b --proj 项目名
   python loci.py --search "查询"
 """
-import sys, os, io, json, math, re, sqlite3, argparse, datetime, hashlib
+import sys, os, io, json, math, re, sqlite3, argparse, datetime, hashlib, collections
 
 # ⚠️ 全项目**唯一**的版本号来源（2026-09-25 统一）。
 #    以前是 3 处字面量各写各的：MCP serverInfo「0.2.0」、面板页脚「v0.2.0」、
@@ -24,7 +24,7 @@ import sys, os, io, json, math, re, sqlite3, argparse, datetime, hashlib
 #      · panel.py 页脚用它（serve 时替换 __APP_VERSION__ 占位符）
 #      · panel.py 自检 clientInfo 用它
 #    发版时**只改这一行**。
-APP_VERSION = "0.4"
+APP_VERSION = "0.4.1"
 
 # 环境变量：优先新名 LOCI_*，**同时兼容全部历史名**。
 # 老配置（4 个 Agent 的 MCP 配置里）可能还写着 HIPPOCAMPUS_DB / HIPPOHUB_DB，
@@ -125,8 +125,11 @@ def db():
         # WAL：读不阻塞写、写不阻塞读，多进程（多个 Agent）并发场景更稳
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA busy_timeout=10000")
-    except Exception:
-        pass
+    except Exception as e:
+        # 容错：进不去 WAL 也能用（退回默认 journal 模式），但不能无声 ——
+        # 多 Agent 并发写时会退化成偶发 "database is locked"，用户只会觉得"偶尔卡"。
+        print("[loci] 无法开启 WAL/busy_timeout(%s)；并发写入下可能偶发 database is locked" % e,
+              file=sys.stderr)
     conn.executescript(SCHEMA)
     # 轻量迁移：老库自动补列，不会丢数据
     for tbl, col, decl in (("memories", "pinned", "INTEGER NOT NULL DEFAULT 0"),
@@ -148,7 +151,7 @@ def db():
         conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_sess_src "
                      "ON sessions(source_path) WHERE source_path <> ''")
     except Exception:
-        pass
+        pass      # 容错：老库可能已堆历史重复，建唯一索引会失败；见上两行注释的"先跳过"策略
     # 增量扫描台账：记下每个来源文件的 size+mtime。文件没变就不重复解析 ——
     # 本机 WorkBuddy 的会话 jsonl 有 47MB，全量解析要 38 秒，而它大部分时候没变。
     conn.execute("""CREATE TABLE IF NOT EXISTS scan_files(
@@ -263,33 +266,46 @@ def with_session_title(rows):
         r["session_title"] = m.get(r.get("session_id") or 0) or ""
     return out
 
-def backfill_memory_sessions():
-    """老库回填：把「会话抽取」产出的记忆按原文反查回 session_id / turn。
+# ---------- 检索预计算：bigram 分词结果的进程内缓存 ----------
+# ⚠️ 2026-09-28 修（外部审查 P0）：search_memory / search_messages 原来**每次查询都
+# 把整张表重新分词**（`[(r, tokenize(r["content"])) for r in rows]`）。实测：
+#   104 条记忆 → 370~463 ms/次  ｜  3157 条消息 → 2.4 s/次
+# 分词结果只跟文本有关，所以按**文本本身**做键，缓存「词频表 + 词数」——
+# 内容改了文本就变，键自然失效，不会读到旧结果。
+#
+# ⚠️ 2026-09-28 修（外部审查 P1·内存上界）：原来按**条目数**限 8000 且到顶 clear() 全清。
+#   两个问题：
+#     ① 条目数不是内存的正确度量 —— 库里有 5048 字的长记忆，一条切出 ~5000 个 bigram，
+#        单条缓存 ≈0.9MB（词频 dict + bigram 字符串）；8000 条这种 = 7GB 级，会 OOM。
+#     ② clear() 全清 → 下次查询全 miss 重新分词，出现周期性卡顿。
+#   改成按**总字符数**限量 + OrderedDict 逐条 LRU 淘汰：内存上界可算（≈ 字符总量 × 0.3），
+#   淘汰也平滑（只丢最久没用的，不会一次性回冷）。
+_TOKS_CACHE = collections.OrderedDict()
+_TOKS_CHARS = 0
+_TOKS_CHARS_CAP = 1000000   # 缓存的原始文本总量上限（≈150~300MB 级）
 
-    只在**能精确匹配到某条 message 的子串**时才填，匹配不上的一律留 0（无来源）。
-    绝不猜测 —— 溯源错了比没有溯源更糟。
-    """
-    conn = db()
-    todo = conn.execute(
-        "SELECT id, content FROM memories WHERE deleted=0 AND session_id=0 "
-        "AND tags LIKE '%会话抽取%'").fetchall()
-    filled = 0
-    for m in todo:
-        text = (m["content"] or "").strip()
-        if len(text) < 8:
-            continue
-        # 反查：哪条 message 的正文里含有这条记忆（LIKE 走子串，命中即视为同源）
-        hit = conn.execute(
-            "SELECT session_id, turn FROM messages WHERE content LIKE ? ORDER BY session_id DESC LIMIT 1",
-            ("%" + text + "%",)).fetchone()
-        if hit:
-            conn.execute("UPDATE memories SET session_id=?, turn=? WHERE id=?",
-                         (hit["session_id"], hit["turn"], m["id"]))
-            filled += 1
-    conn.commit()
-    conn.close()
-    return filled
 
+def _toks_tf(text):
+    """返回 (词频 dict, 词数)。命中缓存则直接复用 —— 省掉逐字符 bigram 切分。"""
+    global _TOKS_CHARS
+    text = text or ""
+    t = _TOKS_CACHE.get(text)
+    if t is not None:
+        _TOKS_CACHE.move_to_end(text)        # LRU：命中的挪到最新
+        return t
+    toks = tokenize(text)
+    tf = {}
+    for x in toks:
+        tf[x] = tf.get(x, 0) + 1
+    val = (tf, len(toks))
+    _TOKS_CACHE[text] = val
+    _TOKS_CHARS += len(text)
+    # 超上限就淘汰最久未用的，直到回到上限内。`len > 1` 是边界保护：单条就超过上限的
+    # 超长文本会独占缓存（退化成"只缓存这一条"）——行为正确，能走到这里的文本本就远超单条容量。
+    while _TOKS_CHARS > _TOKS_CHARS_CAP and len(_TOKS_CACHE) > 1:
+        k, _v = _TOKS_CACHE.popitem(last=False)
+        _TOKS_CHARS -= len(k)
+    return val
 def search_memory(query, limit=5, mtype=None, project=None):
     conn = db()
     sql = "SELECT * FROM memories WHERE deleted=0 AND superseded_by=0"
@@ -305,49 +321,46 @@ def search_memory(query, limit=5, mtype=None, project=None):
     q_toks = tokenize(query)
     if not q_toks:
         return []
-    # 文档集 idf
-    docs = [(r, tokenize(r["content"])) for r in rows]
+    # 文档集 idf / tf：都走 _toks_tf 的缓存（原来这里每次把 104 条记忆重新分词）
+    docs = [(r, _toks_tf(r["content"])) for r in rows]
     df = {}
-    for _, toks in docs:
-        for t in set(toks):
+    for _, (tf, _tn) in docs:
+        for t in tf:
             df[t] = df.get(t, 0) + 1
     n = len(docs)
     idf = {t: math.log((n + 1) / (c + 0.5)) + 1 for t, c in df.items()}
     results = []
     today = datetime.date.today()
-    for r, toks in docs:
-        if not toks:
+    qset = set(q_toks)
+    for r, (tf, tn) in docs:
+        if not tn:
             continue
-        tf = {}
-        for t in toks:
-            tf[t] = tf.get(t, 0) + 1
         score = 0.0
         for t in q_toks:
-            if t in tf:
-                score += idf.get(t, 1.0) * (tf[t] / len(toks))
+            c = tf.get(t)
+            if c:
+                score += idf.get(t, 1.0) * (c / tn)
         if score <= 0:
             continue
-        score = score / math.sqrt(len(toks))
+        score = score / math.sqrt(tn)
         score *= 1.0 + 0.15 * (r["importance"] - 1)
         # 零依赖加权：常驻 / 项目命中 / 标签命中（不加外部模型）
         if r["pinned"]:
             score *= 1.35
         if project and r["project"] == project:
             score *= 1.25
-        qset = set(q_toks)
-        if r["project"] and any(t in qset for t in tokenize(r["project"])):
+        if r["project"] and any(t in qset for t in _toks_tf(r["project"])[0]):
             score *= 1.30
-        if r["tags"] and any(t in qset for t in tokenize(r["tags"])):
+        if r["tags"] and any(t in qset for t in _toks_tf(r["tags"])[0]):
             score *= 1.20
         try:
             days = (today - datetime.datetime.strptime(r["created_at"][:10], "%Y-%m-%d").date()).days
             score *= 1.0 + 0.02 * max(0, 30 - days)
         except Exception:
-            pass
+            pass      # 容错：created_at 格式异常就不加时效分，不影响命中集合与排序正确性
         results.append((score, r))
     results.sort(key=lambda x: x[0], reverse=True)
     return results[:limit]
-
 def list_memories(project=None, mtype=None, limit=20, include_superseded=False):
     conn = db()
     sql = "SELECT * FROM memories WHERE deleted=0"
@@ -528,7 +541,7 @@ def audit_memories(project=None, dup_th=0.66, contain_th=0.82, conflict_lo=0.28,
         try:
             days = (today - datetime.datetime.strptime(r["updated_at"][:10], "%Y-%m-%d").date()).days
         except Exception:
-            continue
+            continue      # 容错：updated_at 格式异常 → 本就算不出时效，不参与"长期未更新"判定
         if days >= stale_days:
             r["days"] = days
             stale.append(r)
@@ -902,7 +915,7 @@ def scan_zcode_db(db_path=None, include_subagent=True, max_sessions=60,
                 try:
                     md = json.loads(m["data"] or "{}")
                 except Exception:
-                    continue
+                    continue      # 容错：单条 message 的 data 坏了就跳过它，不拖垮整次会话扫描
                 role = str(md.get("role") or "").lower()
                 if role not in ("user", "assistant"):
                     continue
@@ -912,7 +925,7 @@ def scan_zcode_db(db_path=None, include_subagent=True, max_sessions=60,
                     try:
                         pd = json.loads(p["data"] or "{}")
                     except Exception:
-                        continue
+                        continue      # 容错：单个 part 的 data 坏了就跳过，同上（坏行不拖垮整次质检）
                     if pd.get("type") == "text" and pd.get("text"):
                         texts.append(str(pd["text"]).strip())
                 body = "\n".join(t for t in texts if t).strip()
@@ -930,12 +943,12 @@ def scan_zcode_db(db_path=None, include_subagent=True, max_sessions=60,
                             "messages": msgs})
         conn.close()
     except Exception:
-        return out
+        return out      # 静默部分结果：中途失败返回已解析的会话（宁可少不可断）——见上方逐行 continue 的容错
     finally:
         try:
             os.remove(work)
         except Exception:
-            pass
+            pass      # 容错：临时文件删不掉不影响扫描结果（同名会被下次覆盖）
     st["sessions"] = st.get("sessions", 0) + len(out)
     st.setdefault("file_sessions", {})[key] = len(out)
     return out
@@ -969,7 +982,7 @@ def _scan_ledger(conn=None):
         return {r["path"]: (r["size"], r["mtime"])
                 for r in c.execute("SELECT path,size,mtime FROM scan_files")}
     except Exception:
-        return {}
+        return {}       # 静默部分结果：台账读不出 → 当作"没有台账"，下次全量重扫（功能正确，只是慢）
 
 def _scan_ledger_write(seen, counts=None, conn=None):
     """把本次见到的文件签名写回台账"""
@@ -982,8 +995,10 @@ def _scan_ledger_write(seen, counts=None, conn=None):
             "INSERT OR REPLACE INTO scan_files(path,size,mtime,sessions,scanned_at) VALUES(?,?,?,?,?)",
             [(k, v[0], v[1], counts.get(k, 0), now()) for k, v in seen.items()])
         c.commit()
-    except Exception:
-        pass
+    except Exception as e:
+        # 容错：台账写失败不影响本次扫描结果，但要说出来 ——
+        # 下次会对这些文件全量重扫（本机会话 jsonl 有 47MB，全量=几十秒）。
+        print("[loci] 写入增量扫描台账失败(%s)；下次将对这些文件全量重扫" % e, file=sys.stderr)
 
 def _scan_generic_jsonl(agent, root, subdirs=(), known=None, seen=None, force=False, stats=None):
     """扫一个 agent 的 jsonl 会话目录（Claude Code / Codex / WorkBuddy 通用）
@@ -1024,7 +1039,7 @@ def _scan_generic_jsonl(agent, root, subdirs=(), known=None, seen=None, force=Fa
             try:
                 text = io.open(p, encoding="utf-8", errors="replace").read()
             except Exception:
-                continue
+                continue      # 容错：文件被锁 / 无权限读不了就跳过这个文件（扫描本就允许部分失败）
             st["parsed"] = st.get("parsed", 0) + 1
             title, msgs = "", []
             for line in text.splitlines():
@@ -1034,7 +1049,7 @@ def _scan_generic_jsonl(agent, root, subdirs=(), known=None, seen=None, force=Fa
                 try:
                     o = json.loads(line)
                 except Exception:
-                    continue
+                    continue      # 容错：脏 JSONL 行跳过（写入中断/日志被截断是常态）
                 if not isinstance(o, dict):
                     continue
                 typ = str(o.get("type") or "").lower()
@@ -1104,7 +1119,7 @@ def detect_conversation_sources():
                     try:
                         info["size"] += os.path.getsize(f)
                     except Exception:
-                        pass
+                        pass      # 容错：单个文件取不到大小就跳过它，目录大小是展示用统计
                 info["state"] = "found" if files else "empty"
         elif s["kind"] == "zcode_sqlite":
             if os.path.isfile(root):
@@ -1112,7 +1127,7 @@ def detect_conversation_sources():
                 try:
                     info["size"] = os.path.getsize(root)
                 except Exception:
-                    pass
+                    pass      # 容错：同上 —— 取不到大小不影响"已找到"这个判定
                 info["state"] = "found"
         out.append(info)
     return out
@@ -1131,7 +1146,7 @@ def suggest_conversation_sources(max_depth=3):
         tops = [os.path.join(home, d) for d in os.listdir(home)
                 if d.startswith(".") and os.path.isdir(os.path.join(home, d))]
     except Exception:
-        return hits
+        return hits     # 静默部分结果：列不出 home 下的隐藏目录就返回已收集的（仅用于"发现新来源"探测）
     for top in tops:
         if any(os.path.normcase(top).startswith(k) or k.startswith(os.path.normcase(top))
                for k in known):
@@ -1148,7 +1163,7 @@ def suggest_conversation_sources(max_depth=3):
                 try:
                     head = io.open(p, encoding="utf-8", errors="replace").read(2048)
                 except Exception:
-                    continue
+                    continue      # 容错：探测性读取失败（被锁/无权限）就跳过这个文件
                 if '"role"' in head:
                     n += 1
                     if not sample:
@@ -1217,7 +1232,7 @@ def auto_scan_agents(include_subagent=True, import_new=True, extract=False,
         if conn is not None:
             conn.close()
     except Exception:
-        pass
+        pass      # 容错：连接可能已被上游关闭，close 再失败也无需处理
     if extract and new_ids:
         for sid in new_ids[:8]:
             for c in extract_candidates(session_id=sid, limit=12):
@@ -1389,7 +1404,7 @@ def workspaces(limit=12):
             try:
                 head = io.open(os.path.join(p, f), encoding="utf-8", errors="replace").read(16384)
             except Exception:
-                continue
+                continue      # 容错：同上的探测性读取 —— 读不到就跳过这个文件
             m = re.search(r'"cwd"\s*:\s*"((?:[^"\\]|\\.)*)"', head)
             if not m:
                 continue
@@ -1458,7 +1473,7 @@ def list_local_skills():
         try:
             names = sorted(os.listdir(root))
         except Exception:
-            continue
+            continue      # 容错：skills 根目录读不了（无权限/已卸载）就跳过这个来源
         for name in names:
             p = os.path.join(root, name)
             # 只跳过隐藏目录。**不按名字前缀过滤** —— Trae 的 `_shared` 是内部目录，
@@ -1472,7 +1487,7 @@ def list_local_skills():
             try:
                 text = io.open(md, encoding="utf-8", errors="replace").read()
             except Exception:
-                continue
+                continue      # 容错：单个 SKILL.md 读不了就跳过该 skill，不影响其他 skill
             fm = _fm_parse(text)
             files, size, latest = 0, 0, 0.0
             for dp, _, fs in os.walk(p):
@@ -1482,7 +1497,7 @@ def list_local_skills():
                         size += os.path.getsize(os.path.join(dp, f))
                         latest = max(latest, os.path.getmtime(os.path.join(dp, f)))
                     except Exception:
-                        pass
+                        pass      # 容错：skills 目录里读不到的文件跳过，大小/时间是展示用
             desc = re.sub(r"\s+", " ", (fm.get("description") or "")).strip()
             out.append({
                 "name": fm.get("name") or name,
@@ -1685,7 +1700,7 @@ def _read_json_file(path):
     try:
         return json.loads(raw), ""
     except Exception:
-        pass
+        pass      # 容错：这步是"先按纯 JSON 试"，失败就落到下面按行 JSONL 解析（多格式尝试）
     try:
         return json.loads(_jsonc_to_json(raw)), "含注释（JSONC），已容错解析"
     except Exception as e:
@@ -2070,7 +2085,7 @@ def _backup_paths_for(path):
     try:
         names = os.listdir(d)
     except Exception:
-        return out
+        return out      # 静默部分结果：目录读不了 → 当作"没有备份"（展示用，不影响主流程）
     for f in names:
         low = f.lower()
         if not (low.startswith(b.lower() + ".bak") or low.startswith(b.lower() + ".backup")):
@@ -2081,7 +2096,7 @@ def _backup_paths_for(path):
         try:
             st = os.stat(fp)
         except Exception:
-            continue
+            continue      # 容错：文件在遍历途中消失（竞态）→ 跳过，即"不算孤儿"
         out.append({"path": fp, "name": f, "size": st.st_size, "mtime_ts": st.st_mtime,
                     "dir": d,
                     "mtime": datetime.datetime.fromtimestamp(st.st_mtime).strftime("%Y-%m-%d %H:%M:%S"),
@@ -2215,7 +2230,7 @@ def plan_skill_copy(src_path, target_root, as_name=""):
             try:
                 size += os.path.getsize(os.path.join(dp, f))
             except Exception:
-                pass
+                pass      # 容错：统计复制体积时单个文件失败跳过，不影响复制本身
     return {"ok": True, "src": src, "dst": dst, "name": name,
             "files": files, "size": size,
             "dst_exists": os.path.exists(dst),
@@ -2242,12 +2257,15 @@ def copy_skill_to(src_path, target_root, overwrite=False, as_name=""):
         _sh.copytree(plan["src"], plan["dst"])
     except Exception as e:
         # 复制失败：把备份改回来，别让人丢了原来那份
+        note = ""
         if backup and not os.path.exists(plan["dst"]):
             try:
                 os.rename(backup, plan["dst"])
             except Exception:
-                pass
-        return {"error": "复制失败：%s" % e, "plan": plan}
+                # ⚠️ 2026-09-28 修：回滚也失败时，原目录其实还躺在 `<dst>.bak-<时间戳>` 下，
+                # 但原来只回一句"复制失败" —— 用户以为配置丢了。现在把真实路径写进错误信息。
+                note = ("；且回滚失败，你的原目录现在位于 %s（没有丢，请手动改名回来）" % backup)
+        return {"error": "复制失败：%s%s" % (e, note), "plan": plan}
     return {"ok": True, "dst": plan["dst"], "files": plan["files"],
             "size": plan["size"], "overwrote": bool(plan["dst_exists"]),
             "backup": backup}
@@ -2570,36 +2588,28 @@ def search_messages(query, limit=10, project=None):
     q_toks = tokenize(query)
     if not q_toks:
         return []
-    docs = [(r, tokenize(r["content"])) for r in rows]
+    # 同上：不再对 3000+ 条消息逐条重新分词（实测 2.4s/次 → 见提交说明）
+    docs = [(r, _toks_tf(r["content"])) for r in rows]
     df = {}
-    for _, toks in docs:
-        for t in set(toks):
+    for _, (tf, _tn) in docs:
+        for t in tf:
             df[t] = df.get(t, 0) + 1
     n = len(docs)
     idf = {t: math.log((n + 1) / (c + 0.5)) + 1 for t, c in df.items()}
     out = []
-    for r, toks in docs:
-        if not toks:
+    for r, (tf, tn) in docs:
+        if not tn:
             continue
-        tf = {}
-        for t in toks:
-            tf[t] = tf.get(t, 0) + 1
         score = 0.0
         for t in q_toks:
-            if t in tf:
-                score += idf.get(t, 1.0) * (tf[t] / len(toks))
+            c = tf.get(t)
+            if c:
+                score += idf.get(t, 1.0) * (c / tn)
         if score <= 0:
             continue
-        out.append((score / math.sqrt(len(toks)), r))
+        out.append((score / math.sqrt(tn), r))
     out.sort(key=lambda x: x[0], reverse=True)
     return out[:limit]
-
-def session_stats():
-    conn = db()
-    s = conn.execute("SELECT COUNT(*) c, COALESCE(SUM(msg_count),0) n FROM sessions").fetchone()
-    conn.close()
-    return {"sessions": s["c"], "messages": s["n"]}
-
 # ---------- MCP 工具定义 ----------
 TOOLS = [
     {"name": "memory_save", "description": "保存一条记忆到本地共享记忆库（跨 Agent 可见）",
@@ -2764,8 +2774,9 @@ def load_archive_cfg():
             d = json.loads(io.open(ARCHIVE_CFG, encoding="utf-8").read() or "{}")
             if isinstance(d, dict):
                 cfg.update(d)
-    except Exception:
-        pass
+    except Exception as e:
+        # 容错：配置读不出来就用默认值继续，但要说出来 —— 否则用户设的归档参数被静默忽略
+        print("[loci] 读取归档配置失败(%s)；本次使用默认配置" % e, file=sys.stderr)
     return cfg
 
 
@@ -2789,7 +2800,7 @@ def list_snapshots(d=""):
                 try:
                     st = os.stat(p)
                 except Exception:
-                    continue
+                    continue      # 容错：快照文件 stat 失败就跳过（展示用统计，不影响其他备份）
                 out.append({"name": fn, "path": p, "size": st.st_size, "ts": st.st_mtime,
                             "mtime": datetime.datetime.fromtimestamp(st.st_mtime).strftime("%Y-%m-%d %H:%M")})
     out.sort(key=lambda x: x["ts"], reverse=True)   # 按修改时间倒序，最新在最前
@@ -2830,7 +2841,7 @@ def do_archive_snapshot(force=False):
             os.remove(it["path"])
             removed.append(it["name"])
         except Exception:
-            pass
+            pass      # 容错：旧备份删不掉就留着，不阻塞新备份生成
     _sz = os.path.getsize(target) if os.path.exists(target) else 0
     return {"ok": True, "path": target, "size": _sz,
             "count": len(list_snapshots(d)), "removed": removed,
@@ -2858,7 +2869,7 @@ def mcp_server():
         try:
             req = json.loads(line)
         except json.JSONDecodeError:
-            continue
+            continue      # 协议容错：非 JSON 行（宿主往 stdin 塞了别的东西）忽略，继续读下一行
         method = req.get("method", "")
         rid = req.get("id")
         if method == "initialize":
@@ -2868,7 +2879,7 @@ def mcp_server():
                 "capabilities": {"tools": {}},
                 "serverInfo": {"name": "loci", "version": APP_VERSION}})
         elif method == "notifications/initialized":
-            pass
+            pass      # 协议要求：通知(notification)不需要响应，静默即可
         elif method == "tools/list":
             reply(rid, {"tools": TOOLS})
         elif method == "tools/call":

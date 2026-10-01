@@ -3629,8 +3629,9 @@ function cardHtml(r,score,idx){
 }
 
 async function pinById(id,pinned){
-  await api("/api/pin",{method:"POST",headers:{"Content-Type":"application/json"},
+  var r=await api("/api/pin",{method:"POST",headers:{"Content-Type":"application/json"},
     body:JSON.stringify({id:id,pinned:pinned})});
+  if(r&&r.ok===false){ toast(r.error||"操作失败","err"); return }   /* 2026-10-01 修 P1-1 */
   refresh();
 }
 async function showContext(){
@@ -3944,8 +3945,9 @@ async function doSave(){
 
 async function doDel(id){
   if(!confirm("删除这条记忆？\n\n· 确定＝移出记忆库（软删除，可恢复）\n· 要从数据库里彻底抹掉：去「清理」页勾选删除（会先自动备份）"))return;
-  await api("/api/delete",{method:"POST",headers:{"Content-Type":"application/json"},
+  var r=await api("/api/delete",{method:"POST",headers:{"Content-Type":"application/json"},
     body:JSON.stringify({id})});
+  if(r&&r.ok===false){ toast(r.error||"删除失败","err"); return }   /* 2026-10-01 修 P1-1 */
   if(SELID===id)SELID=null;
   toast("已移出记忆库 #"+id,"ok");
   refresh();
@@ -5594,8 +5596,9 @@ function gotoMemCard(id){
 }
 async function delSession(sid){
   if(!confirm("删除会话 #"+sid+" 及其全部原文？（不可恢复）\n\n注意：从这段会话里抽出来的记忆会保留，但会变成「无来源」。"))return;
-  await api("/api/session/delete",{method:"POST",
+  var r=await api("/api/session/delete",{method:"POST",
     headers:{"Content-Type":"application/json"},body:JSON.stringify({sid:sid})});
+  if(r&&r.ok===false){ toast(r.error||("删除会话 #"+sid+" 失败"),"err"); return }  /* 2026-10-01 修 P1-1 同源 */
   clearSessionView();
   loadSessions();loadStats();
 }
@@ -5846,23 +5849,29 @@ async function mergeGroup(ids){
   amsg("已合并：保留 #"+r.keep+"，作废 "+r.merged+" 条","ok");
   runAudit();loadStats();
 }
+/* 2026-10-01 修（P1-1 / P3-6）：后端这三个接口现在会回**真实的 ok**，
+   而它们以前不看返回值 —— 记忆不存在也照样弹「已作废 / 已续期」，是典型的假成功。
+   现在失败就报错，并且不再刷新数据（刷完还是旧状态，反而更像成功了）。 */
 async function supersedePair(oldId,newId){
   if(!confirm("把 #"+oldId+" 标记为被 #"+newId+" 取代？（旧记录保留，不再参与检索）"))return;
-  await api("/api/supersede",{method:"POST",headers:{"Content-Type":"application/json"},
+  var r=await api("/api/supersede",{method:"POST",headers:{"Content-Type":"application/json"},
     body:JSON.stringify({old_id:oldId,new_id:newId})});
+  if(r&&r.ok===false){ amsg(r.error||("作废 #"+oldId+" 失败"),"err"); return }
   amsg("已作废 #"+oldId+"（由 #"+newId+" 取代）","ok");
   runAudit();loadStats();
 }
 async function retireOne(id){
   if(!confirm("作废记忆 #"+id+"？（保留记录，不再参与检索）"))return;
-  await api("/api/retire",{method:"POST",headers:{"Content-Type":"application/json"},
+  var r=await api("/api/retire",{method:"POST",headers:{"Content-Type":"application/json"},
     body:JSON.stringify({id:id})});
+  if(r&&r.ok===false){ amsg(r.error||("作废 #"+id+" 失败"),"err"); return }
   amsg("已作废 #"+id,"ok");
   runAudit();loadStats();
 }
 async function touchOne(id){
-  await api("/api/touch",{method:"POST",headers:{"Content-Type":"application/json"},
+  var r=await api("/api/touch",{method:"POST",headers:{"Content-Type":"application/json"},
     body:JSON.stringify({id:id})});
+  if(r&&r.ok===false){ amsg(r.error||("续期 #"+id+" 失败"),"err"); return }
   amsg("已续期 #"+id+"（过期计时重新开始）","ok");
   runAudit();
 }
@@ -6372,6 +6381,29 @@ class Handler(BaseHTTPRequestHandler):
         return True
 
     def do_GET(self):
+        """入口包装：**参数解析失败一律回 400，而不是掐断连接**（2026-10-01 修，P2-3）。
+
+        以前 `int(q.get(...))` 是裸调用，畸形 query（如 `?limit=abc`）抛出的 ValueError
+        会冒到 BaseHTTPRequestHandler 之外 → 连接被直接关闭、一个字节都不回。
+        前端 fetch 只拿到网络错误（RemoteDisconnected），既看不到"参数不合法"，
+        也没法和服务端故障区分开 —— 对写接口尤其难排查。
+        """
+        try:
+            self._handle_get()
+        except (ValueError, KeyError, TypeError) as e:
+            self._reply_error(400, "参数不合法：%s" % e)
+        except Exception as e:                                    # noqa: BLE001
+            print("[loci] GET %s 处理出错：%s" % (self.path, e), file=sys.stderr)
+            self._reply_error(500, "服务端错误：%s" % e)
+
+    def _reply_error(self, code, msg):
+        """出错统一回 JSON。已经发过响应就安静跳过（避免二次发送再抛异常）。"""
+        try:
+            self._send(code, json.dumps({"error": msg}, ensure_ascii=False))
+        except Exception:
+            pass      # 容错：响应可能已经发出去了，二次发送必失败 —— 这里没有更好的补救手段
+
+    def _handle_get(self):
         u = urlparse(self.path)
         # /api/ 下不全是只读的（/api/autoscan 会抽取落库、/api/open-folder 会开资源管理器），
         # 所以整段按来源校验。页面本身（/ 与 /selftest）不校验 —— 顶层导航不带 Origin，
@@ -6542,6 +6574,16 @@ class Handler(BaseHTTPRequestHandler):
             self._send(404, '{"error":"not found"}')
 
     def do_POST(self):
+        """入口包装：同 do_GET —— 参数畸形回 400，不掐断连接（2026-10-01 修，P2-3）。"""
+        try:
+            self._handle_post()
+        except (ValueError, KeyError, TypeError) as e:
+            self._reply_error(400, "参数不合法：%s" % e)
+        except Exception as e:                                    # noqa: BLE001
+            print("[loci] POST %s 处理出错：%s" % (self.path, e), file=sys.stderr)
+            self._reply_error(500, "服务端错误：%s" % e)
+
+    def _handle_post(self):
         # 所有写操作都从这里进 —— 先过 CSRF 守卫，外人一个字节都别想落库。
         if not self._csrf_guard():
             return
@@ -6556,15 +6598,33 @@ class Handler(BaseHTTPRequestHandler):
         if u.path == "/api/save":
             if not body.get("content", "").strip():
                 return self._send(400, '{"error":"empty content"}')
+            # 2026-10-01 修（外部复测 §2.2）：这套校验以前**只加在 MCP 入口**（loci.py `call_tool`），
+            #   面板这条直写路径漏掉了 —— 同一个 bug 修了一半。实测 `{"mtype":"乱写类型"}` 会
+            #   200 + 落库成 fact。现在两条入口用同一口径。
+            #   已确认前端两个调用点都安全：`f-type` 下拉没有空选项；候选记忆的 mtype 来自
+            #   `_EXTRACT_PATTERNS` 且四个取值都在 TYPES 内。
+            _mtype = str(body.get("mtype") or "").strip()
+            if _mtype not in hippo.TYPES:
+                return self._json({"ok": False, "error": "mtype 非法：%r（可选：%s）"
+                                   % (_mtype, " / ".join(hippo.TYPES))})
+            try:
+                _imp = int(body.get("importance", 2))
+            except (TypeError, ValueError):
+                return self._json({"ok": False, "error": "importance 必须是 1-4 的整数（收到 %r）"
+                                   % (body.get("importance"),)})
+            if not 1 <= _imp <= 4:
+                return self._json({"ok": False, "error": "importance 必须是 1-4 的整数（收到 %d）" % _imp})
             mid = hippo.save_memory(
-                body["content"], body.get("mtype", "fact"),
-                body.get("importance", 2), body.get("tags", ""),
+                body["content"], _mtype,
+                _imp, body.get("tags", ""),
                 body.get("project", ""), "panel",
                 session_id=body.get("session_id", 0),
                 turn=body.get("turn", 0))
             self._json({"id": mid})
         elif u.path == "/api/delete":
-            hippo.delete_memory(int(body["id"]))
+            # 2026-10-01 修（P1-1）：以前不看 delete_memory 的返回值，目标不存在也回 ok:true
+            if not hippo.delete_memory(int(body["id"])):
+                return self._json({"ok": False, "error": "记忆 #%s 不存在" % body["id"]})
             self._json({"ok": True})
         elif u.path == "/api/pack/import":
             self._json(import_pack(body))
@@ -6585,10 +6645,14 @@ class Handler(BaseHTTPRequestHandler):
                 summary=body.get("summary", ""))
             self._json({"ok": True, "id": sid, "created": created, "count": len(msgs)})
         elif u.path == "/api/session/delete":
-            hippo.delete_session(int(body.get("sid", 0)))
+            # 2026-10-01 修：以前用 body.get("sid", 0)，缺 sid 时静默删 0 号、还回 ok:true。
+            # 现在缺参数 → KeyError → 400；目标不存在 → ok:false。
+            if not hippo.delete_session(int(body["sid"])):
+                return self._json({"ok": False, "error": "会话 #%s 不存在" % body["sid"]})
             self._json({"ok": True})
         elif u.path == "/api/pin":
-            hippo.set_pinned(int(body["id"]), int(body.get("pinned", 1)))
+            if not hippo.set_pinned(int(body["id"]), int(body.get("pinned", 1))):
+                return self._json({"ok": False, "error": "记忆 #%s 不存在" % body["id"]})
             self._json({"ok": True})
         elif u.path == "/api/retire":
             self._json(hippo.retire_memory(int(body["id"])))

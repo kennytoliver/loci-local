@@ -11,17 +11,25 @@ import/shutdown 一律跳过），可以安全地对着正在用的面板跑。
 用法：
     # 先起面板（建议常驻，否则闲置 300 秒会自动退出）
     python panel.py --idle-exit 0
-    # 再跑扫描
+    # 再跑扫描（端口不是 8787 时把地址传进来）
     python tools/verify_panel_api.py
+    python tools/verify_panel_api.py http://127.0.0.1:8799
 
 零第三方依赖。
 """
 import json
+import os
 import sys
 import urllib.error
 import urllib.request
 
-BASE = "http://127.0.0.1:8787"
+# ⚠️ 2026-10-01 修（外部复测 §3）：这里以前**硬编码 8787**。
+#   面板跑在别的端口时（比如探针默认的 8799），本脚本会连不上而报假红 ——
+#   这跟 §4.5 修的 verify_scan_sources 随机红**是同一类病**：
+#   "闸门假设了一个它并不拥有的环境"。现在按 命令行参数 > 环境变量 > 默认 的顺序取。
+BASE = (sys.argv[1] if len(sys.argv) > 1
+        else os.environ.get("LOCI_PANEL_BASE")
+        or "http://127.0.0.1:8787")
 
 # (路径, 说明, 期望在响应里出现的关键字/键 —— 空表示只要 200+JSON 合法)
 READONLY = [
@@ -38,7 +46,7 @@ READONLY = [
     ("/api/orphans", "孤儿记忆扫描", None),
     # ---- 会话 ----
     ("/api/session/list", "会话列表", None),
-    ("/api/session/get?sid=12", "会话详情（时间线数据源）", "messages"),
+    ("/api/session/get?sid={SID}", "会话详情（时间线数据源）", "messages"),
     ("/api/session/search?q=%E8%B4%A8%E6%A3%80", "原话检索『质检』", None),
     ("/api/extract?sid=12", "抽取候选", None),
     # ---- Agent ----
@@ -120,7 +128,27 @@ for p in STATIC:
 
 # ---------- 1. 各接口 ----------
 print("\n【接口】")
+
+# ⚠️ 2026-10-01 修：`/api/session/get` 这条以前**写死 sid=12** —— 库是空的 / 刚重置 /
+#   新装环境上那条会话根本不存在，闸门就在那儿报假红。（同一类病：闸门假设了一个
+#   它并不拥有的环境；与 verify_scan_sources 的随机红、本脚本硬编码 8787 同源。）
+#   现在先问一次会话列表，用**真实存在**的 id；库里没有会话就跳过该项并说明原因。
+_SID = None
+try:
+    _st, _b = get("/api/session/list")
+    if _st == 200:
+        _arr = json.loads(_b.decode("utf-8", "replace"))
+        if _arr:
+            _SID = (_arr[0] or {}).get("id")
+except Exception:
+    pass
+
 for path, desc, must in READONLY:
+    if "{SID}" in path:
+        if _SID is None:
+            check(f"{desc}", True, "跳过：库里还没有会话（空库/新装环境，不是接口问题）")
+            continue
+        path = path.replace("{SID}", str(_SID))
     st, body = get(path)
     ok = st == 200
     detail = f"HTTP {st}"

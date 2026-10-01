@@ -63,6 +63,22 @@ bash tools/run_gates.sh csrf       # 只跑名字含该关键字的
 - `snapshot_pages.js` —— 8 页 × 明暗双主题 = 16 张基线截图
 - `shot_bugshots.js` / `shot_content_plugins.js` / `shot_sel_feedback.js` —— 现场截图
 
+**健壮性 / 安全探测**（2026-09-30 由一次外部独立测试引入，全部用**临时库**，不碰真库）
+
+| 脚本 | 探什么 | 跑法 |
+|---|---|---|
+| `probe_mcp_connect.py` | MCP 接入 + 10 个工具冒烟（协议层 / 正常路径 / 错误路径，48 项） | `python tools/probe_mcp_connect.py` |
+| `probe_bugs_repro.py` | 缺陷复现：检索门槛 / `memory_save` 参数校验 / `session_save` 解析 | `python tools/probe_bugs_repro.py` |
+| `probe_panel_api.py` | 面板 GET 接口烟测 + 畸形参数健壮性 | **必须传 URL**：`python tools/probe_panel_api.py http://127.0.0.1:8787` |
+| `probe_panel_post.py` | POST 接口健壮性（错误输入应被拦住，不该掐断连接） | 同上，URL 必传 |
+| `probe_panel_frontend.py` | 前端自检：抓 HTML 里的 `onclick/onchange` 引用，核对 JS 函数都有定义 | `python tools/probe_panel_frontend.py` |
+| `probe_concurrency.py` | 并发写压力：多进程同时经 MCP 写同一库（查 `database is locked` / 丢写） | `python tools/probe_concurrency.py` |
+| `probe_csrf.py` | 跨站可构造写请求验证 | ⚠️ **会真写一条哨兵记忆再删**，只能用测试端口：<br>`python panel.py --port 8799 --idle-exit 60` 后 `python tools/probe_csrf.py http://127.0.0.1:8799` |
+
+> ⚠️ **两个面板探针的 `BASE` 默认端口是 8799**，不是 8787。
+> 不打 URL 参数时会连 8799 而报"连接被拒绝"，看起来像面板没起来 —— 白查半天。
+> 另外本机 HTTP 探测要绕开沙箱代理：`unset http_proxy https_proxy` + `no_proxy=127.0.0.1,localhost`。
+
 ---
 
 ## ③ 历史脚本（一次性迁移，**别再在现在的仓库上跑**）

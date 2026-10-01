@@ -115,7 +115,16 @@ send({"jsonrpc": "2.0", "id": 40, "method": "tools/call",
       "params": {"name": "memory_search", "arguments": {"query": "量子引力波探测器", "limit": 3}}})
 r = recv()
 text = r["result"]["content"][0]["text"]
-results.append(("负例不误召回", "没有找到" in text or all(float(l.split("]")[0].strip("[")) < 0.05 for l in text.split("\n") if l.startswith("[")), text[:80]))
+_neg_lines = [l for l in text.split("\n") if l.startswith("[")]
+# 2026-10-01 修（接入排查报告发现）：原来的 all(...) 对**空序列返回 True** ——
+# 于是"返回文本里一行 [ 都没有"（既没召回、又没回"没有找到"）也会通过，
+# 这条负例因此恒为真、守不住任何东西。现在要求二者必居其一：
+#   ① 明确回了"没有找到"；或 ② 确实有召回行、且每行分数都低于门槛。
+results.append(("负例不误召回",
+                ("没有找到" in text) or
+                (bool(_neg_lines) and
+                 all(float(l.split("]")[0].strip("[")) < 0.05 for l in _neg_lines)),
+                text[:80]))
 
 proc.stdin.close()
 proc.terminate()

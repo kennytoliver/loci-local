@@ -24,7 +24,7 @@ import sys, os, io, json, math, re, sqlite3, argparse, datetime, hashlib, collec
 #      · panel.py 页脚用它（serve 时替换 __APP_VERSION__ 占位符）
 #      · panel.py 自检 clientInfo 用它
 #    发版时**只改这一行**。
-APP_VERSION = "0.4.1"
+APP_VERSION = "0.4.2"
 
 # 环境变量：优先新名 LOCI_*，**同时兼容全部历史名**。
 # 老配置（4 个 Agent 的 MCP 配置里）可能还写着 HIPPOCAMPUS_DB / HIPPOHUB_DB，
@@ -42,6 +42,35 @@ DB_PATH = _ENV_DB or (_OLD_DB if (not os.path.exists(_NEW_DB) and os.path.exists
 CJK = re.compile(r"[一-鿿　-〿＀-￯]")
 WORD = re.compile(r"[a-zA-Z0-9_+\-.#]{2,}")
 TYPES = ("fact", "preference", "context", "decision", "error", "skill", "summary")
+
+
+def _clamp_limit(v, default=50, hi=1000):
+    """把 limit 收进 [1, hi]（2026-10-01 修，P2-3 配套）。
+
+    为什么需要：SQLite 里 `LIMIT -1` 等于**不限制**，所以面板传 `?limit=-1` 会
+    悄悄返回全表（实测 754KB）。这里在**底层函数**收口，任何调用方都受保护；
+    非整数回落到 default（"非法就报 400"由面板层的入口包装负责）。
+
+    三种取值的口径（**都是刻意定的，不是顺带**）：
+      · 非整数（如 "abc"）→ 回落到 `default`；面板层入口包装会先把这类打成 400，
+        所以正常走不到这里（MCP / 脚本直调才用得上这个回落）。
+      · **负数 → 视为"要全部"，但按 `hi` 封顶**。
+        ⚠️ 2026-10-01 补修（外部复测的最终确认轮发现）：原来负数会和 0 一样被
+        `max(1, ...)` 悄悄收敛成 **1** —— 于是"想取全表的 -1"变成"只取 1 条"，
+        响应仍是 200、调用方**看不出被截断**。这属于本项目一直在消灭的"静默纠正"
+        （非整数会吵、负数却不吵，口径还自相矛盾）。现在 -1 = "最多给我 hi 条"，
+        符合调用方直觉；上限保护保留（防的正是 P2-3 那个 754KB 全表）。
+      · 0 → 仍收成 1（SQL 的 `LIMIT 0` 会返回空集，但"给我 0 条"没有实际用途；
+        收成 1 是历史行为，保持不动以免影响既有调用方）—— 这一条写在这里是为了
+        让它**是文档化的行为，而不是隐藏的意外**。
+    """
+    try:
+        n = int(v)
+    except (TypeError, ValueError):
+        n = default
+    if n < 0:
+        n = hi                      # 负数 = "要全部"，按上限给（见上面注释）
+    return max(1, min(n, hi))
 
 # ---------- 分词：CJK 走 bigram，ASCII 走单词 ----------
 def tokenize(text):
@@ -307,6 +336,7 @@ def _toks_tf(text):
         _TOKS_CHARS -= len(k)
     return val
 def search_memory(query, limit=5, mtype=None, project=None):
+    limit = _clamp_limit(limit, 5)
     conn = db()
     sql = "SELECT * FROM memories WHERE deleted=0 AND superseded_by=0"
     args = []
@@ -362,6 +392,7 @@ def search_memory(query, limit=5, mtype=None, project=None):
     results.sort(key=lambda x: x[0], reverse=True)
     return results[:limit]
 def list_memories(project=None, mtype=None, limit=20, include_superseded=False):
+    limit = _clamp_limit(limit, 20)
     conn = db()
     sql = "SELECT * FROM memories WHERE deleted=0"
     if not include_superseded:
@@ -378,10 +409,19 @@ def list_memories(project=None, mtype=None, limit=20, include_superseded=False):
     return rows
 
 def delete_memory(mid):
+    """软删除一条记忆。
+
+    **返回受影响行数**（2026-10-01 修）：0 表示该 id 不存在。
+    以前不看 rowcount，于是对不存在的 id 也照回「已删除记忆 #N」——
+    Agent 会把"已删掉"当成事实写进后续推理与交接卡，而记忆仍在库里、仍被检索命中；
+    在多 Agent 共享同一份记忆的架构下，这种假成功会扩散。
+    """
     conn = db()
-    conn.execute("UPDATE memories SET deleted=1, updated_at=? WHERE id=?", (now(), mid))
+    cur = conn.execute("UPDATE memories SET deleted=1, updated_at=? WHERE id=?", (now(), mid))
     conn.commit()
+    n = cur.rowcount
     conn.close()
+    return n
 
 def stats():
     conn = db()
@@ -400,11 +440,14 @@ def stats():
 
 # ---------- 常驻记忆 / 上下文包 ----------
 def set_pinned(mid, pinned=1):
+    """设为/取消常驻。**返回受影响行数**（0 = 该 id 不存在），理由同 delete_memory。"""
     conn = db()
-    conn.execute("UPDATE memories SET pinned=?, updated_at=? WHERE id=?",
-                 (1 if pinned else 0, now(), mid))
+    cur = conn.execute("UPDATE memories SET pinned=?, updated_at=? WHERE id=?",
+                       (1 if pinned else 0, now(), mid))
     conn.commit()
+    n = cur.rowcount
     conn.close()
+    return n
 
 def list_pinned(project=None):
     conn = db()
@@ -550,30 +593,40 @@ def audit_memories(project=None, dup_th=0.66, contain_th=0.82, conflict_lo=0.28,
             "stale": stale, "stale_days": stale_days}
 
 def supersede_memory(old_id, new_id):
-    """用新记忆取代旧记忆：旧记忆标记作废但保留（学 Zep，不删除历史）"""
+    """用新记忆取代旧记忆：旧记忆标记作废但保留（学 Zep，不删除历史）。
+
+    2026-10-01 修：返回体里的 `ok` 现在**反映真实结果**，不再恒为 True；
+    目标不存在时附 `error` 说明（面板据此显示失败，而不是假装成功）。
+    """
     conn = db()
-    conn.execute("UPDATE memories SET superseded_by=?, updated_at=? WHERE id=?",
-                 (int(new_id), now(), int(old_id)))
+    cur = conn.execute("UPDATE memories SET superseded_by=?, updated_at=? WHERE id=?",
+                       (int(new_id), now(), int(old_id)))
     conn.commit()
+    n = cur.rowcount
     conn.close()
-    return {"ok": True}
+    return {"ok": bool(n), "changed": n,
+            "error": None if n else "记忆 #%s 不存在" % old_id}
 
 def retire_memory(mid):
-    """作废一条记忆（无后续版本）；记录保留但不参与检索"""
+    """作废一条记忆（无后续版本）；记录保留但不参与检索。返回值含义同 supersede_memory。"""
     conn = db()
-    conn.execute("UPDATE memories SET superseded_by=?, updated_at=? WHERE id=?",
-                 (-int(mid), now(), int(mid)))
+    cur = conn.execute("UPDATE memories SET superseded_by=?, updated_at=? WHERE id=?",
+                       (-int(mid), now(), int(mid)))
     conn.commit()
+    n = cur.rowcount
     conn.close()
-    return {"ok": True}
+    return {"ok": bool(n), "changed": n,
+            "error": None if n else "记忆 #%s 不存在" % mid}
 
 def touch_memory(mid):
-    """续期：刷新最后确认时间，让过期检查重新计时"""
+    """续期：刷新最后确认时间，让过期检查重新计时。返回值含义同 supersede_memory。"""
     conn = db()
-    conn.execute("UPDATE memories SET updated_at=? WHERE id=?", (now(), int(mid)))
+    cur = conn.execute("UPDATE memories SET updated_at=? WHERE id=?", (now(), int(mid)))
     conn.commit()
+    n = cur.rowcount
     conn.close()
-    return {"ok": True}
+    return {"ok": bool(n), "changed": n,
+            "error": None if n else "记忆 #%s 不存在" % mid}
 
 # ---------- 陈旧检测与批量清理（源头已消失 / 我不要的记忆） ----------
 _WS_PAT = re.compile(r"^\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}$")
@@ -666,16 +719,24 @@ def bulk_delete_projects(projects):
     return {"deleted": len(rows), "items": rows}
 
 def delete_sessions_bulk(sids):
-    """批量硬删除会话（含其消息）"""
+    """批量硬删除会话（含其消息）。**返回真实删除条数**（2026-10-01 修）。
+
+    以前返回 `len(sids)`（输入条数）—— 不存在的 id 也会被算进"已删除"。
+    唯一调用方 `/api/cleanup/orphans` 的 sids 来自刚跑完的 `find_orphans()`，
+    竞态窗口极小，所以这不是实际会咬人的 bug；**修它是为了口径一致**：
+    本项目刚因为"UPDATE/DELETE 后不看 rowcount"栽了一整类缺陷（含漏掉的 `delete_session`），
+    留一个"已知同源例外"会让下次模式扫描还得重新判断一次 —— 已知例外会腐蚀扫描纪律。
+    """
     if not sids:
         return {"deleted": 0}
     conn = db()
     q = ",".join("?" * len(sids))
     conn.execute("DELETE FROM messages WHERE session_id IN (%s)" % q, sids)
-    conn.execute("DELETE FROM sessions WHERE id IN (%s)" % q, sids)
+    cur = conn.execute("DELETE FROM sessions WHERE id IN (%s)" % q, sids)
     conn.commit()
+    n = cur.rowcount
     conn.close()
-    return {"deleted": len(sids)}
+    return {"deleted": n}
 
 def merge_memories(ids, content=None):
     """合并重复记忆：保留最新一条（可指定合并后的内容），其余标记作废"""
@@ -728,8 +789,14 @@ def health_score(project=None):
     q = quality_scan(project)
     rows = q["scanned"]
     if rows == 0:
-        return {"score": 100, "grade": "A", "counts": {}, "penalties": {},
-                "scanned": 0, "note": "库里还没有记忆"}
+        # ⚠️ 2026-10-01 修（外部复测的 verify_panel_api 间接暴露）：这条提前返回原来**漏了
+        #   `grade_text`**（正常路径才有它）→ 空库时 `audit_report()` 里 `h["grade_text"]`
+        #   直接 KeyError，`/api/audit/report` 拿不到响应、CLI 的 audit-report 也会崩。
+        #   在新装的空库 / 刚重置的库上必现（本机因为库非空所以一直没撞到）。
+        #   现在把两个分支的字段对齐 —— 提前返回也必须给全调用方会用到的键。
+        return {"score": 100, "grade": "A", "grade_text": "优秀",
+                "counts": {}, "penalties": {}, "scanned": 0,
+                "note": "库里还没有记忆"}
     dup_extra = sum(len(g) - 1 for g in q["duplicates"]) + len(q.get("suspects") or [])
     stale = len(q["stale"])
     meta_missing = len({r["id"] for r in q["no_project"]} | {r["id"] for r in q["no_tags"]})
@@ -2545,6 +2612,7 @@ def save_session(title="", project="", agent="", messages=None, source_path="", 
     return sid, True
 
 def list_sessions(limit=50, project=None):
+    limit = _clamp_limit(limit, 50)
     conn = db()
     # mem_n：这段会话产出了几条记忆。列表里直接给出来，"哪段对话有产出"一眼可见
     # ——这是会话层和记忆层之间的那条线，别删。（走 idx_mem_session，成本可忽略）
@@ -2567,14 +2635,23 @@ def get_session(sid):
     return s, msgs
 
 def delete_session(sid):
+    """硬删除一条会话及其全部消息。**返回受影响行数**（0 = 该会话不存在）。
+
+    2026-10-01 修（与 delete_memory 同源）：以前不看 rowcount，于是
+    `/api/session/delete` 缺 sid 时 `body.get("sid", 0)` 落到 0、什么都没删，
+    却照回 `{"ok": true}` —— 和 P1-1 是同一个坏味道，只是藏在会话侧。
+    """
     conn = db()
     conn.execute("DELETE FROM messages WHERE session_id=?", (sid,))
-    conn.execute("DELETE FROM sessions WHERE id=?", (sid,))
+    cur = conn.execute("DELETE FROM sessions WHERE id=?", (sid,))
     conn.commit()
+    n = cur.rowcount
     conn.close()
+    return n
 
 def search_messages(query, limit=10, project=None):
     """在会话原文里检索，返回 [(score, message_row, session_row)]"""
+    limit = _clamp_limit(limit, 10)
     conn = db()
     sql = ("SELECT m.*, s.title stitle, s.project sproject, s.agent sagent, s.created_at screated "
            "FROM messages m JOIN sessions s ON s.id=m.session_id")
@@ -2686,14 +2763,37 @@ def call_tool(name, args):
         content = (args.get("content") or "").strip()
         if not content:
             raise ToolError("记忆内容不能为空（content 必填）")
-        mid = save_memory(content, args.get("type", "fact"),
-                          args.get("importance", 2), args.get("tags", ""),
+        # 2026-10-01 修（接入排查报告 P1-2）：以前 type/importance 非法会被**静默纠正**
+        # （type → fact、importance → clamp 到 1..4），却照回"已保存记忆 #N" —— Agent
+        # 以为自己按指定类型存了（比如 decision），实际是 fact，事后按类型过滤会拿到不符预期的结果。
+        # 现在显式报错，口径与"缺 content 就报错"保持一致。
+        # ⚠️ 2026-10-01 补修（外部复测 §2.1）：上面那版写成 `str(args.get("type") or "fact")`，
+        #    `or` 在**校验之前**就把假值吞成了 "fact" —— 于是 `type=""` / `type="   "` 绕过校验、
+        #    静默存成 fact。那正是 P1-2 要消灭的同一类静默纠正（只是路径窄得多：得显式传空值）。
+        #    现在区分「未提供」（None → 默认 fact）与「提供了空值 / 非法值」（一律报错）。
+        _raw_type = args.get("type")
+        _mtype = "fact" if _raw_type is None else str(_raw_type).strip()
+        if _mtype not in TYPES:
+            raise ToolError("type 非法：%r（可选：%s）" % (_mtype, " / ".join(TYPES)))
+        try:
+            _imp = int(args.get("importance", 2))
+        except (TypeError, ValueError):
+            raise ToolError("importance 必须是 1-4 的整数（收到 %r）" % (args.get("importance"),))
+        if not 1 <= _imp <= 4:
+            raise ToolError("importance 必须是 1-4 的整数（收到 %d）" % _imp)
+        mid = save_memory(content, _mtype,
+                          _imp, args.get("tags", ""),
                           args.get("project", ""),
                           args.get("agent") or DEFAULT_AGENT,
                           session_id=args.get("session_id", 0),
                           turn=args.get("turn", 0))
         return f"已保存记忆 #{mid}"
     if name == "memory_search":
+        # 2026-10-01 修：**完全没传 query** 时以前回"没有找到相关记忆" ——
+        # 那会让 Agent 以为"库里没有"，而实际是"它自己没给查询词"，与
+        # memory_save 缺 content 就报错的口径也不一致。传空串仍按"查了没找到"处理。
+        if args.get("query") is None:
+            raise ToolError("缺少参数 query（要检索的内容）")
         rs = search_memory(args.get("query", ""), args.get("limit", 5),
                            args.get("type"), args.get("project"))
         if not rs:
@@ -2714,8 +2814,10 @@ def call_tool(name, args):
     if name == "memory_delete":
         if args.get("id") in (None, ""):
             raise ToolError("缺少参数 id（要删除的记忆编号）")
-        delete_memory(int(args["id"]))
-        return f"已删除记忆 #{args['id']}"
+        _mid = int(args["id"])
+        if not delete_memory(_mid):
+            raise ToolError(f"记忆 #{_mid} 不存在（或已被删除）")
+        return f"已删除记忆 #{_mid}"
     if name == "memory_stats":
         s = stats()
         return json.dumps(s, ensure_ascii=False, indent=2)
@@ -2732,6 +2834,12 @@ def call_tool(name, args):
         if not msgs:
             raise ToolError("没有从这段文本里解析出对话内容"
                             "（支持「我: / AI:」聊天文本、JSONL、JSON 数组）")
+        # 2026-10-01 修（接入排查报告 P2-4）：parse_transcript 对"认不出说话人"的文本会
+        # **降级成单条 raw 消息**，于是纯文本（比如一段被代码围栏包住的说明）也被当会话入库，
+        # 污染会话库与 session_recall 结果。判据：只剩 1 条、且原文里没有任何一行带角色标记。
+        if len(msgs) == 1 and not any(_LABEL_RE.match(_l) for _l in transcript.splitlines()):
+            raise ToolError("这段文本里没有可识别的对话结构（至少要有一行「我: / AI:」这类角色标记）。"
+                            "如果确实想原样存档，请先自行加上角色标记。")
         sid, created = save_session(args.get("title", ""), args.get("project", ""),
                                     args.get("agent", ""), msgs,
                                     summary=args.get("summary", ""),
@@ -2740,6 +2848,8 @@ def call_tool(name, args):
             return f"这段对话已归档过（会话 #{sid}），未重复写入"
         return f"已归档会话 #{sid}｜{len(msgs)} 轮｜标题: {args.get('title') or '自动'}"
     if name == "session_recall":
+        if args.get("query") is None:      # 理由同 memory_search（2026-10-01 修）
+            raise ToolError("缺少参数 query（要检索的原话关键词）")
         rs = search_messages(args.get("query", ""), args.get("limit", 5), args.get("project"))
         if not rs:
             return "历史对话里没有找到相关片段"
@@ -2756,8 +2866,10 @@ def call_tool(name, args):
     if name == "memory_pin":
         if args.get("id") in (None, ""):
             raise ToolError("缺少参数 id（要设为常驻的记忆编号）")
-        set_pinned(int(args["id"]), int(args.get("pinned", 1)))
-        return ("已设为常驻" if int(args.get("pinned", 1)) else "已取消常驻") + f"：记忆 #{args['id']}"
+        _mid, _pv = int(args["id"]), int(args.get("pinned", 1))
+        if not set_pinned(_mid, _pv):
+            raise ToolError(f"记忆 #{_mid} 不存在")
+        return ("已设为常驻" if _pv else "已取消常驻") + f"：记忆 #{_mid}"
     raise ToolError(
         f"未知工具: {name}（可用：" + " / ".join(sorted(t["name"] for t in TOOLS)) + "）")
 

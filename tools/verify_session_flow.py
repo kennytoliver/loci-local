@@ -102,12 +102,19 @@ check("消息条数 ≥4（不是 1 条 raw）", n_msgs >= 4, f"实际 {n_msgs} 
 check("角色交替 user/assistant（时间线可渲染）",
       roles == "user|assistant|user|assistant|user|assistant", roles)
 
-# ---------- ③ 反例：自造人名会退化成 raw ----------
-print("\n③ 反例（约定里警告过的那种写法）：用具体人名当前缀")
+# ---------- ③ 反例：自造人名现在会被**直接拒绝** ----------
+# 2026-10-01 更新（配合 loci.py 的 P2-4 修复）：
+#   以前这种"用具体人名当前缀"的文本会**退化成 1 条 raw 消息**混进会话库；
+#   现在 session_save 发现"只剩 1 条、且原文没有任何角色标记"就报错拒收。
+#   所以这里从"断言退化成 raw"改成"断言被拒绝 + 确实没落库"。
+print("\n③ 反例（约定里警告过的那种写法）：用具体人名当前缀 → 应被拒绝")
 bad = """建勋：这个怎么修？
 COLE：补一条约定就行。"""
-tool("session_save", transcript=bad, title="反例-自造人名",
-     project="Loci", agent="flow-test")
+out_bad = tool("session_save", transcript=bad, title="反例-自造人名",
+               project="Loci", agent="flow-test")
+check("自造人名 → 被拒绝（不再退化成 1 条 raw）",
+      ("没有可识别的对话结构" in out_bad) or ("没有从这段文本里解析出" in out_bad),
+      out_bad[:100])
 probe = subprocess.run(
     [sys.executable, "-X", "utf8", "-c",
      "import sys;sys.path.insert(0,r'%s');import loci as h;"
@@ -117,7 +124,7 @@ probe = subprocess.run(
 lines = (probe.stdout or "").strip().splitlines()
 n_bad = int(lines[0]) if lines and lines[0].isdigit() else -1
 roles_bad = lines[1] if len(lines) > 1 else ""
-check("自造人名 → 退化成 1 条 raw（所以约定必须禁止）", n_bad == 1, f"{n_bad} 条 / 角色={roles_bad}")
+check("且确实没落库（会话 #2 不存在 / 0 条消息）", n_bad <= 0, f"{n_bad} 条 / 角色={roles_bad}")
 
 # ---------- ④ 指纹去重 ----------
 print("\n④ 同一段对话重复归档")
@@ -141,7 +148,9 @@ probe = subprocess.run(
     capture_output=True, text=True, env=env)
 lines = (probe.stdout or "").strip().splitlines()
 n_sess = int(lines[0]) if lines and lines[0].isdigit() else -1
-check("会话列表能列出归档的会话", n_sess >= 2, f"{n_sess} 个会话；{lines[1] if len(lines)>1 else ''}")
+# 2026-10-01：阈值 2 → 1。③ 的反例会话现在被拒收，所以库里有且只有 ① 那一个会话；
+# 这条断言的本意是"会话确实出现在列表里"，≥1 即可。
+check("会话列表能列出归档的会话", n_sess >= 1, f"{n_sess} 个会话；{lines[1] if len(lines)>1 else ''}")
 
 proc.terminate()
 try:

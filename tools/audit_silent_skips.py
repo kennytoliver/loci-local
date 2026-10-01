@@ -46,7 +46,7 @@ TARGETS = ["loci.py", "panel.py", "install_agents.py"]
 # （它当前 2 处 except 都带 print/exit，不是静默，故期望 0）。
 EXPECTED = {
     "loci.py": {"pass": 10, "continue": 12, "return_empty": 9},
-    "panel.py": {"pass": 7, "continue": 4, "return_empty": 2},
+    "panel.py": {"pass": 8, "continue": 4, "return_empty": 2},
     "install_agents.py": {"pass": 0, "continue": 0, "return_empty": 0},
 }
 

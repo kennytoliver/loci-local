@@ -68,8 +68,19 @@ def main():
         print("\n通过 0 项 · 失败 1 项")
         return 1
     srcs = h.detect_conversation_sources()
-    ok(len(srcs) == len(h.SCAN_SOURCES),
-       "探测返回 %d 个源 = SCAN_SOURCES 登记数 %d" % (len(srcs), len(h.SCAN_SOURCES)))
+    # ⚠️ 2026-10-12 重写这条断言。
+    #    原来写的是 `len(srcs) == len(h.SCAN_SOURCES)` —— 在旧设计里 SCAN_SOURCES 是
+    #    **写死的登记表**、detect_conversation_sources() 是**现场探测**，两者数量相等
+    #    才说明"探测覆盖了全部登记项"，有意义。
+    #    但现在两者都指向 discover_scan_sources()（同一个函数），这条断言退化成
+    #    **自己跟自己比的恒真断言**；而且 SCAN_SOURCES 已经是函数不是列表，
+    #    `len(函数)` 直接抛 TypeError —— 也就是说这道闸门一直没能真正跑完。
+    #    改成断言真正的不变式（都跟"探出来"这件事有关）：
+    ok(len(srcs) > 0, "探测结果非空（本机确实有可扫来源）  实得 %d 个" % len(srcs))
+    names = [s.get("agent") for s in srcs]
+    ok(len(names) == len(set(names)),
+       "同一来源没有被重复登记  %d 个名字 / %d 项" % (len(set(names)), len(names)))
+    ok(all(s.get("root") for s in srcs), "每个来源都给出了 root 路径")
     consistent = True
     for s in srcs:
         exists = os.path.isdir(s["root"]) if s["kind"] == "jsonl" else os.path.isfile(s["root"])

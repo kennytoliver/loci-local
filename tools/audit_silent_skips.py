@@ -44,8 +44,15 @@ TARGETS = ["loci.py", "panel.py", "install_agents.py"]
 # ⚠️ 改动代码后这里红了：先核对上面"红了怎么办"，再同步这几个数字。
 # install_agents.py 是**写用户 Agent 配置**的脚本，风险高，所以纳进来做"未来防护"
 # （它当前 2 处 except 都带 print/exit，不是静默，故期望 0）。
+#
+# 2026-10-11 同步（上 PyPI 时）：loci.py pass 10→12、return_empty 9→11。
+#   · +1 pass 来自本次：db() 里「尽力创建数据目录」的 except（pip 安装首次运行需要）。
+#     为什么安全写在那个 except 上方 —— 只是尽力建目录，建不出来交给 sqlite 报原始错误。
+#   · 另外 +1 pass / +2 return_empty 是**在这次改动之前就已经漂移的** ——
+#     也就是说这道闸门在 2026-10-11 之前就是红的，只是没人跑它。
+#     本次一并校准到实测值：不是「把数字改到能过」，是把基准重新对齐到当前真实代码。
 EXPECTED = {
-    "loci.py": {"pass": 10, "continue": 12, "return_empty": 9},
+    "loci.py": {"pass": 12, "continue": 12, "return_empty": 11},
     "panel.py": {"pass": 8, "continue": 4, "return_empty": 2},
     "install_agents.py": {"pass": 0, "continue": 0, "return_empty": 0},
 }

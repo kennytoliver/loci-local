@@ -113,7 +113,37 @@ python test_mcp.py      # 9 checks: MCP protocol, Chinese retrieval, session lay
 python test_panel.py    # 8 checks: JS syntax guard, DOM ids, routes, zero-dependency audit
 ```
 
-CI runs both on Ubuntu and Windows across Python 3.9 and 3.12.
+CI runs both on Ubuntu and Windows across Python 3.9 and 3.12,
+plus the recall-quality gate (`python tools/eval_recall.py --gate`).
+
+The full suite is **31 gates** (`bash tools/run_gates.sh`). The other 30 need a live
+panel process, node and screenshots, so they stay local rather than in the CI matrix.
+
+## What is NOT verified
+
+The section above says why Loci can be trusted. This one says the opposite —
+**what we have not verified, or have verified only weakly.** It belongs in the README
+because a project is worth trusting not for doing everything it could,
+but for **being willing to write down what it could not.**
+
+| Not verified | How far it falls short |
+|---|---|
+| **Semantic recall** | Asking the same thing in different words: **67%** top-1. Chinese query against an English memory: **0%**. This is an **architectural boundary**, not a bug — zero LLM dependency means no embeddings, and no embeddings means no semantic bridge. Fixing it costs a third-party dependency and the project's first promise. **Known, measured, deliberately unchanged.** |
+| **Extraction quality** | Candidates (decisions / pitfalls / preferences / facts) are pulled by rules. The gate only measures **how fast** it runs, **not how accurately** — nothing currently watches for "the thing that should have been extracted wasn't". |
+| **Real scale** | Gates run synthetic corpora in temp databases. Behaviour at **thousands of memories** — latency, ranking quality — has not been measured. |
+| **Concurrent writes** | Multiple agents writing the same store was **probed once by hand** (`tools/probe_concurrency.py`); there is no continuous guard. |
+| **Outside Windows** | Recycle-bin deletion and agent path detection follow Windows semantics. The macOS / Linux paths are degraded and **have never actually been run there.** |
+| **Long-term operation** | The time-decay formula has unit tests, but "what recall looks like after a year of use" has not been measured. |
+| **Real agent installs** | The 15-product installer is exercised against constructed config samples, **not by really installing each one.** |
+| **UI correctness** | UI gates output **screenshots for a human to eyeball** and measure geometry. Whether a screen is *right* — or good — **is not asserted anywhere.** |
+
+**Those numbers were measured, not estimated.** The recall row comes from
+`tools/eval_recall.py` (22 synthetic corpus entries / 26 cases, including cases
+constructed to fail), which also runs as a regression gate — breaking retrieval
+turns the suite red.
+
+> This section is meant to shrink over time. **If it ever gets shorter, it should be
+> because things were actually fixed — not because the list was trimmed.**
 
 ## Design notes
 
@@ -128,7 +158,7 @@ Issues and PRs are welcome. The one hard rule: **no third-party dependencies** �
 
 ## Status
 
-Working daily on Windows across four agents. Pre-1.0: the panel is Chinese-first, an English UI is on the roadmap.
+Working daily on Windows across four agents. v1.0.0: the panel is Chinese-first, an English UI is on the roadmap.
 
 **Platform support**: Loci is **Windows-first**. Recycle-bin deletion (via the system Shell API), agent install-path detection, and panel process control follow Windows semantics. macOS / Linux can run it, but those features **degrade** — for example, "delete" moves files into a local `.trash` folder instead of the system recycle bin.
 

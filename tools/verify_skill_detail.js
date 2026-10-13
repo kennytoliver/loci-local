@@ -58,7 +58,8 @@ const ok = (name, cond, extra) => {
   await page.waitForFunction(() => typeof window.show === 'function', { timeout: 15000 });
   await page.evaluate(() => window.show('skill'));
   await page.waitForFunction(
-    () => document.querySelectorAll('#sk-list .mem').length > 0, { timeout: 25000 });
+    /* R3 改版后技能页的行类是 .sr（原来等 .mem 是九页时代的写法） */
+    () => document.querySelectorAll('#sk-list .sr').length > 0, { timeout: 25000 });
 
   // 挑正文最大的那个 skill —— 短文档盖不住这个 bug
   await page.evaluate(() => {

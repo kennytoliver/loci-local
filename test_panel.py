@@ -79,13 +79,28 @@ else:
     check("JS 无跨行字符串字面量（启发式）", not bad_lines, f"可疑行: {bad_lines}")
 
 # 3. 页面关键元素齐全
-need_ids = ["stats", "list", "agents", "q", "scan-list", "scan-info", "add-path",
-            "s-text", "s-title", "s-list", "s-view", "s-q", "v-session",
-            "v-audit", "audit-out", "audit-msg", "ctx-out", "sk-proj", "skill-out",
-            "cleanup-panel", "cleanup-msg", "cl-project", "cl-agent", "cl-before", "cl-sup",
-            "v-clean", "sf-list", "sf-msg", "cm-list", "cm-msg", "bk-list", "cm-proj",
-            "v-mem", "v-collect", "v-agents", "v-pack", "v-handoff",
-            "proj-filter", "pk-proj", "hf-proj", "pack-file", "form"]
+#    ⚠️ 2026-10-11 更新。原来这行列的是**九页时代**的 id（记忆页 / 记忆包页 / 质检页
+#    各自的元素），那几页在 R3 六页改版后已经不在导航里，于是这条断言一直红 ——
+#    红了好几天没人发现（CI 也是红的）。这里改成按**当前六个页面**列出各自真正依赖的元素。
+#    加元素时请连同它所属的页面一起写，别只堆一个清单。
+need_ids = [
+    # 框架
+    "navInd", "page-title", "themetgl", "toast",
+    # ① 会话（含从列表点进去的独立详情页）
+    "v-session", "s-list", "s-q", "s-chips", "s-kpi",
+    "v-sdetail", "sd-title", "sd-thread", "sd-meta",
+    # ② 采集（含一键全选：表头框 + 会变字的按钮 + 选中条）
+    "v-collect", "scan-list", "scan-info", "ck-all", "ck-allbtn", "ck-pickbar", "ck-sel-n",
+    # ③ 交接卡
+    "v-handoff", "hf-list", "hf-proj", "hf-q", "hf-tags", "hf-fmt", "hf-pickbar",
+    # ④ 库（备份 / 导出 / 恢复 / 销毁）
+    "v-clean", "sf-list", "db-txt", "db-go", "bk-list", "cleanup-panel",
+    "cl-project", "cl-agent", "cl-before", "cl-msg",
+    # ⑤ Agent
+    "v-agents", "ag-list", "ex-path",
+    # ⑥ 技能 / MCP
+    "v-skill", "sk-list", "sk-out", "mcp-list",
+]
 missing = [i for i in need_ids if f'id="{i}"' not in P.PAGE]
 check("页面关键元素齐全", not missing, f"缺失: {missing}")
 
@@ -96,9 +111,23 @@ undefined = sorted(onclicks - defined)
 check("onclick 函数均已定义", not undefined, f"未定义: {undefined}")
 
 # 5. 视图切换列表与 section 一致
+#    ⚠️ 2026-10-11 改。原来断言 `navs == sections`，但 R3 改版后
+#    mem / audit / pack 三个旧页面**导航里已经没有入口**（section 还留在 DOM 里）。
+#    把断言删掉让它变绿，那不叫修好 —— 改成断言**真正的不变式**：
+#      · 每个导航项都必须有对应 section（导航指向不存在的视图 = 真 bug，
+#        这一条我 10-06 就踩过：误删 v-audit 的 section，切页就抛异常）
+#      · 每个 section 要么是导航项，要么在下面这份**写出来的**例外清单里（不藏）
+SECTION_NOT_IN_NAV = {
+    "sdetail",               # 会话详情页：从会话列表点进去，按设计就没有导航项
+    "mem", "audit", "pack",  # ⚠️ 遗留死页面：导航入口已删，section 还在 DOM 里没清
+                             #    （清理排在后续版本。列在这里是为了不装作它不存在）
+}
 navs = set(re.findall(r'data-v="([a-z]+)"', P.PAGE))
 sections = set(re.findall(r'id="v-([a-z]+)"', P.PAGE))
-check("导航与视图区块一致", navs == sections, f"导航={sorted(navs)} 区块={sorted(sections)}")
+nav_without_section = sorted(navs - sections)
+unregistered = sorted(sections - navs - SECTION_NOT_IN_NAV)
+check("导航与视图区块一致", not nav_without_section and not unregistered,
+      f"导航指向了不存在的视图={nav_without_section}；未登记的 section={unregistered}")
 
 # 6. 后端路由齐全
 routes = ["/api/stats", "/api/list", "/api/search", "/api/handoff",

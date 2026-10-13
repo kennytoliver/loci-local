@@ -94,3 +94,9 @@ panel.py.bak-*
 
 # 老仓库的历史目录（重开仓库时改名保留用），绝不能提交\.git-old/
 .git-old/
+
+# 打包产物（python -m build / pip install -e 生成）
+dist/
+build/
+*.egg-info/
+.eggs/

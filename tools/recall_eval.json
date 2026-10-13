@@ -1,0 +1,68 @@
+{
+  "_meta": {
+    "name": "recall-quality",
+    "version": 1,
+    "created": "2026-10-11",
+    "why": "召回质量评测。用来回答一个别的问题答不了的问题：改了检索之后，记忆是更好找了还是更难找了？",
+    "honesty": "语料是合成的（不含任何真实个人记忆），用例刻意包含当前答不对的类型 —— 只报好数字的评测没有意义。数据量小（20 条语料 / 26 个用例），所以它是回归护栏，不是质量断言。",
+    "not_verified": "它不衡量：语义相似度、跨语言检索的语义对齐、长文档切分质量。它只衡量当前分词+TF-IDF 口径下的字面召回。"
+  },
+
+  "corpus": [
+    {"id": "m01", "content": "技术选型定为单文件加零第三方依赖，不引入任何框架", "mtype": "decision", "project": "架构", "tags": "选型", "importance": 4},
+    {"id": "m02", "content": "踩坑：窗口函数在旧版 SQLite 上会静默返回空结果，不报错", "mtype": "error", "project": "架构", "tags": "sqlite", "importance": 3},
+    {"id": "m03", "content": "偏好：代码注释用中文，变量和函数名用英文", "mtype": "preference", "project": "规范", "tags": "风格", "importance": 3},
+    {"id": "m04", "content": "事实：面板默认端口 8787，只监听 127.0.0.1", "mtype": "fact", "project": "面板", "tags": "端口", "importance": 3},
+    {"id": "m05", "content": "经验：中文检索走 bigram 分词，要用原话里的词去查，不要用同义词", "mtype": "skill", "project": "检索", "tags": "中文", "importance": 4},
+    {"id": "m06", "content": "决策：面板默认不常驻，浏览器页面关掉后五分钟无访问自动退出", "mtype": "decision", "project": "面板", "tags": "进程", "importance": 3},
+    {"id": "m07", "content": "踩坑：agent-scan 是 URI 不是文件路径，拿它做存在性判断会把全部会话误判成孤儿", "mtype": "error", "project": "架构", "tags": "路径", "importance": 4},
+    {"id": "m08", "content": "事实：全部数据就是一个 SQLite 文件，位置可以用环境变量覆盖", "mtype": "fact", "project": "架构", "tags": "数据库", "importance": 3},
+    {"id": "m09", "content": "决策：删除数据前由用户自己选要不要先导出备份，不替他决定", "mtype": "decision", "project": "面板", "tags": "安全", "importance": 4},
+    {"id": "m10", "content": "偏好：回答要结论先行，不要长篇铺垫和过程叙述", "mtype": "preference", "project": "沟通", "tags": "风格", "importance": 4},
+    {"id": "m11", "content": "经验：推送卡住时先试直连，代理会让 git push 长时间无输出", "mtype": "skill", "project": "工具链", "tags": "git", "importance": 3},
+    {"id": "m12", "content": "踩坑：删文件之前必须全仓库搜索引用，否则会留下悬空登记把闸门跑挂", "mtype": "error", "project": "工具链", "tags": "git", "importance": 4},
+    {"id": "m13", "content": "事实：MCP 服务名是 loci，工具前缀是 mcp__loci__ 开头", "mtype": "fact", "project": "架构", "tags": "mcp", "importance": 3},
+    {"id": "m14", "content": "决策：记忆分成七种类型，事实决策偏好经验踩坑背景摘要", "mtype": "decision", "project": "架构", "tags": "数据模型", "importance": 4},
+    {"id": "m15", "content": "经验：验证界面位置必须量实际坐标，不能只看元素里有没有内容", "mtype": "skill", "project": "面板", "tags": "验证", "importance": 3},
+    {"id": "m16", "content": "事实：面板一共六个页面，会话采集交接卡库和 Agent 技能", "mtype": "fact", "project": "面板", "tags": "导航", "importance": 3},
+    {"id": "m17", "content": "踩坑：版本库目录改名成 .git-old 后留在仓库里，会被当成普通内容提交上去", "mtype": "error", "project": "工具链", "tags": "git", "importance": 4},
+    {"id": "m18", "content": "偏好：不要毛玻璃和渐变，圆角不要超过十六像素", "mtype": "preference", "project": "设计", "tags": "视觉", "importance": 3},
+    {"id": "m19", "content": "决策：标记为常驻的记忆每次取上下文都必须带上", "mtype": "decision", "project": "架构", "tags": "数据模型", "importance": 4},
+    {"id": "m20", "content": "The panel binds to 127.0.0.1 only and validates a CSRF token on writes", "mtype": "fact", "project": "panel", "tags": "security", "importance": 3},
+    {"id": "m21", "content": "Backup export writes a JSON file carrying a pack format marker for import deduplication", "mtype": "fact", "project": "panel", "tags": "backup", "importance": 3},
+    {"id": "m22", "content": "记忆库只保留结论，完整对话原文归档在会话库里", "mtype": "fact", "project": "架构", "tags": "数据模型", "importance": 4}
+  ],
+
+  "cases": [
+    {"query": "删除前要不要备份", "expect": ["m09"], "kind": "cn-exact"},
+    {"query": "bigram 分词", "expect": ["m05"], "kind": "cn-exact"},
+    {"query": "agent-scan 孤儿", "expect": ["m07"], "kind": "cn-exact"},
+    {"query": "默认端口是多少", "expect": ["m04"], "kind": "cn-exact"},
+    {"query": "常驻记忆", "expect": ["m19"], "kind": "cn-exact"},
+    {"query": "MCP 服务名", "expect": ["m13"], "kind": "cn-exact"},
+    {"query": "窗口函数 静默", "expect": ["m02"], "kind": "cn-exact"},
+    {"query": "六页面 导航", "expect": ["m16"], "kind": "cn-exact"},
+    {"query": "毛玻璃 圆角", "expect": ["m18"], "kind": "cn-exact"},
+    {"query": "环境变量 覆盖 位置", "expect": ["m08"], "kind": "cn-exact"},
+    {"query": "git push 卡住", "expect": ["m11"], "kind": "cn-exact"},
+    {"query": "注释 中文", "expect": ["m03"], "kind": "cn-exact"},
+    {"query": "结论先行", "expect": ["m10"], "kind": "cn-exact"},
+    {"query": "删文件前 grep 引用", "expect": ["m12"], "kind": "cn-exact"},
+    {"query": "会话原文归档在哪", "expect": ["m22"], "kind": "cn-exact"},
+
+    {"query": "我想让系统在删东西之前先问我一句要不要存一份", "expect": ["m09"], "kind": "cn-paraphrase"},
+    {"query": "关掉浏览器以后它还会一直占着内存吗", "expect": ["m06"], "kind": "cn-paraphrase"},
+    {"query": "怎么防止把不存在的路径当成存在的", "expect": ["m07"], "kind": "cn-paraphrase"},
+    {"query": "数据库文件放哪儿可以改吗", "expect": ["m08"], "kind": "cn-paraphrase"},
+    {"query": "为什么有时候推不上去", "expect": ["m11"], "kind": "cn-paraphrase"},
+    {"query": "界面元素明明有内容位置却是错的", "expect": ["m15"], "kind": "cn-paraphrase"},
+
+    {"query": "how is the backup file imported", "expect": ["m21"], "kind": "en-exact"},
+    {"query": "csrf token writes", "expect": ["m20"], "kind": "en-exact"},
+
+    {"query": "备份文件长什么样", "expect": ["m21"], "kind": "cross-lang-cn2en"},
+    {"query": "write path 安全性", "expect": ["m20"], "kind": "cross-lang-mix"},
+
+    {"query": "sqlite 数据库 选型", "expect": ["m01", "m02"], "kind": "multi-hit"}
+  ]
+}

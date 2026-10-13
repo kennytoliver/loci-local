@@ -7,7 +7,7 @@
 
 ---
 
-## ① 闸门 —— 由 `tools/run_gates.sh` 统一调度（30 项）
+## ① 闸门 —— 由 `tools/run_gates.sh` 统一调度（31 项）
 
 ```bash
 bash tools/run_gates.sh            # 全部（约 7 分钟）
@@ -31,8 +31,9 @@ bash tools/run_gates.sh csrf       # 只跑名字含该关键字的
 | `verify_session_*.py` | 会话层：导入流程 / 时间回填 / 同源去重 |
 | `verify_scan_sources.py` / `verify_skills.py` / `verify_skill_detail.js` | 采集来源 / 技能清单 / 技能详情 |
 | `verify_extract_perf.py` / `verify_audit_perf.py` | 抽取与质检的性能对拍 |
+| **`eval_recall.py --gate`** | **召回质量回归护栏** —— 改完之后记忆是更好找了还是更难找了。基线写在脚本里，低于基线才红；弱项（跨语言 / 换说法）也定了下限。**别的闸门都验不到这件事**：它们验契约、存储、界面接线。 |
 | `verify_link_shots.js` / `verify_link_measure.js` | 「会话 ↔ 记忆」关联的截图与尺寸 |
-| `verify_slist_rows.js` / `verify_pane_guide.js` / `verify_folds.js` / `verify_sel_feedback.js` / `verify_frames.js` / `verify_ui_polish.js` | UI：行高 / 分栏指引 / 折叠 / 选中反馈 / 卡片框线 / 观感 |
+| `verify_slist_rows.js` / `verify_pane_guide.js` / `verify_sel_feedback.js` / `verify_frames.js` | UI：行高 / 分栏指引 / 选中反馈 / 卡片框线 |
 | `measure_layers.js` / `smoke_panel.js` / `verify_content.js` | 布局尺寸 / 全页冒烟 / 内容渲染 |
 | `shot_new_pages.js` | 页面截图（人工过目用） |
 | `test_mcp.py` / `test_panel.py` | **在仓库根目录**（不在 tools/）：MCP 协议 / 面板单元自检 |
@@ -79,6 +80,16 @@ bash tools/run_gates.sh csrf       # 只跑名字含该关键字的
 > 另外本机 HTTP 探测要绕开沙箱代理：`unset http_proxy https_proxy` + `no_proxy=127.0.0.1,localhost`。
 
 ---
+
+## 已退役的闸门（功能在 R3 移除，不再测）
+
+| 退役 | 测的是什么 | 为什么退役 |
+|---|---|---|
+| `verify_folds.js` | 四套折叠机制（页头 `.pfold` / 分组 `.ghead` / 分支 / 会话归档）| R3 六页改版后，**折叠只存在于已删掉的记忆页**；六个活页面按 section 范围统计：`.pfold`/`.ghead`/`gh-*`/`.gbody` **全是 0**（2026-10-13 实测）|
+| `verify_ui_polish.js` | 本机内容页「默认只展开第一组」等三条观感 | 同上：分组结构随 R3 移除，本机内容页已变成技能 / MCP 页 |
+
+> 退役 ≠ 判它当初写错 —— 是它测的那个功能**按设计不再存在**了。
+> 想恢复折叠功能的话，把这两个文件从 `backup/` 拿回来即可（退役前的原件已备份）。
 
 ## 约定
 

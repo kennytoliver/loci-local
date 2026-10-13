@@ -36,7 +36,31 @@ DEFAULT_AGENT = os.environ.get("LOCI_AGENT") or os.environ.get("HIPPOCAMPUS_AGEN
 # 数据库默认位置：新名 loci.db；但**如果新文件还不存在、旧的 hippocampus.db 在**，
 # 就先接着用旧的 —— 改名当天万一复制失败或被漏掉，也不至于让用户看到"空记忆库"。
 _DIR = os.path.dirname(os.path.abspath(__file__))
-_NEW_DB, _OLD_DB = os.path.join(_DIR, "loci.db"), os.path.join(_DIR, "hippocampus.db")
+
+
+def _user_data_dir():
+    """pip 安装时的默认数据目录（2026-10-11 为打包上 PyPI 加）。
+
+    **绝不往 site-packages 里写数据库** —— 那里通常不可写，就算能写，
+    升级一次包就可能被整个覆盖掉，等于用户的记忆被无声清空。
+    """
+    if os.name == "nt":
+        base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
+        return os.path.join(base, "loci")
+    if sys.platform == "darwin":
+        return os.path.expanduser("~/Library/Application Support/loci")
+    base = os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share")
+    return os.path.join(base, "loci")
+
+
+# ⚠️ 只有「被 pip 装进 site-packages / dist-packages」这一种情况才换默认目录。
+#    克隆 / 解压 / 绿色版 / `pip install -e` 可编辑安装 —— **行为完全不变**，
+#    数据库仍然与 loci.py 同目录（README 里就是这么写的）。
+#    这条界限必须画准：判断错了，老用户打开面板会看到一个**空记忆库**，
+#    以为记忆全丢了。所以宁可不换，也不乱换。
+_PIP_INSTALL = os.path.basename(_DIR).lower() in ("site-packages", "dist-packages")
+_DATA_DIR = _user_data_dir() if _PIP_INSTALL else _DIR
+_NEW_DB, _OLD_DB = os.path.join(_DATA_DIR, "loci.db"), os.path.join(_DATA_DIR, "hippocampus.db")
 DB_PATH = _ENV_DB or (_OLD_DB if (not os.path.exists(_NEW_DB) and os.path.exists(_OLD_DB)) else _NEW_DB)
 CJK = re.compile(r"[一-鿿　-〿＀-￯]")
 WORD = re.compile(r"[a-zA-Z0-9_+\-.#]{2,}")
@@ -446,6 +470,15 @@ CREATE INDEX IF NOT EXISTS idx_msg_session ON messages(session_id);
 """
 
 def db():
+    # pip 安装时数据目录可能还没建好（首次运行）。
+    # 静默吞掉是安全的：这里只是"尽力建目录"，建不出来就交给下面的 sqlite3.connect 去报错 ——
+    # 它抛出的原始错误（权限 / 路径非法）比这里包一层更有助于定位问题。
+    _d = os.path.dirname(DB_PATH)
+    if _d and not os.path.isdir(_d):
+        try:
+            os.makedirs(_d, exist_ok=True)
+        except Exception:
+            pass
     # timeout：多 Agent 同时写时等待锁而不是立刻报 database is locked
     conn = sqlite3.connect(DB_PATH, timeout=10)
     conn.row_factory = sqlite3.Row

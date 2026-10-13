@@ -2186,7 +2186,7 @@ select,.formrow input[type=text]{background:var(--d2);border:1px solid var(--lin
    重写，新插入的节点天然会重放 animation —— 于是切换就有了呼吸感。
    ⚠️ 只用 opacity，**不用 transform**：translateY 会临时改变
       getBoundingClientRect，而本项目有一批量几何的闸门（measure_layers /
-      verify_link_measure / verify_slist_rows / verify_folds），动画进行中量到
+      verify_link_measure / verify_slist_rows），动画进行中量到
       几 px 偏移就会假报错。opacity 不参与布局，量出来的数字和以前完全一样。
    ⚠️ 时长 0.2s 是刻意的：比切换本身的网络往返短得多，不会让人等动画。
    系统「减少动态效果」时由全局 @media 压掉（animation-duration→0.001ms）。 */
@@ -6220,10 +6220,10 @@ function askDialog(o){
         +(o.sub?'<div class="dsub">'+esc(o.sub)+'</div>':'')+'</div>'
       +(o.warn?'<div class="warnbox">'+esc(o.warn)+'</div>':'')
       +(o.question?'<div class="q">'+esc(o.question)+'</div>':'')
-      +'<div class="df"><button class="btn" data-v="cancel">'+esc(o.cancel||"取消")+'</button>'
+      +'<div class="df"><button class="btn" data-act="cancel">'+esc(o.cancel||"取消")+'</button>'
         +'<span class="grow"></span>'
-        +(o.danger?'<button class="btn danger" data-v="danger">'+esc(o.danger)+'</button>':'')
-        +(o.safe?'<button class="btn safe" data-v="safe">'+esc(o.safe)+'</button>':'')
+        +(o.danger?'<button class="btn danger" data-act="danger">'+esc(o.danger)+'</button>':'')
+        +(o.safe?'<button class="btn safe" data-act="safe">'+esc(o.safe)+'</button>':'')
       +'</div></div>';
     document.body.appendChild(mask);
     function done(v){
@@ -6235,8 +6235,12 @@ function askDialog(o){
     document.addEventListener("keydown",onKey);
     mask.addEventListener("click",function(e){
       if(e.target===mask){ done("cancel"); return; }     /* 点遮罩 = 取消 */
-      var b=e.target.closest?e.target.closest("[data-v]"):null;
-      if(b) done(b.dataset.v);
+      /* ⚠️ 选择器必须和属性名一致。2026-10-11：我把按钮的 data-v 改成 data-act
+         （为了不和导航的 data-v 撞车），但**漏改了这里的选择器** ——
+         结果按钮点了完全没反应、弹窗关不掉。测试当场抓到。
+         教训：改属性名要连选择器一起 grep，只改一处等于改坏。 */
+      var b=e.target.closest?e.target.closest("[data-act]"):null;
+      if(b) done(b.dataset.act);
     });
   });
 }

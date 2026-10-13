@@ -5436,15 +5436,6 @@ function rowIcon(t){
    只会让列表更花，反而看不出差别。 */
 var SESS_ICON='<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"'
   +' stroke-linecap="round" stroke-linejoin="round"><path d="M2 3.5h12v7H7l-3 2.5v-2.5H2z"/></svg>';
-function agentTone(a){
-  var s=String(a||"").toLowerCase();
-  if(s.indexOf("workbuddy")>=0) return "fact";
-  if(s.indexOf("zcode")>=0) return "preference";
-  if(s.indexOf("trae")>=0) return "skill";
-  if(s.indexOf("codex")>=0) return "decision";
-  if(s.indexOf("claude")>=0) return "error";
-  return "context";   /* 未知来源走中性灰 —— 不硬凑一个颜色，免得"看不出是什么"变成"看错了" */
-}
 let searching=false;
 
 /* ── 导航微动效（2026-10-05 增量层）────────────────────────────────────
@@ -5873,20 +5864,12 @@ function applyTheme(t,save){
     toast(t==="light"?"已切换到白天模式":"已切换到黑夜模式","ok");
   }
 }
-function toggleTheme(){
-  var cur=document.documentElement.getAttribute("data-theme")==="light"?"dark":"light";
-  applyTheme(cur,true);
-}
 /* ⚠️ 2026-10-07 用户拍板：「不要暗主题了」，强制走亮色。
    原来这里读 localStorage + 系统偏好，用户系统是暗色 → 进 dark，
    而 v2 色板只在 light 下定义 → 黑屏 + 布局散架（实测）。
    现在无条件 light，并把历史遗留的 loci-theme / hippocampus-theme
    一并清掉 —— 否则老localStorage 还会把主题拽回去。
    ?theme= 参数仍接受（便于分享/截图），但 dark 也会被拉回 light。 */
-(function initTheme(){
-  applyTheme("light",false);
-  try{localStorage.removeItem("loci-theme");localStorage.removeItem("hippocampus-theme");}catch(e){}
-})();
 
 /* ── 动效工具（零依赖）── */
 function toast(text,kind){
@@ -6126,33 +6109,6 @@ async function loadMemPick(){
   cmmsg("共 "+r.count+" 条可选","ok");
 }
 function toggleAllCM(v){document.querySelectorAll(".cmck").forEach(function(c){c.checked=v})}
-async function deletePicked(){
-  var ids=[];
-  document.querySelectorAll(".cmck:checked").forEach(function(c){ids.push(MPICK[parseInt(c.dataset.i,10)].id)});
-  if(!ids.length){cmmsg("先勾选要删除的记忆","err");return}
-  /* 2026-10-09：换 askDialog —— 原来写死「删前会自动导出全量备份」，不给选择。 */
-  var pick=await askDialog({
-    title:"硬删除 "+ids.length+" 条记忆",
-    sub:"会从记忆库里彻底抹掉，不留副本。",
-    warn:"硬删除不进回收站。没有备份就再也找不回来 —— 只能靠备份文件恢复，而备份要现在导。",
-    question:"删除前先导出一份全量备份？",
-    cancel:"取消",
-    danger:"不备份，直接删除",
-    safe:"备份并删除"
-  });
-  if(pick==="cancel") return;
-  var wantBak=(pick==="safe");
-  cmmsg(wantBak?"正在备份并删除…":"正在删除（不备份）…");progress(true);
-  var r=await api("/api/cleanup/run",{method:"POST",headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({ids:ids,backup:wantBak})});
-  cmmsg(r.error?("失败："+r.error)
-    :("已删除 "+r.deleted+" 条\n"+(wantBak?("备份："+r.backup)
-      :"⚠ 这次没有备份 —— 这些记忆已经彻底消失，无法从这里恢复。")),
-    r.error?"err":"ok");
-  progress(false);
-  toast(r.error?("删除失败："+r.error):("已删除 "+r.deleted+" 条记忆"), r.error?"err":"ok");
-  loadMemPick();loadStats();
-}
 async function loadBackups(){
   var rows=await api("/api/backups");
   document.getElementById("bk-list").innerHTML = rows.length ? rows.map(function(b){
@@ -6559,8 +6515,6 @@ async function doScan(){
       +'</label>';
   }).join("") : '<div class="empty">没有发现可采集的文件</div>';
 }
-function checkAll(v){
-  document.querySelectorAll(".ck:not([disabled])").forEach(c=>c.checked=v)}
 async function doCollect(){
   const paths=[...document.querySelectorAll(".ck:checked")].map(c=>c.dataset.p);
   if(!paths.length){alert("先勾选要入库的条目");return}
@@ -7619,30 +7573,6 @@ async function sessionParse(){
       '<div class="content">'+esc(m.content.length>400?m.content.slice(0,400)+"…":m.content)+'</div></div>';
   }).join("");
   document.getElementById("s-save").disabled=!SPARSED.length;
-}
-function sessionFile(inp){
-  var f=inp.files[0];if(!f)return;
-  var fr=new FileReader();
-  fr.onload=function(){document.getElementById("s-text").value=fr.result;
-    document.getElementById("s-info").textContent="已读入文件 "+f.name+"，点「解析预览」看识别结果";
-    sessionParse()};
-  fr.readAsText(f,"utf-8");
-  inp.value="";
-}
-async function sessionSave(){
-  if(!SPARSED||!SPARSED.length){alert("先点「解析预览」");return}
-  var r=await api("/api/session/save",{method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({messages:SPARSED,
-      title:document.getElementById("s-title").value.trim(),
-      project:document.getElementById("s-project").value.trim(),
-      agent:document.getElementById("s-agent").value.trim()})});
-  document.getElementById("s-info").textContent = (r.ok?("已归档：会话 #"+r.id+"，"+
-    (r.created?"新增":"内容已存在，跳过")+"（"+r.count+" 轮）"):("归档失败："+ (r.error||"未知错误")));
-  if(r.ok)toast(r.created?("会话已归档 #"+r.id):("会话已存在，跳过"),"ok");
-  SPARSED=null;document.getElementById("s-save").disabled=true;
-  document.getElementById("s-text").value="";
-  loadSessions();loadStats();
 }
 /* 会话页 4 张 KPI 卡 + 页头数据行（2026-09-25）。
    会话数 / 轮次 / 记忆数取自 /api/stats —— 与顶栏同源，不会出现"卡里一个数、顶栏另一个数"。
@@ -9170,20 +9100,6 @@ async function doImport(inp){
 }
 /* 拖拽区：点一下 = 打开选文件；拖进来 = 直接导入。
    ⚠️ dragover / dragenter 必须 preventDefault，否则浏览器会直接打开这个文件。 */
-(function bindDropzone(){
-  var dz=document.getElementById("pk-drop"), fi=document.getElementById("pack-file");
-  if(!dz||!fi)return;
-  dz.addEventListener("click",function(e){ if(e.target!==fi) fi.click(); });
-  ["dragenter","dragover"].forEach(function(t){
-    dz.addEventListener(t,function(e){e.preventDefault();e.stopPropagation();dz.classList.add("over")})});
-  ["dragleave","dragend"].forEach(function(t){
-    dz.addEventListener(t,function(e){e.preventDefault();dz.classList.remove("over")})});
-  dz.addEventListener("drop",function(e){
-    e.preventDefault();e.stopPropagation();dz.classList.remove("over");
-    var f=e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0];
-    if(f)doImportFile(f);
-  });
-})();
 
 /* A 技能/MCP 页：4 张 KPI 卡可点 → 跳到对应分组。
    2026-09-27 用户提的需求，并明确"别只显示那个分组，会引入特别多的 bug"——

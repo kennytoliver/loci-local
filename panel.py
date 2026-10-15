@@ -2596,6 +2596,10 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
 .sd-thread{padding-top:6px;max-width:840px}
 .sd-msg{padding:22px 0;border-bottom:1px solid var(--sp-line);display:flex;gap:15px}
 .sd-msg:last-child{border-bottom:none}
+/* 「记忆 → 回到出处那一句」跳过来时，把目标那一轮高亮 1.6 秒（2026-10-15 加）。
+   用 inset box-shadow 画左边的强调条，**不改 padding/margin** ——
+   避免高亮时整段文字跳一下。 */
+.sd-msg.sd-hit{background:var(--lz-indigo-bg);box-shadow:inset 3px 0 0 var(--lz-indigo)}
 /* 头像
    ⚠️ 2026-10-07 照原型改：`.av.u` 是**正圆 + 白色人形 SVG**，
       原来写的是 9px 圆角方块里塞一个「你」字 —— 那是我自己发明的。
@@ -8341,18 +8345,32 @@ function copySessionText(sid){
 
 /* 记忆 → 会话：点记忆的「出处」跳回来，滚到产出它的那一轮 */
 function gotoSession(sid,turn){
-  show("session");
-  loadSessions().then(function(){return openSession(sid)}).then(function(){
-    var t=(turn>0)?document.getElementById("tn-"+sid+"-"+turn):null;
-    if(t)scrollSide(t);
-  });
+  /* 「记忆 → 回到出处那一句」。被三处活代码调用：
+       renderDetail  「跳到这段原话」 · cardHtml 「有原话」徽章 · sessionSearch 搜索结果行
+     ⚠️⚠️ 2026-10-15 修（这是在跑的坏路径，不是死代码）：
+        原来走 show("session") + openSession() —— 那是 R3 之前**三栏骨架**的老路，
+        而 openSession → renderSessionView 会去写
+            #s-view / #s-view-t / #s-view-h / #s-view-acts
+        这四个元素 **R3 之后在 panel.py 里各 0 处**，所以调用当场抛
+        「Cannot set properties of null」—— **用户点了什么都不发生。**
+        它找的锚点 `#tn-<sid>-<turn>` 也只有那个死渲染器才生成，永远找不到。
+        现在改走 R3 之后的**独立详情页** openSessionDetail()，并把 turn 传下去。
+     ⚠️ 旧注释写着 openSession 那条路「不能删也不能改」—— 那句是错的：
+        它早就坏了，只是没人点过。 */
+  openSessionDetail(sid, turn);
 }
 
 /* ── 会话详情 · 独立页面（2026-10-06 用户拍板方案 2）─────────────────────
-   ⚠️ 与 openSession() 的关系：openSession 是旧的三栏骨架里"把详情渲染进右栏"，
-      还被 gotoSession（记忆页跳回来）依赖，**不能删也不能改**。
-      这里是**另一条路**：点标题 → 整页换成 #v-sdetail，走 history.pushState
-      让浏览器后退键能退回列表。两条路并存，old 路径继续服务"记忆 → 出处"跳转。 */
+   ⚠️ 与 openSession() 的关系（2026-10-15 更正）：
+      这里原话写着「openSession 是旧的三栏骨架里"把详情渲染进右栏"，
+      还被 gotoSession（记忆页跳回来）依赖，**不能删也不能改**」——
+      **后半句是错的。** 实情是：
+        · openSession → renderSessionView 写 #s-view / #s-view-t / -h / -acts，
+          这四个元素 R3 之后各 0 处 → **一调就抛 TypeError**；
+        · gotoSession 已经改走本函数（见上面 gotoSession 的注释）。
+      所以 openSession 这条链现在只剩"渲染进 #s-view-acts 的按钮"这类入口，
+      而那些按钮渲染在**不存在的元素**里，用户根本看不到 → 整条是死代码。
+      （待下一轮统一清理，删前要 grep 全仓引用。） */
 var SD_SID=null;      /* 当前详情页的会话 id，供「复制原文」用 */
 
 /* Agent 名 → 标签 class。配色沿用列表页同一套，不另造颜色 */
@@ -8410,17 +8428,24 @@ function renderSessionDetail(r){
         而且跟原型那个图标根本不是一回事。 */
   var AV_U='<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.4"/>'+
     '<path d="M4.8 20a7.4 7.4 0 0 1 14.4 0"/></svg>';
-  box.innerHTML=msgs.map(function(m){
-    var u=(m.role==="user"), raw=(m.role==="raw");
-    var tm=(m.created_at||"").replace("T"," ").slice(11,16);
-    return '<div class="sd-msg"><div class="sd-av '+(u?"u":"a")+'">'+
+    box.innerHTML=msgs.map(function(m){
+      var u=(m.role==="user"), raw=(m.role==="raw");
+      var tm=(m.created_at||"").replace("T"," ").slice(11,16);
+      /* ⚠️ 2026-10-15 加 data-turn：gotoSession（记忆 → 出处跳转）要能滚到指定那一轮。
+         旧的锚点是 `#tn-<sid>-<turn>`，但它只由**死渲染器 renderSessionView 生成**，
+         那条路已经写不进页面了 —— 所以 gotoSession 这些年一直找不到目标。 */
+      return '<div class="sd-msg" data-turn="'+m.turn+'"><div class="sd-av '+(u?"u":"a")+'">'+
       (u?AV_U:(raw?"原":"AI"))+'</div><div class="sd-mb">'+
       '<div class="sd-who">'+esc(raw?"原文":roleName(m.role))+
       (tm?'<span class="tm">'+esc(tm)+"</span>":"")+"</div>"+
       '<div class="sd-tx">'+sdText(m.content)+"</div></div></div>";
   }).join("")+'<div class="sd-end">这段对话结束 · '+(s.msg_count||msgs.length)+" 轮</div>";
 }
-async function openSessionDetail(sid){
+/* 打开会话详情页。turn>0 时滚到那一轮（2026-10-15 加，给 gotoSession 用）。
+   ⚠️ 为什么要这个参数：记忆卡上那个「跳到这段原话 / 有原话」的入口，
+      目的就是"回到这条记忆是从哪句话来的"。以前它走的是旧渲染器，
+      那条路已经坏了（见 gotoSession 的注释），所以这个能力一直是断的。 */
+async function openSessionDetail(sid, turn){
   var r=await api("/api/session/get?sid="+sid);
   if(r.error){ toast(r.error,"err"); return }
   if(sid!==SD_SID){
@@ -8432,6 +8457,12 @@ async function openSessionDetail(sid){
   SD_SID=sid;
   show("sdetail");
   scrollTo(0,0);
+  /* 滚到指定那一轮。⚠️ 不用 scrollIntoView（本项目踩过它的坑：会把外层容器一起滚走），
+     走已有的 scrollSide()，它只在滚动容器内部改 scrollTop。 */
+  if(turn>0){
+    var el=document.querySelector('#sd-thread .sd-msg[data-turn="'+turn+'"]');
+    if(el){ scrollSide(el); el.classList.add("sd-hit"); setTimeout(function(){ el.classList.remove("sd-hit"); },1600); }
+  }
 }
 function closeSessionDetail(){
   SD_SID=null;

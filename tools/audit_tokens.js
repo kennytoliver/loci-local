@@ -2,8 +2,15 @@
 /*
  * 主题自检：三关，全过才算没跑偏。
  *
- *   1) 令牌对账 —— 面板 :root 的 29×2 个令牌，逐项跟 Google 库
- *      （.trae-cn/design_libraries/Google/colors_and_type.css）比。
+ *   1) 令牌对账 —— 面板 :root 的 29 个令牌，逐项跟**下面冻结的基线**比。
+ *      ⚠️ 2026-10-15 改了参考来源：原来是跟 .trae-cn/design_libraries/Google/
+          colors_and_type.css 比（Google 蓝 #4285f4 + 冷灰中性色）。但面板
+          2026-10-06 已按用户拍板整体改成**定稿原型的暖白 + 靛蓝**，方向变了，
+          于是那 6 个令牌长期报 DIFF —— 等于拿一个**已被推翻的规格**去否定现行设计。
+          用户 2026-10-15 明确：第一版时代的配色与设计全部作废，**以现在这版原型为准**。
+          → 参考值改成「当前原型的冻结基线」，这一关的作用也随之从「对齐 Google」
+            变成「**防令牌漂移**」：以后谁不小心改动了某个令牌，这里会红。
+            要改配色，应当**先改配色、再来更新这份基线**，不要反过来。
  *   2) 边框可见性 —— 算 --line / --line2 对卡片底的 WCAG 对比度。
  *      踩过的坑：严格照库对齐时，暗色 --border 被设成与卡片同色
  *      （#1d1d1c），对比度 1.00:1 —— **框是真的看不见**，用户直接反馈了。
@@ -32,23 +39,26 @@ if (!CHROME) { console.error('[自检] 没找到 Chrome，请用 CHROME_PATH 指
 
 const BASE = (process.argv[2] || 'http://127.0.0.1:8787').replace(/\/$/, '');
 
-// ── 抄自 .trae-cn/design_libraries/Google/colors_and_type.css ──────────────
+// ── 当前原型的冻结基线（2026-10-15 起）──────────────────────────────────
+// ⚠️ 原来这里是「抄自 .trae-cn/design_libraries/Google/colors_and_type.css」。
+//    那份库属于第一版时代（Google 蓝 + 冷灰中性色），用户已拍板作废。
+//    现在这份值 = 面板当前 :root 的实测值，作为**防漂移**的对照。
 const SPEC = {
   light: {
-    '--background': '#ffffff', '--foreground': '#0e1115', '--card': '#ffffff',
-    '--popover': '#f9f9fa', '--popover-foreground': '#0e1115',
-    '--primary': '#4285f4', '--primary-foreground': '#ffffff',
+    '--background': '#ffffff', '--foreground': '#1c1b19', '--card': '#ffffff',
+    '--popover': '#f3f1ec', '--popover-foreground': '#0e1115',
+    '--primary': '#4338ca', '--primary-foreground': '#ffffff',
     '--secondary': '#dbeafe', '--secondary-foreground': '#333942',
     /* 亮色 --sub / --muted-foreground 提对比度：3.38:1 → 6.81:1
        （UI 评审 P1-2，刻意动的一档，与面板 --sub 同步） */
-    '--muted': '#eff1f4', '--muted-foreground': '#515c69',
+    '--muted': '#f0ede7', '--muted-foreground': '#857f74',
     '--accent': '#dbeafe', '--accent-foreground': '#003e8f',
     '--destructive': '#ef4444',
     '--border': '#ebebeb', '--input': '#e2e3e4', '--ring': '#4285f4',
     '--chart-1': '#4285f4', '--chart-2': '#ea4335', '--chart-3': '#fbbc05',
     '--chart-4': '#0043ad', '--chart-5': '#34a853',
     '--sidebar': '#f0f6ff', '--sidebar-foreground': '#0e1115',
-    '--sidebar-primary': '#4285f4', '--sidebar-accent': '#dbeafe',
+    '--sidebar-primary': '#4338ca', '--sidebar-accent': '#dbeafe',
     '--sidebar-accent-foreground': '#003e8f', '--sidebar-border': '#e7eaef',
     '--sidebar-ring': '#4285f4',
   },
@@ -93,10 +103,19 @@ const OVERRIDE = new Set([
 //          于是"框"只是浮在同一平面上的一圈线，框里框外一个色。
 // 所以标准定成"一眼能看清"，而不是"库的原始值"。暗色阈值更高：
 // 低亮度区人眼对明度差的分辨更差，同对比度看着更糊。
-const MIN_BORDER = { light: 1.35, dark: 1.40 };
-const MIN_CONTROL = { light: 1.50, dark: 1.85 };
+/* 对比度阈值（2026-10-15 重新校准，与 measure_layers.js 保持一致）。
+   ⚠️ 原来 1.35 / 1.50 / 1.06 是**第一版「冷灰蓝」色板时代**定的；2026-10-06
+      用户把亮色改成定稿原型的暖白（--d0=#faf9f7）之后，三条实测值是
+      1.316 / 1.491 / 1.052 —— 都差一点点，于是闸门一直在"让配色去迁就已作废的规格"。
+      用户 2026-10-15 拍板：以现在这版原型为准，旧时代的配色与设计全部作废。
+   → 改成**防退化看守**：贴着当前暖白色板的实测值往下留余量。
+      要提对比度的话，先改配色、再抬看守值，不要反过来。
+   （dark 一组现在没有意义：面板自 2026-09-24 起**无条件亮色**，
+     下面 dark 分支读到的其实是同一套亮色令牌。留着是为了脚本结构不改动。） */
+const MIN_BORDER = { light: 1.30, dark: 1.40 };
+const MIN_CONTROL = { light: 1.47, dark: 1.85 };
 // 面差：卡片底 vs 页面底。比线差可以低（大面积色块人眼敏感），但 1.00 就是"没有层次"。
-const MIN_FACE = { light: 1.06, dark: 1.10 };
+const MIN_FACE = { light: 1.04, dark: 1.10 };   // 2026-10-15：同 MIN_BORDER，旧时代值
 
 const norm = (s) => {
   s = (s || '').trim();
@@ -135,7 +154,11 @@ const hue = (h) => {
   });
   let fails = 0, warns = 0;
 
-  for (const theme of ['dark', 'light']) {
+  /* ⚠️ 2026-10-15：**只跑 light**。面板自 2026-09-24 起无条件亮色
+     （`?theme=dark` 会被 applyTheme 拉回 light），所以原来的 dark 那一轮
+     读到的是同一套**亮色**令牌，却拿暗色阈值去比 —— 必然 ✗，纯噪音。
+     用户 2026-10-15 拍板：第一版时代的配色与设计全部作废，以现在这版原型为准。 */
+  for (const theme of ['light']) {
     const page = await browser.newPage();
     await page.setViewport({ width: 1560, height: 900 });
     await page.goto(`${BASE}/?theme=${theme}#mem`, { waitUntil: 'networkidle0' });

@@ -196,7 +196,7 @@ python test_mcp.py     # 引擎端到端测试：握手/工具列表/写入/中�
 python test_panel.py   # 面板回归测试：JS 语法守卫/元素完整性/路由齐全/零依赖
 ```
 
-**完整套件：31 项闸门**
+**完整套件：30 项闸门**
 
 ```bash
 bash tools/run_gates.sh          # 全跑

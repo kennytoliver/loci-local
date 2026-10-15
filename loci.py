@@ -14,7 +14,7 @@ Loci（忆宫）— 个人跨 Agent 记忆中枢（零依赖单文件）
   python loci.py --save "内容" --type decision --imp 4 --tags a,b --proj 项目名
   python loci.py --search "查询"
 """
-import sys, os, io, json, math, re, sqlite3, argparse, datetime, hashlib, collections
+import sys, os, io, json, math, re, sqlite3, argparse, datetime, hashlib, collections, subprocess
 
 # ⚠️ 全项目**唯一**的版本号来源。
 #    以前版本号散在 3 处字面量里各写各的：MCP serverInfo、面板页脚、面板自检 clientInfo ——
@@ -3615,7 +3615,86 @@ def do_archive_snapshot(force=False):
 
 
 # ---------- MCP stdio 协议 (JSON-RPC 2.0, 换行分隔) ----------
+# ── 面板「按需启动」（2026-10-15，用户明确要的）────────────────────────
+# 要的**不是**「电脑开机就常驻面板」，而是：**Agent 调用 Loci 的 MCP 工具时，
+# 面板自己打开**。两者的区别用户强调过两次，别搞混。
+#
+#   触发点：本函数在 mcp_server() 开头调 —— MCP 服务进程启动 = Agent 那个会话
+#           第一次用 Loci。（进程被 Agent 拉起时触发一次，不是每次工具调用都触发，
+#           否则一个会话里会反复弹浏览器。）
+#   幂等：先探 8787 上跑的是不是**我们的**面板，是就不重复开。
+#   独立进程：**绝不能是 MCP 的子进程** —— 否则 Agent 一退出面板就被带走。
+#   失败：只往 stderr 说一句，绝不打断 MCP 服务（记忆读写照常）。
+#   开关：环境变量 LOCI_PANEL=off 可关（默认 auto）。
+PANEL_PORT = 8787
+PANEL_URL = "http://127.0.0.1:%d" % PANEL_PORT
+
+
+def _panel_alive(timeout=1.5):
+    """8787 上跑的到底是不是我们的面板。
+
+    ⚠️ 两个坑，都踩过：
+       ① 不能只看"端口通不通" —— 别的程序也可能占着 8787。
+          打个 /api/stats，认得出 total 字段才算（那正是我们的返回结构）。
+       ② **必须显式绕开代理**。这台机器上 HTTP_PROXY 指向本地代理，
+          urllib 默认会尊重它 → 连 127.0.0.1 的请求都被塞进代理 → 502
+          → 探测永远返回"没在跑" → **每次 MCP 启动都多开一个面板**。
+          ProxyHandler({}) 空表 = 本次请求不走任何代理。
+          （bash 那边同理：本机 HTTP 探测要先 unset http_proxy 再 no_proxy=127.0.0.1）"""
+    try:
+        import urllib.request
+        op = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        with op.open(PANEL_URL + "/api/stats", timeout=timeout) as r:
+            d = json.loads(r.read().decode("utf-8", "ignore"))
+        return isinstance(d, dict) and "total" in d
+    except Exception:
+        return False
+
+
+def _spawn_panel():
+    """把 panel.py 拉起来（脱离 MCP 进程 + 自动开浏览器）。返回 Popen。"""
+    panel = os.path.join(_DIR, "panel.py")
+    if not os.path.isfile(panel):
+        return None
+    env = dict(os.environ)
+    env["LOCI_DB"] = DB_PATH
+    env["PYTHONIOENCODING"] = "utf-8"
+    env["LOCI_PANEL"] = "off"          # 面板进程里别再触发一次（防递归）
+    kw = {}
+    if os.name == "nt":
+        DETACHED_PROCESS = 0x00000008
+        CREATE_NEW_PROCESS_GROUP = 0x00000200
+        kw["creationflags"] = DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
+    else:
+        kw["start_new_session"] = True
+    return subprocess.Popen(
+        [sys.executable, "-X", "utf8", panel, "--port", str(PANEL_PORT), "--open"],
+        env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL, close_fds=True, **kw)
+
+
+def maybe_open_panel():
+    """MCP 启动时按需开面板。只在 mcp_server() 开头调一次。
+
+    ⚠️ 「静默跳过必须可审计」是本项目的规矩（有 audit_silent_skips 闸门守着）——
+       所以每次"没开"都要能说出原因，别什么都不说。"""
+    mode = (os.environ.get("LOCI_PANEL") or "auto").strip().lower()
+    if mode in ("off", "0", "false", "no", "none"):
+        return
+    if _panel_alive():
+        return                          # 已经在跑（或刚开过），不重复开
+    try:
+        if _spawn_panel() is None:
+            return
+        print("[loci] 面板已按需启动：%s（LOCI_PANEL=off 可关）" % PANEL_URL,
+              file=sys.stderr)
+    except Exception as e:
+        print("[loci] 面板没能自动启动（%s）—— 不影响 MCP，"
+              "想用面板手动跑 python panel.py --open" % e, file=sys.stderr)
+
+
 def mcp_server():
+    maybe_open_panel()          # 按需把面板拉起来（2026-10-15）——见那个函数的注释
     stdin = io.TextIOWrapper(sys.stdin.buffer, encoding="utf-8")
     stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", line_buffering=True)
 

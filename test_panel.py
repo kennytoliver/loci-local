@@ -149,7 +149,11 @@ check("后端路由齐全", not missing_routes, f"缺失: {missing_routes}")
 # 7. 无第三方依赖（检查全部 .py 文件）
 ALLOWED = ("sys", "os", "io", "json", "math", "re", "sqlite3", "argparse", "datetime",
            "hashlib", "threading", "webbrowser", "shutil", "subprocess",
-           "http", "urllib", "loci", "panel")
+           "http", "urllib", "loci", "panel",
+           # 2026-10-15 补一个：importlib 是标准库，之前白名单漏了它。
+           # test_mcp.py 要用它动态导入 loci，测「面板按需启动」那几个开关。
+           # ⚠️ 只补真正需要的 —— 一次塞一堆会把这个闸门削钝（它守的是"零第三方"）。
+           "importlib")
 third = []
 for fn in ("loci.py", "panel.py", "install_agents.py", "test_mcp.py", "test_panel.py"):
     fp = os.path.join(HERE, fn)

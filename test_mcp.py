@@ -16,7 +16,10 @@ os.environ["LOCI_DB"] = _tmp.name
 
 proc = subprocess.Popen(
     [sys.executable, "-X", "utf8", SERVER],
-    stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+    # ⚠️ 必须关掉「MCP 启动时按需开面板」：否则跑一次测试就弹一次浏览器，
+    #    CI 上更是会去起一个根本没人看的服务。测试只该测引擎。
+    env=dict(os.environ, LOCI_PANEL="off"))
 
 def send(obj):
     proc.stdin.write((json.dumps(obj, ensure_ascii=False) + "\n").encode("utf-8"))
@@ -128,6 +131,39 @@ results.append(("负例不误召回",
 
 proc.stdin.close()
 proc.terminate()
+
+# ── 面板「按需启动」的三个行为（2026-10-15）───────────────────────────
+# 需求：**Agent 调用 Loci 的 MCP 工具时面板自己打开**（不是开机常驻）。
+# 这里把 _spawn_panel 换成假的，**不真的启动面板**（真启动会弹浏览器）。
+# 三个必须成立的点：
+#   ① LOCI_PANEL=off 时一次都不启动（弹浏览器是副作用，得能关）
+#   ② 默认（没设）时会启动
+#   ③ 已经在跑就不重复启动（**幂等** —— 少了这条，每个 Agent 会话都多开一个面板）
+import importlib
+_loci = importlib.import_module("loci")
+_calls = []
+_orig_spawn, _orig_alive = _loci._spawn_panel, _loci._panel_alive
+try:
+    _loci._spawn_panel = lambda: _calls.append(1)
+    os.environ["LOCI_PANEL"] = "off"
+    _loci.maybe_open_panel()
+    _ok_off = (len(_calls) == 0)
+
+    os.environ.pop("LOCI_PANEL", None)
+    _loci._panel_alive = lambda *a, **k: False     # 假装没在跑
+    _loci.maybe_open_panel()
+    _ok_on = (len(_calls) == 1)
+
+    _loci._panel_alive = lambda *a, **k: True      # 假装已在跑
+    _loci.maybe_open_panel()
+    _ok_idem = (len(_calls) == 1)                  # 不该再多开
+finally:
+    _loci._spawn_panel, _loci._panel_alive = _orig_spawn, _orig_alive
+    os.environ.pop("LOCI_PANEL", None)
+
+results.append(("面板按需启动：LOCI_PANEL=off 不启动", _ok_off, None))
+results.append(("面板按需启动：默认会启动", _ok_on, None))
+results.append(("面板按需启动：已在跑就不重复开（幂等）", _ok_idem, None))
 
 # 清理临时库
 for suffix in ("", "-journal", "-wal", "-shm"):

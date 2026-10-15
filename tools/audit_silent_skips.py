@@ -51,8 +51,12 @@ TARGETS = ["loci.py", "panel.py", "install_agents.py"]
 #   · 另外 +1 pass / +2 return_empty 是**在这次改动之前就已经漂移的** ——
 #     也就是说这道闸门在 2026-10-11 之前就是红的，只是没人跑它。
 #     本次一并校准到实测值：不是「把数字改到能过」，是把基准重新对齐到当前真实代码。
+#   · 2026-10-15 又 +1 return_empty：_panel_alive() 探测面板时的
+#     「except Exception: return False」—— 探测失败就当作"没在跑"是正确的语义
+#     （宁可多探一次，不可漏探；漏探的代价是每次 MCP 启动都多开一个面板）。
+#     而且它是**有出声的**：真启动失败时 maybe_open_panel() 会往 stderr 说原因。
 EXPECTED = {
-    "loci.py": {"pass": 12, "continue": 12, "return_empty": 11},
+    "loci.py": {"pass": 12, "continue": 12, "return_empty": 12},
     "panel.py": {"pass": 8, "continue": 4, "return_empty": 2},
     "install_agents.py": {"pass": 0, "continue": 0, "return_empty": 0},
 }

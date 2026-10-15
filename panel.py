@@ -5868,8 +5868,21 @@ function applyTheme(t,save){
    原来这里读 localStorage + 系统偏好，用户系统是暗色 → 进 dark，
    而 v2 色板只在 light 下定义 → 黑屏 + 布局散架（实测）。
    现在无条件 light，并把历史遗留的 loci-theme / hippocampus-theme
-   一并清掉 —— 否则老localStorage 还会把主题拽回去。
+   一并清掉 —— 否则老 localStorage 还会把主题拽回去。
    ?theme= 参数仍接受（便于分享/截图），但 dark 也会被拉回 light。 */
+
+/* ⚠️⚠️ 这一段**不能删**（2026-10-15 血的教训）。
+   它是**立即执行函数（IIFE）**——没有调用点，靠"谁在调它"是查不出它有用的：
+   2026-10-13 清死代码时，我按「全仓只出现 1 次 = 没人引用 = 死代码」把它删了，
+   结果 `data-theme` 再也没人设置 → 亮色覆盖整层失效 → body 用暗色 --bg、
+   内容用亮色 --lz-* → **顶部一条黑带 + 下面亮色**（用户 10-15 一眼看出快照不对）。
+
+   判断死代码时，除了数引用次数，**还必须认出 `(function name(){...})()` 这种自执行形式**
+   —— 它的"调用"就是它自己。 */
+(function initTheme(){
+  applyTheme("light",false);
+  try{localStorage.removeItem("loci-theme");localStorage.removeItem("hippocampus-theme");}catch(e){}
+})();
 
 /* ── 动效工具（零依赖）── */
 function toast(text,kind){

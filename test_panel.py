@@ -169,6 +169,26 @@ for flag in ("--list", "--all", "--install", "--uninstall", "--verify", "--rules
 check("安装器命令行参数齐全", all(f in inst for f in
       ("--list", "--all", "--install", "--uninstall", "--verify", "--rules")))
 
+# 9. 亮色主题的「加载时强制」没被删掉（2026-10-15 加）
+#    ⚠️ 这条是为一次**真实事故**加的：
+#       2026-10-13 清死代码时，我按「全仓只出现 1 次 = 没人引用 = 死代码」删掉了 initTheme
+#       —— 但它是**立即执行函数**：
+#           (function initTheme(){ applyTheme("light",false); })()
+#       它的"调用"就是它自己，**数引用次数这种办法天生看不见它**。
+#       删掉之后 `data-theme` 再没人设置 → 亮色覆盖整层失效 → body 走暗色 --bg、
+#       内容走亮色 --lz-* → **顶部一条黑带 + 下面亮色**。
+#       （用户 10-15 一眼看出我给的截图不对，才挖出来。）
+#    这里不需要识别 IIFE —— 直接钉住"它干了什么"：applyTheme 必须至少有一次调用。
+#    ⚠️ 第 1 版写错了：直接 `re.findall(r"applyTheme\s*\(", script)` 数出现次数 ——
+#       反向测试（把调用注释掉）照样通过，因为**注释里也含有 `applyTheme(`**。
+#       这就是本项目反复踩的「恒真断言」。所以先剥掉注释再数。
+_no_comment = re.sub(r"/\*.*?\*/", "", script, flags=re.S)
+_no_comment = re.sub(r"(?m)^\s*//[^\n]*", "", _no_comment)
+_ap = re.findall(r"\bapplyTheme\s*\(", _no_comment)
+check("亮色主题在加载时被强制应用（applyTheme 有调用点）",
+      len(_ap) >= 2,
+      f"applyTheme( 出现 {len(_ap)} 次（定义 1 次 + 加载时调用至少 1 次；注释不算）")
+
 print("=" * 56)
 print("总体:", "全部通过" if not fails else f"有 {len(fails)} 项失败: {fails}")
 sys.exit(1 if fails else 0)

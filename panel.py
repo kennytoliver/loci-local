@@ -6752,9 +6752,31 @@ async function forgetRoot(p){
     body:JSON.stringify({dir:p})});
   toast("已移除扫描目录","ok");loadScanRoots();
 }
-function scanmsg(t,kind){var el=document.getElementById("scan-msg");
-  if(!t){el.style.display="none";return} el.style.display="block";
-  el.className="msg"+(kind?(" "+kind):"");el.textContent=t;}
+/* 扫描进度 / 结果文案（2026-10-15 修一个活的坏路径）。
+   ⚠️ 原来它写的是 #scan-msg —— 那个元素 R3 之后在 panel.py 里 **0 处定义**，
+      所以一调就抛 `Cannot read properties of null (reading 'style')`。
+      而它是 runAutoScan() 的**第一句**（顶栏「重新扫描」按钮走这条路），
+      实测后果：点了按钮 → 无文案、无 toast、无进度条，还抛 TypeError，
+      扫描根本没开始。
+   现在：优先写采集页的 #scan-info（doScan 也写它，同一处、语义一致）；
+         不在采集页时退化成 toast，至少让用户看到「在扫描 / 扫到了什么」。
+   ⚠️ 可见性不能只判"元素存在" —— #scan-info 挂在**隐藏的采集页**里，
+      在会话页点「重新扫描」时它照样"存在"，但写进去用户看不见（实测踩过）。
+      要判"它所在的 section 是不是当前页"。
+   ⚠️ 无论如何都不能抛 —— 这是进度提示，不该把主流程带崩。 */
+function scanmsg(t,kind){
+  var el=document.getElementById("scan-info");
+  var sec=el&&el.closest?el.closest("section"):null;
+  var live=el&&(!sec||!sec.hidden);
+  if(live){
+    if(!t){el.style.display="none";return}
+    el.style.display="block";
+    el.className="hint";
+    el.textContent=t;
+    return;
+  }
+  if(t) toast(t,kind||"");
+}
 function fmtSize(n){
   if(!n)return "0 B";
   if(n>=1048576)return (n/1048576).toFixed(1)+" MB";

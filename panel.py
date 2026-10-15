@@ -4444,7 +4444,7 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
               <!-- 2026-10-15 补：addScanRoot()/forgetRoot() 一直写着，后端 /api/scan-root
                    也一直在，但采集页这个框只有"展示"，没有"加一个位置"的入口。 -->
               <button class="btn" style="width:100%;margin-top:10px"
-                      onclick="addScanRoot()">+ 添加扫描位置</button>
+                      onclick="addScanRoot()">+ 添加扫描目录</button>
             </div>
           </aside>
         </div>
@@ -4492,9 +4492,11 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
                      这三个能力后端一直有、函数也一直写着，但 R3 六页改版把入口丢了 ——
                      于是 verifyMcp / registerAll / pickFolder / addAgent 成了
                      「没人调、也没人删」的孤儿（全仓引用数 = 1，就是它们自己的定义）。 -->
+                <!-- ⚠️ 2026-10-15 撤回：我一度在这里加了「验证 MCP 服务」「一键接入全部」，
+                     查 R3 原型（proto/Agent.html）发现**这两个按钮不在设计里** ——
+                     原型顶栏只有「自动检测」+「+ 手动添加」。
+                     这两个能力是我从"函数没人调用"推断出来的，不是你的设计。已撤。 -->
                 <span class="grow"></span>
-                <button class="btn" onclick="verifyMcp()">验证 MCP 服务</button>
-                <button class="btn" onclick="registerAll()">一键接入全部</button>
                 <button class="btn" onclick="toggleAddAgent()">+ 手动添加</button>
               </div>
               <!-- 「+ 手动添加」展开的这一行。
@@ -4757,10 +4759,9 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
                 <!-- 同采集页：一个按钮来回切 -->
                   <button class="btn" id="hf-allbtn" onclick="hfToggleAll(event)">全选</button>
                   <button class="btn pri push" onclick="hfExport()">导出交接卡</button>
-                  <!-- 2026-10-15 补：copyHandoff() 一直写着，但它要写反馈的 #hf-copy
-                       元素随着 R3 改版一起没了 → 函数成了孤儿，按钮也不存在。
-                       把按钮补回来即可 —— 按钮自己就是「已复制」的反馈位置。 -->
-                  <button class="btn" id="hf-copy" onclick="copyHandoff()">复制</button>
+                  <!-- ⚠️ 2026-10-15 撤回：我一度在这里加了「复制」。查 R3 原型
+                       （proto/交接卡.html）—— 交接卡的设计是顶栏放「打开导出目录」，
+                       pickbar 里只有「导出交接卡」。「复制」不在设计里，已撤。 -->
               </div>
 
               <div class="thead hf-thead">

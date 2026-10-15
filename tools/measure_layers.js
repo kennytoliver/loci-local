@@ -128,13 +128,20 @@ const PAGES = [
         content: effBg(document.querySelector('.content') || document.body),
         pages: {},
       };
-      // 卡片类名不止 .panel：质检页的健康卡是 .hcard，主从页是 .split-main/.split-side。
-      // 只认 .panel 会漏掉质检页（它的 #health/#audit-out 内容全靠 JS 填，静态 HTML 里没有 .panel）。
-      // ⚠️ 2026-09-27：这里原先是 `.health` —— 那时卡片壳挂在 #health 上。
-      //    后来 renderHealth() 改成只吐一个 .hcard，外层 #health 退化成纯容器
-      //    （display:block、无底色无描边），于是本闸门读到"面差为 0"报红。
-      //    跟不动实现就会假红：**卡片是谁，就量谁** → 改认 .hcard。
-      const CARD_SEL = '.panel, .hcard, .split-main, .split-side';
+        // 卡片类名不止 .panel：质检页的健康卡是 .hcard，主从页是 .split-main/.split-side。
+        // 只认 .panel 会漏掉质检页（它的 #health/#audit-out 内容全靠 JS 填，静态 HTML 里没有 .panel）。
+        // ⚠️ 2026-09-27：这里原先是 `.health` —— 那时卡片壳挂在 #health 上。
+        //    后来 renderHealth() 改成只吐一个 .hcard，外层 #health 退化成纯容器
+        //    （display:block、无底色无描边），于是本闸门读到"面差为 0"报红。
+        //    跟不动实现就会假红：**卡片是谁，就量谁** → 改认 .hcard。
+        // ⚠️⚠️ 2026-10-15 又发生了一次同样的假红（R3 六页改版之后）：
+        //    实测六页匹配到卡片数 —— session 0 ｜ collect 0 ｜ clean 0 ｜ agents 0 ｜ skill 0 ｜
+        //    handoff 1（还是已废弃的 .panel.pcard 残留）。于是闸门找不到卡片，
+        //    退而量页面本身 → 1.000 → 报「有 4 个页面的卡片底与内容区底相同，面差为 0」。
+        //    而 R3 真正的卡片是：**`.tbl`（会话/采集/交接卡/Agent/技能 五页）** 和
+        //    **`.card`（库页）**。加进来即可。
+        //    教训第二次验证：**闸门里的选择器是"实现的一部分"，实现改了它不改就会假红。**
+        const CARD_SEL = '.panel, .hcard, .split-main, .split-side, .tbl, .card';
       // ⚠️ 2026-09-27：本脚本是加载 `#mem` 进来的，**从没进过质检页** —— 旧版卡片壳 `.health`
       //    是写死在 HTML 里的静态元素，隔页也能读到计算样式，所以一直没暴露。
       //    改成 .hcard 后它是 runAudit() → renderHealth() 异步画的，不进页面就没有。

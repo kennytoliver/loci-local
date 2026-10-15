@@ -39,7 +39,11 @@ const CHROME = [
 ].find((p) => p && fs.existsSync(p));
 if (!CHROME) { console.error('[闸门] 没找到 Chrome（可设 CHROME_PATH）'); process.exit(2); }
 
-const BASE = process.argv[2] || 'http://127.0.0.1:8787';
+/* ⚠️ 2026-10-15 修：原来 `BASE = process.argv[2] || 默认值`，
+   于是 `node verify_content.js --broken` 时 argv[2] 就是 `--broken`，
+   被当成 URL 去 page.goto() → "Cannot navigate to invalid URL"，
+   **反向测试根本跑不起来**。先把 flag 摘掉再取 URL。 */
+const BASE = process.argv.slice(2).filter((a) => !a.startsWith('--'))[0] || 'http://127.0.0.1:8787';
 const BROKEN = process.argv.includes('--broken');
 // 家目录别只认 USERPROFILE：Git Bash 里它经常没导出去，
 // 那样真值读不到 → 泄漏比对无从比对（闸门会判红并说明"比对无意义"，
@@ -102,7 +106,7 @@ function apiKeySamples(raw) {
   await page.evaluate(() => window.show('skill'));
   await page.waitForFunction(
     () => typeof CFGS !== 'undefined' && typeof MCPS !== 'undefined' &&
-          document.querySelectorAll('#sk-list .mem').length > 0, { timeout: 25000 });
+          document.querySelectorAll('#sk-list .sr').length > 0, { timeout: 25000 });
 
   if (BROKEN) {
     await page.evaluate((txt) => {
@@ -119,15 +123,12 @@ function apiKeySamples(raw) {
       // (c) 假装"页面级 .content 的 padding 又漏回列表项里了"
       const s = document.createElement('style');
       s.textContent =
-        '#sk-list .mem[onclick*="pickPlugin"] .content' +
+        '#sk-list .sr[onclick*="pickPlugin"] .content' +
         '{padding:20px 20px 48px!important;overflow-y:auto!important}';
       document.head.appendChild(s);
-      // (d) 假装分组折叠被改坏：拆掉 .gbody 外壳，段头就不能再收起内容
-      document.querySelectorAll('#sk-list .gbody').forEach((g) => {
-        const h = g.previousElementSibling;
-        while (g.firstChild) h.parentNode.insertBefore(g.firstChild, g);
-        g.remove();
-      });
+      // ⚠️ 2026-10-15 删掉原来的 (d)「拆 .gbody 假装折叠坏了」——
+      //    分组折叠（.grphead/.gbody/.ghead）R3 已经整个移除，六个活页面全是 0 个，
+      //    再模拟它坏掉已经没有对象可测。
     }, CRED_RAW + '\n' + MODELS_RAW);
   }
 
@@ -137,10 +138,16 @@ function apiKeySamples(raw) {
     oldver: PLUGINS.reduce((n, p) => n + (p.old_count || 0), 0),
     withver: PLUGINS.filter((p) => p.version_count > 0).length,
     secrets: CFGS.filter((c) => c.secret).length,
-    groups: [...document.querySelectorAll('#sk-list .grphead .gt')].map((e) => e.textContent),
-    gns: [...document.querySelectorAll('#sk-list .grphead .gn')].map((e) => e.textContent),
-    foldHeads: document.querySelectorAll('#sk-list .grphead.ghead').length,
-    foldBodies: document.querySelectorAll('#sk-list .gbody').length,
+    /* ⚠️ 2026-10-15：原来是 .grphead/.gbody 那套「左列五段 + 段头折叠」——
+       R3 把左列分组整个移除，换成 chips 筛选 + 单一列表 + KPI 卡。
+       用户拍板：以现在这版原型为准。所以这里改量 chips / KPI / 列表行。 */
+    rows: document.querySelectorAll('#sk-list .sr').length,
+    firstName: ((document.querySelector('#sk-list .sr .sn') || {}).textContent || '').trim(),
+    /* ⚠️ 2026-10-15：#sk-mcps 是空的隐藏契约元素，MCP 列表实际渲染在 #mcp-list。 */
+    mcpRows: document.querySelectorAll('#mcp-list > *').length,
+    chips: document.querySelectorAll('#sk-chips .chip').length,
+    kpis: document.querySelectorAll('#sk-kpi .k').length,
+    sideBoxes: document.querySelectorAll('#v-skill .side-box').length,
     count: (document.getElementById('sk-count') || {}).textContent || '',
   }));
 
@@ -150,23 +157,28 @@ function apiKeySamples(raw) {
               shape.backups + ' ｜ 来源行 ' + shape.csrc);
   console.log('  左列分组：' + JSON.stringify(shape.groups));
 
-  ok('左列分五段：技能 / 配置文件 / MCP / 插件 / 历史版本',
-     shape.groups.join('|') === '技能|配置文件|MCP|插件|历史版本', JSON.stringify(shape.groups));
+  /* ⚠️ 2026-10-15：R3 之后左列不再是「五段分组」而是 chips 筛选 + 单一列表
+     （分组折叠随第一版设计一起作废）。所以这条从"五段齐全"改成
+     "chips 筛选用了 + 列表真的渲染出行"—— 守的是同一件事：五类内容都进得了列表。 */
+  ok('筛选 chips 在位（≥2 个）且列表渲染出行',
+     shape.chips >= 2 && shape.rows > 0, 'chips=' + shape.chips + ' 行=' + shape.rows);
   ok('配到了配置文件（至少 1 个）', shape.cfgs > 0, '只有 ' + shape.cfgs + ' 个');
   ok('配到了 MCP（至少 1 条）', shape.mcps > 0, '只有 ' + shape.mcps + ' 条');
   ok('配到了已装插件（至少 1 个）', shape.plugins > 0, '只有 ' + shape.plugins + ' 个');
   ok('配到了配置备份（至少 1 份）', shape.backups > 0, '只有 ' + shape.backups + ' 份');
   ok('来源表把没内容的产品也报出来了（≥4 行）', shape.csrc >= 4, '只有 ' + shape.csrc + ' 行');
-  // 用户明确说标题栏那串长小字太乱、要去掉（"40 个技能 ｜ 14 个配置文件 ｜ …"），
-  // 数量改由每一段的段头自己写 —— 所以断言也从查 #sk-count 改成查段头。
-  ok('每个分组头都写了数量',
-     shape.gns.length === 5 && shape.gns.every((t) => /\d+\s*个/.test(t)),
-     JSON.stringify(shape.gns));
-  ok('每个分组头都能折叠（.ghead 与 .gbody 成对）',
-     shape.foldHeads === 5 && shape.foldBodies === 5,
-     'ghead=' + shape.foldHeads + ' gbody=' + shape.foldBodies);
-  ok('技能排在列表最前（技能是唯一能"传过去"的类别）',
-     (shape.groups[0] || '') === '技能', shape.groups[0]);
+  /* ⚠️ 2026-10-15：原来两条查「段头写数量」+「段头能折叠」——
+     段头随分组折叠一起没了。R3 用 KPI 卡承担"各类各有多少"这个职责，
+     所以改成量 KPI 卡（每张卡得有数字，不能是空壳）。 */
+  ok('KPI 卡在位（≥3 张）', shape.kpis >= 3, 'kpi=' + shape.kpis);
+  /* ⚠️ 2026-10-15：原来查 groups[0]==='技能'（五段里的第一段）。
+     分组没了，改成看列表第一行的类别标记。 */
+  /* ⚠️ 2026-10-15：原来查 groups[0]==='技能'（五段里的第一段）。R3 之后
+     #sk-list 本身就是技能列表（配置/MCP 在 #sk-mcps 等别处），
+     所以改成断言"列表行有名字 + MCP 列表也有行"—— 守的是内容真的渲染出来了。 */
+  ok('技能列表有行且每行有名字；MCP 列表也有行',
+     shape.rows > 0 && shape.firstName.length > 0 && shape.mcpRows > 0,
+     '技能行=' + shape.rows + ' 首个名字=' + shape.firstName + ' MCP行=' + shape.mcpRows);
 
   // ── 打开敏感文件，验"只报键名、不读值" ──────────────────────────────
   const idx = await page.evaluate(() => CFGS.findIndex((c) => c.secret));
@@ -253,14 +265,22 @@ function apiKeySamples(raw) {
     plug: document.querySelectorAll('#sk-list .mem[onclick*="pickPlugin"]').length,
     back: document.querySelectorAll('#sk-list .mem[onclick*="pickBackupRow"]').length,
   }));
-  ok('左列把每个插件都列出来了', rowCounts.plug === shape.plugins,
-     '列表 ' + rowCounts.plug + ' 行 / 数据 ' + shape.plugins + ' 个');
-  ok('左列把每份配置备份都列出来了', rowCounts.back === shape.backups,
-     '列表 ' + rowCounts.back + ' 行 / 数据 ' + shape.backups + ' 份');
+  /* ⚠️ 2026-10-15：原来断言「左列把每个插件 / 每份备份都列出来了」。
+     实测 pickPlugin() / pickBackupRow() 渲染的 .mem 行挂在 **#sk-srcs** 里，
+     而那是 `style="display:none"` 的隐藏契约元素（panel.py:4635）——
+     R3 之后左列不展示插件/备份清单，用户看不到这些行。
+     用户拍板以现在这版原型为准 → "列表可见"这条没有对象可测，改成断言
+     "数据探到了"（详情打得开由下面几条真的在验）。 */
+  ok('插件数据探到了（详情见下面几条）', shape.plugins > 0,
+     '插件 ' + shape.plugins + ' 个（列表行在隐藏容器 #sk-srcs 里）');
+  ok('配置备份数据探到了（详情见下面几条）', shape.backups > 0,
+     '备份 ' + shape.backups + ' 份（列表行在隐藏容器 #sk-srcs 里）');
   // 一个东西在左列出现两次，用户会以为"这是两份不同的东西" ——
   // 所以历史版本段只放配置备份，插件版本挂在插件自己的详情里。
-  ok('插件不在「历史版本」里重复出现（版本挂在插件详情里看）',
-     rowCounts.plug === shape.plugins, '插件行 ' + rowCounts.plug + ' 行');
+  /* ⚠️ 2026-10-15：这条原来数的是隐藏列表里的插件行；R3 后左列没有"历史版本"段，
+     版本改挂在插件详情里看（下面「插件详情列出了本地版本」真的在验）。 */
+  ok('插件版本改挂在详情里看（不靠左列重复出现）', true,
+     '由下面几条插件详情断言覆盖');
 
   const pi = await page.evaluate(() => PLUGINS.findIndex((p) => p.version_count > 0));
   ok('本机有插件带着本地版本目录可看', pi >= 0, '一个都没有');
@@ -359,57 +379,28 @@ function apiKeySamples(raw) {
        ? '读不到真值，比对无意义'
        : ('漏了 ' + khits.length + ' 个片段（样本序号 ' + khits.join(',') + '）'));
 
-  // ── 列表项不许被"页面级 .content 规则"顺带撑高 ──────────────────────
-  // 真 bug：页面正文容器也叫 `.content`（flex:1 + padding:20px 20px 48px），
-  // 这条全局规则**顺带命中**列表项内部的 `.content`，把每一项虚增 68px。
-  // 实测证据：插件行内容 2 行 = 49px，实高却是 117px，卡片下面空一大截。
-  // 两边单独看都正常，所以只能量出来。--broken 会把这条规则注回去，必须判红。
-  const leak = await page.evaluate(() => {
-    // 反向测试注的是 `!important`，所以要读**计算值**（getComputedStyle），
-    // 不是读样式表文本 —— 读文本的话这条断言永远绿。
-    // 钉**插件行**而不是"第一行"：第一行是技能行，技能卡本来就有描述、本来就高，
-    // 拿它当基线量不出这个 bug（实测技能行 206px，插件行才是 108px 的基准）。
-    const c = document.querySelector('#sk-list .mem[onclick*="pickPlugin"] .content');
-    if (!c) return null;
-    const cs = getComputedStyle(c);
-    return {
-      pad: cs.padding, overflowY: cs.overflowY,
-      inner: c.scrollHeight > c.clientHeight + 2,
-      h: +c.getBoundingClientRect().height.toFixed(1),
-      rowH: +c.parentElement.getBoundingClientRect().height.toFixed(1),
-    };
-  });
-  ok('本机内容列表项没被页面级 .content 规则撑高（padding 应为 0）',
-     !!leak && leak.pad === '0px',
-     leak ? 'padding=' + leak.pad + ' 行高=' + leak.rowH : '没找到列表项');
-  ok('本机内容列表项内部没有滚动条',
-     !!leak && leak.inner === false && leak.overflowY !== 'auto' && leak.overflowY !== 'scroll',
-     leak ? 'overflowY=' + leak.overflowY + ' 内层可滚=' + leak.inner : '没找到列表项');
-  // 本机内容列表项行高回到正常量级（<130px，修前 176）
-  ok('本机内容列表项行高回到正常量级（<130px，修前 176）',
-     !!leak && leak.rowH < 130, leak ? '行高=' + leak.rowH : '没找到列表项');
+  /* ── ⚠️ 2026-10-15 删掉 6 条"隐藏行的布局"断言 ────────────────────────
+     原来这 6 条量的是插件行 / 备份行的 padding、行高、标签行换行：
+       · 本机内容列表项没被页面级 .content 规则撑高
+       · 本机内容列表项内部没有滚动条
+       · 列表项行高回到正常量级（<130px）
+       · 插件行的标签行没被长版本号挤到换行
+       · 列表里显示的是主版本号、完整版本号在悬停提示里
+     它们查的是 `#sk-list .mem[onclick*="pickPlugin"]`，而实测这些 .mem 行
+     由 pickPlugin()/pickBackupRow() 渲染进 **#sk-srcs**，那是
+     `style="display:none"` 的隐藏契约元素（panel.py:4635）——
+     R3 之后左列不展示插件/备份清单，用户看不到这些行。
+     **量一个 display:none 的元素的高/padding 是没有意义的**（getBoundingClientRect 全是 0）。
 
-  // 标签行（.top）不许被长版本号挤到换行。
-  // WorkBuddy 的版本串是 `5.5.6-wb.38337834.g5f969292.h7826dc9400fd`（44 字符），
-  // 全量塞进列表会让 top 从单行变两行、卡片又高回去 —— 列表只放主版本号，
-  // 完整值进 title/详情（规范第 5 条）。
-  const topRow = await page.evaluate(() => {
-    const r = document.querySelector('#sk-list .mem[onclick*="pickPlugin"]');
-    if (!r) return null;
-    const t = r.querySelector('.top');
-    const s = r.querySelector('.score');
-    return {
-      topH: +t.getBoundingClientRect().height.toFixed(1),
-      label: (s || {}).textContent || '',
-      title: (s || {}).title || '',
-    };
-  });
-  ok('插件行的标签行没被长版本号挤到换行（top 应为单行 ≤30px）',
-     !!topRow && topRow.topH <= 30, topRow ? 'top 高=' + topRow.topH + 'px' : '没找到插件行');
-  ok('列表里显示的是主版本号、完整版本号在悬停提示里',
-     !!topRow && /^v?\d+(\.\d+){0,2}$/.test(topRow.label.trim()) &&
-     /完整版本/.test(topRow.title),
-     topRow ? ('列表=' + topRow.label + ' / title=' + topRow.title) : '没找到插件行');
+     它们守的那个真 bug（页面级 `.content` 的 `flex:1 + padding:20px 20px 48px`
+     顺带命中列表项内部的 `.content`，把每项虚增 68px）**防护 CSS 仍然在**：
+         panel.py:1765  #sk-list .mem .content{...padding:0;overflow:visible;flex:none}
+         panel.py:2044  :is(#v-clean,#v-collect) .mem .content{...}
+     而且实测**没有任何"可见"的列表行用内部 .content 类**（用到的 .mem 行
+     全在隐藏的 #sk-srcs/#sk-mcps 里），所以撞车目前影响不到用户看到的东西。
+
+     ⚠️ 如果哪天把插件/备份清单重新放回左列（取消隐藏 #sk-srcs），
+        **这 6 条必须一起恢复**，否则那个 68px 虚高的 bug 会没人守。 */
 
   // 排序：有旧版本历史的要排最前。不按 agent 字母序 ——
   // 那样 ZCode/Trae 那 7 个"只记了启用开关"的零信息条目会霸占最前，

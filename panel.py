@@ -3593,6 +3593,20 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
       （上次实测 Agent 的 cols/tbl/右栏全是 0，就是这个原因）。
    数值全部照抄原型 + 会话页实测值，不自造。 */
 #v-agents{padding-bottom:176px}
+/* Agent 页工具栏（2026-10-15 补）。
+   ⚠️ 这个 .tbar 的 HTML 一直在，但**从来没有对应样式** —— 别的页各自定义了
+   `#v-session .tbar` / `#v-collect .tbar` … 唯独漏了 Agent 页，
+   所以那几个 chip 是靠默认的块级排列显示的。补按钮之前先把 flex 补上。 */
+#v-agents .tbar{display:flex;align-items:center;gap:10px;padding:13px 15px 11px}
+#v-agents .tbar .t{font-size:13px;font-weight:650;color:var(--r3-ink)}
+#v-agents .tbar .c{font-family:var(--lz-mono);font-size:10.5px;color:var(--r3-sub)}
+#v-agents .tbar .grow{flex:1 1 auto}
+/* 「+ 手动添加」展开的输入行 */
+#v-agents .addrow{display:flex;align-items:center;gap:8px;padding:0 15px 11px}
+#v-agents .addrow input{flex:1 1 auto;min-width:0;height:32px;padding:0 10px;
+  font-size:12.5px;font-family:var(--r3-sans);color:var(--r3-ink);
+  background:var(--r3-bg);border:1px solid var(--r3-line);border-radius:8px}
+#v-agents .addrow input:focus{outline:none;border-color:var(--r3-indigo)}
 #v-agents .phead{display:flex;align-items:flex-end;gap:20px;padding:14px 4px 20px}
 #v-agents .ttl h2{font-size:22px;font-weight:680;letter-spacing:-.015em;line-height:1.2;color:var(--r3-ink)}
 #v-agents .psub{font-size:11.5px;color:var(--r3-sub);margin-top:6px}
@@ -4194,17 +4208,27 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
                   <div class="cell"><div class="k">自动备份</div><div class="v good" id="bk-auto">每次打开检查</div></div>
                 </div>
                 <div id="backup-list"></div>
-                <!-- ⚠️ 2026-10-08 修：原来 4 个按钮里 `clImport()` / `clClearOld()`
-                     这两个函数**根本不存在**（我引用了空气，点了会抛 ReferenceError）。
-                     现在只留**真有实现**的：
-                       立即备份 → doSnapshot()  打开目录 → pickArchiveDir()
-                       更换位置 → saveArchiveDir()
-                     「清空旧备份」后端没有对应接口 → **移除**，不放假按钮。 -->
-                <div class="btnrow">
-                  <button class="btn" onclick="doSnapshot()">立即备份</button>
-                  <button class="btn" onclick="pickArchiveDir()">打开备份目录</button>
-                  <button class="btn" onclick="saveArchiveDir()">更换存放位置</button>
-                </div>
+                  <!-- ⚠️ 2026-10-08 修：原来 4 个按钮里 `clImport()` / `clClearOld()`
+                       这两个函数**根本不存在**（我引用了空气，点了会抛 ReferenceError）。
+                       现在只留**真有实现**的：
+                         立即备份 → doSnapshot()
+                         打开目录 → openArchiveDir()
+                         更换位置 → saveArchiveDir()
+
+                       ⚠️⚠️ 2026-10-15 更正：「打开备份目录」原来接的是 `pickArchiveDir()`，
+                       那是**接错了** —— `pickArchiveDir()` 打的是 /api/archive/pick，
+                       会弹一个「请选择文件夹」的框让你**挑新位置**；真正在文件管理器里
+                       **打开**当前目录的是 `openArchiveDir()`（打 /api/open-folder）。
+                       也就是说：点「打开备份目录」实际弹出的是"选择文件夹"，
+                       而 `openArchiveDir` 因此成了没人调的孤儿。
+                       而 2026-10-08 那次我还在注释里把这条错误接线**写成对的**
+                       （原文：「打开目录 → pickArchiveDir()」），等于给 bug 盖了个章。
+                       「选位置」那一处接 `pickArchiveDir()` 才是对的，保留。 -->
+                  <div class="btnrow">
+                    <button class="btn" onclick="doSnapshot()">立即备份</button>
+                    <button class="btn" onclick="openArchiveDir()">打开备份目录</button>
+                    <button class="btn" onclick="saveArchiveDir()">更换存放位置</button>
+                  </div>
               </div>
 
               <div class="divider"></div>
@@ -4273,7 +4297,13 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
                      「预览可销毁」保留：它只选"没人用的残留"，跟全选语义不同。 -->
                 <button class="btn" id="cl-allbtn" onclick="clToggleAll(event)">全选</button>
                 <button class="btn" onclick="clPreviewSelect()">预览可销毁</button>
-                <button class="btn btd" id="db-go" disabled onclick="cleanupRun()">确认销毁</button>
+                <!-- ⚠️⚠️ 2026-10-15 改接：原来接的是 cleanupRun() —— 那玩意删的是**记忆**
+                     （按 #cleanup-panel 的筛选条件，而那个面板在已删掉的记忆页里，
+                      筛选全空 → 实测命中"全部 99 条在用记忆"）。
+                     也就是说：在写着「源文件是残留」的卡片上点确认，会弹
+                     「硬删除 99 条记忆」。改接 cleanSourceFiles()（删勾选的源文件）——
+                     这正是这张卡片一直在讲的事，而且 #db-go 本来就是"选中文件才启用"的。 -->
+                <button class="btn btd" id="db-go" disabled onclick="cleanSourceFiles()">确认销毁</button>
               </div>
 
               <div class="thead sf-thead">
@@ -4411,6 +4441,10 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
             <div class="side-box">
               <div class="bh"><span class="t">扫描根目录</span><span class="n" id="ck-root-n">—</span></div>
               <div class="bd" id="ck-root-box"></div>
+              <!-- 2026-10-15 补：addScanRoot()/forgetRoot() 一直写着，后端 /api/scan-root
+                   也一直在，但采集页这个框只有"展示"，没有"加一个位置"的入口。 -->
+              <button class="btn" style="width:100%;margin-top:10px"
+                      onclick="addScanRoot()">+ 添加扫描位置</button>
             </div>
           </aside>
         </div>
@@ -4454,6 +4488,23 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
                   <span class="chip" data-a="1">已装</span>
                   <span class="chip" data-a="0">未装</span>
                 </div>
+                <!-- 右侧三个动作（2026-10-15 补）。
+                     这三个能力后端一直有、函数也一直写着，但 R3 六页改版把入口丢了 ——
+                     于是 verifyMcp / registerAll / pickFolder / addAgent 成了
+                     「没人调、也没人删」的孤儿（全仓引用数 = 1，就是它们自己的定义）。 -->
+                <span class="grow"></span>
+                <button class="btn" onclick="verifyMcp()">验证 MCP 服务</button>
+                <button class="btn" onclick="registerAll()">一键接入全部</button>
+                <button class="btn" onclick="toggleAddAgent()">+ 手动添加</button>
+              </div>
+              <!-- 「+ 手动添加」展开的这一行。
+                   原来这里是个常驻输入框（id=add-path），R3 改版时被删了，
+                   但 addAgent() / pickFolder() 还在读它 —— 所以补回来的不只是按钮，
+                   还得把输入框一起还回来。 -->
+              <div class="addrow" id="ag-addrow" style="display:none">
+                <input id="add-path" placeholder="粘贴 MCP 配置文件，或它所在的目录">
+                <button class="btn sm" onclick="pickFolder()">浏览…</button>
+                <button class="btn sm pri" onclick="addAgent()">添加</button>
               </div>
               <div class="thead ag-thead">
                 <div>Agent</div><div>状态</div>
@@ -4461,6 +4512,10 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
                 <div style="text-align:right">操作</div>
               </div>
               <div id="ag-list"></div>
+              <!-- 2026-10-15 补：msg() 写的是 #agent-msg，但这个元素随 R3 改版一起没了
+                   → verifyMcp / registerAll / pickFolder / addAgent **一调就抛
+                   "Cannot read properties of null"**。补按钮之前得先把它补回来。 -->
+              <div class="msg" id="agent-msg" style="display:none"></div>
             </div>
           </div>
 
@@ -4700,8 +4755,12 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
                   </span>
                 </div>
                 <!-- 同采集页：一个按钮来回切 -->
-                <button class="btn" id="hf-allbtn" onclick="hfToggleAll(event)">全选</button>
-                <button class="btn pri push" onclick="hfExport()">导出交接卡</button>
+                  <button class="btn" id="hf-allbtn" onclick="hfToggleAll(event)">全选</button>
+                  <button class="btn pri push" onclick="hfExport()">导出交接卡</button>
+                  <!-- 2026-10-15 补：copyHandoff() 一直写着，但它要写反馈的 #hf-copy
+                       元素随着 R3 改版一起没了 → 函数成了孤儿，按钮也不存在。
+                       把按钮补回来即可 —— 按钮自己就是「已复制」的反馈位置。 -->
+                  <button class="btn" id="hf-copy" onclick="copyHandoff()">复制</button>
               </div>
 
               <div class="thead hf-thead">
@@ -6064,18 +6123,29 @@ async function loadSourceFiles(){
   loadBackups();
 }
 function toggleAllSF(v){document.querySelectorAll(".sfck").forEach(function(c){c.checked=v})}
+/* 销毁选中的源文件（2026-10-15 重写 + 接通）。
+   ⚠️ 它原来读的是 `.sfck:checked` + `SFILES` —— 那是**更早一版的数据模型**。
+      现在库页的文件列表渲染的是 `.sfr` 行，勾选状态存在 JS 对象 `CL_SEL` 里
+      （按 path 索引），页面上根本没有 `.sfck` 这种 input（实测 0 个）。
+      也就是说旧的 cleanSourceFiles 一个文件都读不到，永远只会说「先勾选」。
+   ⚠️⚠️ 更要紧的是它**当时根本没接到任何按钮上**：
+      库页那个「确认销毁」（#db-go）接的是 `cleanupRun()` —— 删的是**记忆**，
+      按 #cleanup-panel 的筛选条件（cl-project / cl-agent / cl-before）。
+      而那三样和 #cleanup-panel 都在**已经删掉的记忆页**里 → 筛选全空
+      → 实测 /api/cleanup/preview 不带筛选命中 **99 条**（= 全部在用记忆）。
+      结果就是：用户在写着「源文件是残留」的卡片上点确认，弹出来的却是
+      「硬删除 99 条记忆」。**删错了对象。** */
 async function cleanSourceFiles(){
-  var picked=[];
-  document.querySelectorAll(".sfck:checked").forEach(function(c){picked.push(SFILES[parseInt(c.dataset.i,10)])});
-  if(!picked.length){sfmsg("先勾选要清理的源文件","err");return}
-  var list=picked.map(function(f){return "  "+f.path}).join("\n");
-  var total=picked.reduce(function(a,f){return a+f.size},0);
-  /* 2026-10-09：换 askDialog —— 原来写死「先复制备份…再移入回收站」，
-     不给选择。这里文件**本来就会进回收站**（能找回），备份只是额外一层；
+  var picked=CL_SF.filter(function(f){ return CL_SEL[f.path]; });
+  if(!picked.length){ cmsg("先勾选要处理的源文件","err"); return; }
+  var total=picked.reduce(function(a,f){ return a+(f.size||0); },0);
+  /* 2026-10-09：换 askDialog —— 原来写死「先复制备份…再移入回收站」，不给选择。
+     这些文件**本来就会进回收站**（能找回），备份只是额外一层；
      不想要额外副本（隐私）的可以跳过。 */
   var pick=await askDialog({
-    title:"处理 "+picked.length+" 个文件",
-    sub:"共 "+fmtSize(total)+"。这些文件会移入系统回收站 —— 那边还能找回。",
+    title:"处理 "+picked.length+" 个源文件",
+    sub:"共 "+fmtSize(total)+"。这些文件会移入系统回收站 —— 那边还能找回。"
+        +"\n\n注意：删的是**文件**，记忆库里对应的记忆不受影响。",
     warn:"回收站可能被清空，也可能被别的清理工具顺手带走。要不要在 trash-backup/ 里再留一份？",
     question:"处理前先复制一份备份？",
     cancel:"取消",
@@ -6084,18 +6154,20 @@ async function cleanSourceFiles(){
   });
   if(pick==="cancel") return;
   var wantBak=(pick==="safe");
-  sfmsg(wantBak?"正在备份并移入回收站（每批最多 10 个）…":"正在移入回收站（不备份，每批最多 10 个）…");
+  cmsg(wantBak?"正在备份并移入回收站（每批最多 10 个）…":"正在移入回收站（不备份，每批最多 10 个）…");
   progress(true);
   var r=await api("/api/sourcefiles/clean",{method:"POST",
     headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({paths:picked.map(function(f){return f.path}),backup:wantBak})});
-  if(r.error){sfmsg("失败："+r.error,"err");progress(false);return}
-  sfmsg("已处理 "+r.files+" 个文件（分 "+r.batches.length+" 批）\n"+
-        (wantBak?("备份目录："+r.backup_dir):"⚠ 这次没有另存备份 —— 只能从系统回收站找回")+
-        (r.failed&&r.failed.length?("\n失败："+r.failed.join("、")):"\n失败：无"),"ok");
+    body:JSON.stringify({paths:picked.map(function(f){return f.path;}),backup:wantBak})});
   progress(false);
-  toast("已处理 "+r.files+" 个文件"+(wantBak?"（进回收站+备份）":"（进回收站，未备份）"),"ok");
-  loadSourceFiles();
+  if(r.error){ cmsg("处理失败："+r.error,"err"); return; }
+  cmsg("已处理 "+r.files+" 个源文件（分 "+(r.batches||[]).length+" 批）\n"+
+       (wantBak?("备份目录："+r.backup_dir):"⚠ 这次没有另存备份 —— 只能从系统回收站找回")+
+       ((r.failed&&r.failed.length)?("\n失败："+r.failed.join("、")):"\n失败：无"),
+       (r.failed&&r.failed.length)?"err":"ok");
+  toast("已处理 "+r.files+" 个源文件"+(wantBak?"（进回收站+备份）":"（进回收站，未备份）"),"ok");
+  CL_SEL={};
+  loadLibraryPage();
 }
 async function loadMemPick(){
   var proj=document.getElementById("cm-proj").value;
@@ -6147,7 +6219,13 @@ function toggleCleanup(){
   p.style.display = p.style.display==="none" ? "block" : "none";
 }
 function cmsg(t,kind){
-  var el=document.getElementById("cleanup-msg");
+  /* ⚠️ 2026-10-15 修：原来只认 #cleanup-msg —— 那个元素在**已经删掉的记忆页**里。
+     而库页真正用来显示提示的是 #cl-msg（它一直在 HTML 里，但**从来没有函数写它**）。
+     结果就是：库页上所有清理相关的提示（"先勾选文件"、"已处理 N 个"、失败原因）
+     全写进了一个看不见的元素 —— 用户点了按钮什么反馈都没有。
+     现在优先写 #cl-msg，取不到再退回 #cleanup-msg（兼容还没删干净的老结构）。 */
+  var el=document.getElementById("cl-msg")||document.getElementById("cleanup-msg");
+  if(!el) return;
   if(!t){el.style.display="none";return}
   el.style.display="block";el.className="msg"+(kind?(" "+kind):"");el.textContent=t;
 }
@@ -6457,10 +6535,43 @@ function pickHfProj(el){
   syncHfTags();
   doHandoff();
 }
+/* 复制交接卡正文（2026-10-15 补）。
+   ⚠️ 原来它读 #handoff 的 textContent 写剪贴板，再改 **#hf-copy** 的文案做反馈 ——
+      但 #hf-copy 这个元素随 R3 改版一起没了，函数成了孤儿（没按钮可点）。
+      现在按钮补回来了（顺带就是反馈位置），另外加两处保护：
+        · 没导出过就没内容可复制 → 提示，别默默复制一段空字符串
+        · 剪贴板权限被浏览器拒绝时 → 说清楚，别什么都不发生 */
 async function copyHandoff(){
-  await navigator.clipboard.writeText(document.getElementById("handoff").textContent);
-  document.getElementById("hf-copy").textContent="已复制";
-  setTimeout(()=>document.getElementById("hf-copy").textContent="复制",1500);
+  var el=document.getElementById("handoff");
+  if(!el||!el.textContent.trim()){ toast("先点「导出交接卡」生成内容，再复制","err"); return; }
+  var txt=el.textContent, btn=document.getElementById("hf-copy"), done=false;
+  try{
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      await navigator.clipboard.writeText(txt); done=true;
+    }
+  }catch(e){ /* 落到下面的兜底 —— 不是没救 */ }
+  if(!done){
+    /* 兜底：老的 execCommand("copy")。
+       ⚠️ 为什么需要它（2026-10-15 实测）：异步剪贴板 API 会被环境拒绝 ——
+          文档没有焦点、权限策略不允许、或非安全上下文。无头浏览器里就是这样，
+          写进去直接抛 "Write permission denied"。这不是 bug，是环境差异，
+          但用户看到的就是"点了没反应"，所以必须有兜底路径。 */
+    try{
+      var ta=document.createElement("textarea");
+      ta.value=txt; ta.setAttribute("readonly","");
+      ta.style.cssText="position:fixed;top:-1000px;left:-1000px;opacity:0";
+      document.body.appendChild(ta);
+      ta.select(); ta.setSelectionRange(0, ta.value.length);
+      done=document.execCommand("copy");
+      document.body.removeChild(ta);
+    }catch(e){ done=false; }
+  }
+  if(done){
+    if(btn){ btn.textContent="已复制"; setTimeout(function(){ btn.textContent="复制"; },1500); }
+    toast("交接卡已复制到剪贴板","ok");
+  }else{
+    toast("复制失败：这个浏览器不允许访问剪贴板，请手动全选复制","err");
+  }
 }
 
 /* 采集中心 */
@@ -6549,9 +6660,15 @@ async function loadScanRoots(){
         esc(p)+' <a href="#" onclick="forgetRoot(\''+p.replace(/\\/g,'\\\\')+'\');return false" style="color:var(--bad)">×</a></span>';
     }).join("")) : "";
 }
-async function addScanRoot(){
-  var p=document.getElementById("add-path").value.trim();
-  if(!p){alert("先把目录路径粘进输入框");return}
+/* 加一个扫描根目录（2026-10-15 恢复入口）。
+   ⚠️ 原来它读的是 **Agent 页的 `#add-path` 输入框** —— 一个跨页面的耦合：
+      在采集页点按钮，却要求 Agent 页的输入框里有值，不合理。
+      改成：传入路径就用传入的，没传就 prompts 问一次，不再依赖别的页面的 DOM。 */
+async function addScanRoot(dir){
+  var p=(dir&&String(dir).trim())||prompt("粘贴要扫描的目录路径");
+  if(!p) return;
+  p=String(p).trim();
+  if(!p) return;
   var r=await api("/api/scan-root",{method:"POST",headers:{"Content-Type":"application/json"},
     body:JSON.stringify({dir:p})});
   if(r.error){msg(r.error,"err");toast(r.error,"err");return}
@@ -8704,6 +8821,16 @@ async function doSnapshot(){
   loadArchive();
 }
 
+/* 「+ 手动添加」的开关：展开 / 收起路径输入行（2026-10-15 补）。
+   输入框和「浏览…」「添加」都在 HTML 里，这里只管显隐并聚焦 ——
+   不自己造输入框，避免和 addAgent() 读的 #add-path 对不上。 */
+function toggleAddAgent(){
+  var row=document.getElementById("ag-addrow");
+  if(!row) return;
+  var open=(row.style.display!=="none");
+  row.style.display=open?"none":"flex";
+  if(!open){ var i=document.getElementById("add-path"); if(i) i.focus(); }
+}
 async function pickFolder(){
   msg("正在弹出系统文件夹选择框…（若无反应，请直接在输入框粘贴路径）");
   var r=await api("/api/agent/pick-folder",{method:"POST"});

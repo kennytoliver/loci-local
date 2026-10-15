@@ -18,28 +18,52 @@ import re
 import sys
 
 # ── 元素 id 契约（来自 docs/设计简报2-7个页面.md，JS 靠这些 id 找元素，不能改名）──
-ID_GROUPS = [
-    ("顶栏 / 全局", ["topbar", "stats", "q", "themetgl", "themeicon", "toast"]),
-    ("记忆页", ["list", "list-title", "detail", "form", "f-content", "f-type", "f-proj",
-              "f-tags", "f-imp", "g-pin", "g-recent", "proj-filter", "ctx-out", "handoff"]),
-    ("会话页", ["s-title", "s-project", "s-agent", "s-text", "s-file", "s-save",
-              "s-list", "s-info", "s-view", "s-q"]),
-    ("质检页", ["health", "audit-out", "audit-msg", "au-proj"]),
-    ("清理页", ["cleanup-panel", "cleanup-msg", "cl-project", "cl-agent", "cl-before",
-              "cl-sup", "cm-list", "cm-msg", "cm-proj", "sf-list", "sf-msg", "roots",
-              "scan-list", "scan-info", "scan-msg", "scan-out", "sf-all",
-              # 2026-09-26：清理页段1 的那行状态文字（arch-line）按原型拆成了
-              # 3 格 kv 卡片（当前状态 / 最近一份备份 / 库体积）→ 契约同步。
-              # ⚠️ 改/删任何 id 都要同步这张表，否则本闸门会红（同一类坑踩过 3 次：
-              #    FRAME_SELECTION / FRAME_EXTRA / 这里）。
-              "arch-dir", "arch-state", "arch-last", "arch-size", "arch-hint", "bk-list"]),
-    ("采集页", ["ck-all", "ck-none", "ck-go"]),
-    ("Agent 页", ["agents", "add-path", "agent-msg"]),
-    ("记忆包页", ["pk-proj", "pack-file", "pack-with-sessions"]),
-    ("交接卡页", ["hf-proj", "hf-copy", "skill-out", "sk-proj"]),
-    ("页面容器", ["v-mem", "v-session", "v-audit", "v-clean", "v-collect",
-               "v-agents", "v-pack", "v-handoff"]),
-]
+# ── 元素 id 契约（JS 靠这些 id 找元素，不能改名）────────────────────────
+# ⚠️ 2026-10-15 全量重列：原契约来自 `docs/设计简报2-7个页面.md`（**九页时代**），
+#    里面 记忆页 / 质检页 / 记忆包页 三个页面 R3 已经删掉，于是本闸门长期报红
+#    （清理页 16/23、会话页 2/10、采集页 1/3…）。用户 2026-10-15 拍板：
+#    **以现在这版原型为准，第一版时代的设计全部作废**。
+# 现在这份清单 = 从 panel.py 六个活页面 + 会话详情页**实测抽出来的 id**，
+#    仍然是"改名就会红"的契约，只是对象换成了现在真正在用的页面。
+#    已删的 mem / audit / pack 三页不在契约里（它们还留在 DOM 里，但已从导航移除）。
+ID_GROUPS = [    ("会话详情页", [
+      "sd-bar", "sd-copy", "sd-meta", "sd-thread", "sd-title"
+    ]),
+    ("会话页", [
+      "s-chips", "s-kpi", "s-list", "s-psub", "s-total", "skpi-mem", "skpi-pin", "skpi-sess",
+      "skpi-sup", "skpi-turn", "sp-src-lgs", "sp-src-n", "sp-src-stack", "sp-todo",
+      "sp-todo-n"
+    ]),
+    ("库页", [
+      "arch-dir", "arch-hint", "arch-last", "arch-size", "arch-state", "backup-list",
+      "bk-auto", "bk-c", "bk-dir", "bk-list", "bk-restore", "bk-size", "cl-agent", "cl-all",
+      "cl-allbtn", "cl-before", "cl-export", "cl-import", "cl-kpi", "cl-msg", "cl-proj",
+      "cl-psub", "cl-sup", "clpi-bak", "clpi-mb", "clpi-mem", "clpi-src", "clpi-sup", "db-go",
+      "db-txt", "ex-path", "orp-box", "orp-n", "sf-c", "sf-list", "sf-side"
+    ]),
+    ("采集页", [
+      "ck-all", "ck-allbtn", "ck-chips", "ck-kpi", "ck-pickbar", "ck-psub", "ck-root-box",
+      "ck-root-n", "ck-sel-n", "ck-sel-s", "ck-src-box", "ck-src-n", "ck-total", "ckpi-mem",
+      "ckpi-msg", "ckpi-new", "ckpi-old", "ckpi-src", "conv-src", "sc-list", "scan-info",
+      "scan-list"
+    ]),
+    ("Agent 页", [
+      "add-path", "ag-addrow", "ag-chips", "ag-kpi", "ag-list", "ag-psub", "ag-read",
+      "ag-read-n", "ag-side", "ag-side-n", "ag-total", "agent-msg", "agpi-mem", "agpi-off",
+      "agpi-on", "agpi-reg", "agpi-sess"
+    ]),
+    ("技能 / MCP 页", [
+      "mcp-c", "mcp-list", "sk-all", "sk-allbtn", "sk-chips", "sk-count", "sk-detail",
+      "sk-kpi", "sk-list", "sk-loci-n", "sk-mcps", "sk-out", "sk-pickbar", "sk-psub", "sk-q",
+      "sk-sel-n", "sk-sel-s", "sk-side-loci", "sk-side-src", "sk-src", "sk-src-n", "sk-srcs",
+      "sk-target", "sk-total", "skpi-agent", "skpi-loci", "skpi-skill", "skpi-tgt", "skpi-usr"
+    ]),
+    ("交接卡页", [
+      "handoff", "hf-all", "hf-allbtn", "hf-card", "hf-chips", "hf-dist", "hf-dist-n",
+      "hf-fmt", "hf-kpi", "hf-list", "hf-meta", "hf-pickbar", "hf-proj", "hf-psub", "hf-q",
+      "hf-sel-n", "hf-sel-s", "hf-tags", "hf-total", "hk-exp", "hk-mem", "hk-proj", "hk-sess",
+      "hk-warn"
+    ]),]
 
 BLOCKED_HOSTS = ("cdn.", "unpkg.com", "jsdelivr", "bootcdn", "staticfile",
                  "googleapis", "gstatic", "cdnjs", "fonts.", "use.typekit")
@@ -95,7 +119,17 @@ def check_file(path, ids_only=False):
         if host.startswith("www.w3.org") or host in ("127.0.0.1", "localhost"):
             continue
         bad_hosts.append(u)
-    hits = [h for h in BLOCKED_HOSTS if h in s.lower()]
+    # ⚠️ 2026-10-15：关键词扫描前要先抹掉"原生 API"里的同形子串。
+    #   `fonts.` 这个关键词本意是抓 `fonts.googleapis.com`，
+    #   但 **`document.fonts.` 是浏览器原生的 CSS Font Loading API**，含同样子串 ——
+    #   于是 panel.py 里这一行被误报成外链：
+    #       if(document.fonts&&document.fonts.ready) document.fonts.ready.then(schedule);
+    #   先把原生用法换成占位再扫，避免"自家 API 被当成 CDN"。
+    #   （同类风险：`document.fonts`；将来若再遇到，往这个表里加，别去删关键词。）
+    scan = s
+    for native in ("document.fonts",):
+        scan = scan.replace(native, "document.__native__")
+    hits = [h for h in BLOCKED_HOSTS if h in scan.lower()]
     ok("零外链（无 CDN / 外部字体 / 图标库）", not bad_hosts and not hits,
        "外部主机=%s 关键词=%s" % (sorted(set(bad_hosts))[:4], hits[:4]))
 

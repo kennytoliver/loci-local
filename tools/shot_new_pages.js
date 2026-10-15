@@ -53,21 +53,30 @@ const OLD_HARDCODED = /（ZCode \/ Claude Code \/ Codex）/;
   await page.goto(BASE, { waitUntil: 'networkidle2' });
   await page.waitForFunction(() => typeof window.show === 'function', { timeout: 15000 });
 
-  for (const theme of ['dark', 'light']) {
-    await page.evaluate((t) => document.documentElement.setAttribute('data-theme', t), theme);
+  /* ⚠️ 2026-10-15：只跑 light。面板自 2026-09-24 起**无条件亮色**，
+     `?theme=dark` 会被 applyTheme() 拉回 light，所以原来那句
+     `setAttribute('data-theme', t)` 设了也白设 —— dark 那一轮存的其实是亮色截图，
+     还会用暗色阈值去判，纯噪音。用户拍板：第一版时代的配色全部作废。 */
+  for (const theme of ['light']) {
 
     // ── 技能页 ──
     await page.evaluate(() => window.show('skill'));
     await page.waitForFunction(
-      () => document.querySelectorAll('#sk-list .mem').length > 0, { timeout: 25000 });
-    await page.click('#sk-list .mem');
+      () => document.querySelectorAll('#sk-list .sr').length > 0, { timeout: 25000 });
+    /* ⚠️ 2026-10-15：原来 `page.click('#sk-list .mem')` 想"点行打开详情"。
+       实测 R3 里技能行的 onclick 是 **skToggle(i)**（勾选/取消勾选），
+       根本不打开详情 —— 于是等 #sk-text 有内容永远超时。
+       而详情是由 pickSkill(i) 填的，它目前只被**隐藏容器 #sk-srcs** 里的行调用
+       （= 技能详情在 UI 上没有可见入口，这是另一个待拍板的问题）。
+       截图脚本是开发工具，直接调 pickSkill(0) 是合理的。 */
+    await page.evaluate(() => window.pickSkill(0));
     await page.waitForFunction(
       () => { const e = document.querySelector('#sk-text');
               return e && e.textContent.length > 200; }, { timeout: 25000 });
     await new Promise((r) => setTimeout(r, 500));
 
     const sk = await page.evaluate(() => ({
-      count: document.querySelectorAll('#sk-list .mem').length,
+      count: document.querySelectorAll('#sk-list .sr').length,
       headline: (document.getElementById('sk-count') || {}).textContent || '',
       sources: Array.from(document.querySelectorAll('#sk-src .srcrow')).map((r) => ({
         on: r.classList.contains('on'),
@@ -83,27 +92,44 @@ const OLD_HARDCODED = /（ZCode \/ Claude Code \/ Codex）/;
     // ── 会话页：验证"来源卡已移除 + 归档表单是第一块 + 扫描文案仍动态" ──
     await page.evaluate(() => window.show('session'));
     await page.waitForFunction(
-      () => !!document.querySelector('#v-session .pagehead'), { timeout: 15000 });
+      () => !!document.querySelector('#v-session .phead'), { timeout: 15000 });
     await page.evaluate(() => document.querySelector('[onclick="runAutoScan()"]').click());
     await page.waitForFunction(
-      () => { const e = document.querySelector('#scan-msg');
-              return e && e.style.display !== 'none' && /来源：/.test(e.textContent); },
+      /* ⚠️ 2026-10-15 两处一起改：
+         ① 原来是 #scan-msg —— R3 后 **0 处定义**，scanmsg() 正因写它而抛错
+            （顶栏「重新扫描」整个是坏的，已修）。
+         ② scanmsg() 现在优先写采集页的 #scan-info，**但当前在会话页** ——
+            #scan-info 挂在隐藏的 v-collect 里，于是 scanmsg() 会退化成 **toast**。
+            所以这里两个地方都要等：采集页的 #scan-info，或任意 toast。
+            （原来只等 #scan-info，在会话页永远等不到 → 60000ms 超时。） */
+      () => {
+        const e = document.querySelector('#scan-info');
+        if (e && e.style.display !== 'none' && /来源：/.test(e.textContent)) return true;
+        return [...document.querySelectorAll('#toast .toast-item')]
+          .some((t) => /来源：/.test(t.textContent));
+      },
       { timeout: 60000 });
     await new Promise((r) => setTimeout(r, 400));
 
     const conv = await page.evaluate(() => {
       const page = document.getElementById('v-session');
       // 会话页正文区里第一个 .panel —— 应该是「归档新会话」
-      const firstPanel = page.querySelector('.panel');
+      /* ⚠️ 2026-10-15：会话页正文区的容器从 `.panel` 换成 `.card`（R3）。 */
+      const firstPanel = page.querySelector('.sp-main .card');
       return {
-        text: document.querySelector('#scan-msg').textContent,
+        text: (document.querySelector('#scan-info') || {}).textContent || '',
         // 用户要求：会话页不要再有「本机对话来源」模块
         hasSrcCard: !!document.getElementById('src-panel') ||
                     !!document.getElementById('src-list'),
-        firstPanelTitle: firstPanel
-          ? (firstPanel.querySelector('.listhead .t') || {}).textContent || '' : '',
+        /* ⚠️ 2026-10-15：原来取「第一张 .card 的标题」。R3 会话页主区是表格
+           不是卡片，所以改成量表格本身 + 页面标题。 */
+        hasTbl: !!document.querySelector('#v-session .sp-main .tbl'),
+        rows: document.querySelectorAll('#s-list .tr').length,
+        title: ((document.querySelector('#v-session .phead .ttl h2') || {}).textContent || '').trim(),
         // 核对顺序：页头 → 归档表单 → 已归档会话
-        order: Array.from(page.querySelectorAll('.pagehead .ptitle, .panel .listhead .t, .listhead .t'))
+        /* ⚠️ 2026-10-15：原来查 `.pagehead .ptitle` / `.panel .listhead .t`
+           （旧工作台骨架）。R3 之后会话页是 `.phead .ttl h2` + `.cols > .sp-main`。 */
+        order: Array.from(page.querySelectorAll('.phead .ttl h2, .sp-main .card .chead .t'))
           .map((e) => e.textContent.trim()).filter(Boolean).slice(0, 4),
       };
     });
@@ -118,7 +144,9 @@ const OLD_HARDCODED = /（ZCode \/ Claude Code \/ Codex）/;
 
   let failed = 0;
 
-  for (const theme of ['dark', 'light']) {
+  /* ⚠️ 2026-10-15：报告循环原来也写死 dark+light，但上面只跑 light →
+     report['技能页-dark'] 是 undefined，一读 .count 就抛。两处要一致。 */
+  for (const theme of ['light']) {
     const sk = report['技能页-' + theme];
     console.log(`\n[${theme}] 技能页：${sk.count} 个技能 ｜ ${sk.headline}`);
     for (const s of sk.sources) console.log(`   ${s.on ? '●' : '○'} ${s.name.padEnd(12)} ${s.why}`);
@@ -126,16 +154,24 @@ const OLD_HARDCODED = /（ZCode \/ Claude Code \/ Codex）/;
     const cv = report['会话页-' + theme];
     console.log(`[${theme}] 会话页：`);
     console.log(`   顺序：${(cv.order || []).join(' → ')}`);
-    console.log(`   第一块卡片：${cv.firstPanelTitle}`);
+    /* ⚠️ 2026-10-15：这行原打印「第一块卡片」，R3 后会话页主区是表格不是卡片，
+       firstPanelTitle 已经不用了（改成下面那行「主区」）。 */
     console.log(`   扫描文案首行："${cv.text.split('\n')[0]}"`);
     const badList = report['文案是旧的硬编码名单-' + theme];
     console.log(`   文案含旧硬编码名单？${badList ? '是 ← 有问题' : '否 ✓'}`);
     console.log(`   还有「本机对话来源」模块？${cv.hasSrcCard ? '有 ← 用户明确不要' : '没有 ✓'}`);
     if (badList) failed++;
     if (cv.hasSrcCard) failed++;
-    if (cv.firstPanelTitle.indexOf('归档新会话') < 0) {
-      console.log('   ⚠ 第一块卡片不是「归档新会话」← 排版被改回去了');
+    /* ⚠️ 2026-10-15：原来断言「第一块卡片是『归档新会话』」——那是 R3 之前
+       会话页的版面（顶部一张归档表单卡）。R3 之后会话页主区是**表格**
+       （.cols > .sp-main > .tbl），归档表单整张卡已经不在会话页里了。
+       用户拍板以现在这版原型为准 → 改成断言当前版面真的在：
+       主区是表格、表格有行、页面标题是「会话」。 */
+    if (!(cv.hasTbl && cv.rows > 0 && cv.title === '会话')) {
+      console.log('   ⚠ 会话页主区不是「标题=会话 + 有行的表格」← 版面被改坏了');
       failed++;
+    } else {
+      console.log('   主区：会话表格（' + cv.rows + ' 行）✓');
     }
   }
   if (errs.length) { console.log('\n⚠ 页面报错:', errs); failed++; }

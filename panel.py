@@ -4488,14 +4488,15 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
                   <span class="chip" data-a="1">已装</span>
                   <span class="chip" data-a="0">未装</span>
                 </div>
-                <!-- 右侧三个动作（2026-10-15 补）。
-                     这三个能力后端一直有、函数也一直写着，但 R3 六页改版把入口丢了 ——
-                     于是 verifyMcp / registerAll / pickFolder / addAgent 成了
-                     「没人调、也没人删」的孤儿（全仓引用数 = 1，就是它们自己的定义）。 -->
                 <!-- ⚠️ 2026-10-15 撤回：我一度在这里加了「验证 MCP 服务」「一键接入全部」，
                      查 R3 原型（proto/Agent.html）发现**这两个按钮不在设计里** ——
                      原型顶栏只有「自动检测」+「+ 手动添加」。
-                     这两个能力是我从"函数没人调用"推断出来的，不是你的设计。已撤。 -->
+                     这两个能力是我从"函数没人调用"推断出来的，不是你的设计。已撤。
+
+                     ⚠️ 位置也不对：原型里「+ 手动添加」在**顶栏 .topact**，不是页面工具栏。
+                        暂时留在这里（功能是真的、且原型确实有它），
+                        等顶栏做成"随页面变"再挪过去 —— 那是结构改动，要先给图。
+                        「自动检测」（原型顶栏的另一个）目前**没有实现**，先不做。 -->
                 <span class="grow"></span>
                 <button class="btn" onclick="toggleAddAgent()">+ 手动添加</button>
               </div>

@@ -7,7 +7,7 @@
 
 ---
 
-## ① 闸门 —— 由 `tools/run_gates.sh` 统一调度（31 项）
+## ① 闸门 —— 由 `tools/run_gates.sh` 统一调度（30 项）
 
 ```bash
 bash tools/run_gates.sh            # 全部（约 7 分钟）
@@ -34,6 +34,7 @@ bash tools/run_gates.sh csrf       # 只跑名字含该关键字的
 | **`eval_recall.py --gate`** | **召回质量回归护栏** —— 改完之后记忆是更好找了还是更难找了。基线写在脚本里，低于基线才红；弱项（跨语言 / 换说法）也定了下限。**别的闸门都验不到这件事**：它们验契约、存储、界面接线。 |
 | `verify_link_shots.js` / `verify_link_measure.js` | 「会话 ↔ 记忆」关联的截图与尺寸 |
 | `verify_slist_rows.js` / `verify_pane_guide.js` / `verify_sel_feedback.js` / `verify_frames.js` | UI：行高 / 分栏指引 / 选中反馈 / 卡片框线 |
+| **`verify_topbar.js`** | **顶栏「按页显示」不能串**（2026-10-15 加）。R3 原型是一页一个顶栏，实现是「一条共用顶栏 + 按页切 hidden」—— 唯一风险就是切走之后没关掉。它逐页断言「可见元素集合**全等**」，再乱序切 60 跳每一跳都比一遍；带 `--broken` 反向测试。 |
 | `measure_layers.js` / `smoke_panel.js` / `verify_content.js` | 布局尺寸 / 全页冒烟 / 内容渲染 |
 | `shot_new_pages.js` | 页面截图（人工过目用） |
 | `test_mcp.py` / `test_panel.py` | **在仓库根目录**（不在 tools/）：MCP 协议 / 面板单元自检 |

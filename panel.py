@@ -2536,6 +2536,16 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
 #sd-bar{display:none;align-items:center;gap:8px;margin-left:10px}
 #sd-bar:not([hidden]){display:flex}
 #sd-bar[hidden]{display:none!important}
+/* 每页专属的顶栏动作容器（2026-10-15）。
+   ⚠️ 必须写成 `display:none` + `:not([hidden]){display:flex}` + `[hidden]{display:none!important}`
+      三件套 —— 直接写 `display:flex` 会**盖掉 hidden 属性**（UA 样式的 [hidden]{display:none}
+      只是普通优先级），那几个容器就会永远显示、把所有页的按钮同时挂在顶栏上。
+      这正是"串页"最容易掉进去的坑。照 #sd-bar 已有的写法来。 */
+#tb-agents,#tb-collect,#tb-handoff,#tb-clean{display:none;align-items:center;gap:8px;margin-left:10px}
+#tb-agents:not([hidden]),#tb-collect:not([hidden]),
+#tb-handoff:not([hidden]),#tb-clean:not([hidden]){display:flex}
+#tb-agents[hidden],#tb-collect[hidden],
+#tb-handoff[hidden],#tb-clean[hidden]{display:none!important}
 
 /* 面包屑「会话 › 当前篇」
    ⚠️ 2026-10-07 用户拍板：留着它，但规格改成原型的 .backbtn ——
@@ -3868,7 +3878,21 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
            原型 .topact 只有三个元素：搜索框 / 重新扫描 / ⏻。
            applyTheme() 里两处都是 if(元素) 保护，删掉按钮不会抛错；
            明暗切换仍可通过 ?theme=dark / ?theme=light 或 localStorage 走。 -->
-      <button class="btn quitbtn" onclick="shutdownPanel()" title="关闭面板服务（记忆数据不受影响）" aria-label="关闭面板服务">
+      <!-- 每页专属的顶栏动作（2026-10-15 按原型补）。
+       ⚠️ 每个页面**一个容器**，由 show() → applyTopbar() 那张映射表切 hidden。
+         切页时的顺序是「**先把所有容器关掉，再打开当前页那一个**」——
+         不是"谁该开就开谁"。先全关是幂等的，所以无论从哪一页切到哪一页，
+         都不可能残留上一页的按钮。这是"不串页"的结构保证，不是靠记得写对每个分支。
+       ⚠️ 位置放在退出按钮**之前**：原型里 ⏻ 永远在最右。 -->
+  <div id="tb-agents" hidden>
+    <button class="btn" onclick="detectAgents()"
+            title="重新扫描本机装了哪些 Agent（不用重启面板）">自动检测</button>
+    <button class="btn pri" onclick="toggleAddAgent()">+ 手动添加</button>
+  </div>
+  <div id="tb-clean" hidden>
+    <button class="btn" onclick="openArchiveDir()">打开备份目录</button>
+  </div>
+  <button class="btn quitbtn" onclick="shutdownPanel()" title="关闭面板服务（记忆数据不受影响）" aria-label="关闭面板服务">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
              stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M12 4v9"/><path d="M6.6 6.6a8 8 0 1 0 10.8 0"/>
@@ -4488,17 +4512,11 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
                   <span class="chip" data-a="1">已装</span>
                   <span class="chip" data-a="0">未装</span>
                 </div>
-                <!-- ⚠️ 2026-10-15 撤回：我一度在这里加了「验证 MCP 服务」「一键接入全部」，
-                     查 R3 原型（proto/Agent.html）发现**这两个按钮不在设计里** ——
-                     原型顶栏只有「自动检测」+「+ 手动添加」。
-                     这两个能力是我从"函数没人调用"推断出来的，不是你的设计。已撤。
-
-                     ⚠️ 位置也不对：原型里「+ 手动添加」在**顶栏 .topact**，不是页面工具栏。
-                        暂时留在这里（功能是真的、且原型确实有它），
-                        等顶栏做成"随页面变"再挪过去 —— 那是结构改动，要先给图。
-                        「自动检测」（原型顶栏的另一个）目前**没有实现**，先不做。 -->
-                <span class="grow"></span>
-                <button class="btn" onclick="toggleAddAgent()">+ 手动添加</button>
+                <!-- ⚠️ 2026-10-15：原来这里我加过「验证 MCP 服务」「一键接入全部」——
+                     查 R3 原型（proto/Agent.html）发现**这两个不在设计里**，已撤。
+                     原型里 Agent 的动作在**顶栏**：「自动检测」+「+ 手动添加」，
+                     现在由 #tb-agents 容器提供（见 .toolbar 里那段）。
+                     页面工具栏只剩 chips —— 与原型一致。 -->
               </div>
               <!-- 「+ 手动添加」展开的这一行。
                    原来这里是个常驻输入框（id=add-path），R3 改版时被删了，
@@ -5621,6 +5639,59 @@ var navMotion=(function(){
 })();
 
 /* 视图切换 */
+/* ── 顶栏：每一页该显示什么（2026-10-15）─────────────────────────────
+   **唯一事实来源**。照 R3 原型 proto/*.html 的 .topact：
+
+     会话        搜索 + 重新扫描
+     技能 / MCP  搜索 + 重新扫描
+     库          搜索 + 「打开备份目录」
+     Agent       搜索 + 「自动检测」+「+ 手动添加」
+     采集        搜索          （原型的专属动作是「全选 + 扫到 N 条新对话」，
+                                但这两样采集页别处已经有了，先不重复放）
+     交接卡      搜索          （原型的专属动作是「打开导出目录」——
+                                但 hfExport 现在只渲染不落盘，没有目录可开，
+                                要等"导出落到哪"定了才能接）
+     会话详情    只有「复制原文 / 返回会话列表」
+
+   ⚠️ 为什么用表而不是散在 show() 里的一堆 if：
+      每加一页就多一个分支，漏写一个 = 上一页的按钮留在顶栏上（"串页"）。
+      表 + applyTopbar 里那个「先全关、再开一个」是幂等的，绕不过分支。
+   ⚠️ 改这张表之后**必须跑** `node tools/verify_topbar.js` ——
+      它会逐页来回切、断言"当前可见的顶栏元素集合"完全等于这张表说的。 */
+var TBAR_NODES = ["tb-agents", "tb-collect", "tb-handoff", "tb-clean"];
+var TBAR = {
+  session: {search:1, scan:1, node:""},
+  skill:   {search:1, scan:1, node:""},
+  collect: {search:1, scan:0, node:"tb-collect"},
+  handoff: {search:1, scan:0, node:"tb-handoff"},
+  clean:   {search:1, scan:0, node:"tb-clean"},
+  agents:  {search:1, scan:0, node:"tb-agents"},
+  sdetail: {search:0, scan:0, node:"", detail:1}
+};
+function applyTopbar(v){
+  var spec = TBAR[v] || {};
+  /* ⚠️ 顺序不能改：**先把所有专属容器关掉**，再打开当前页那一个。
+     先全关是幂等的 —— 从任何一页切到任何一页、来回切、切到没登记的页，
+     都不可能残留。反过来（按需开/关）一旦漏一个分支就会串页。 */
+  TBAR_NODES.forEach(function(id){
+    var e = document.getElementById(id); if (e) e.hidden = true;
+  });
+  if (spec.node) { var t = document.getElementById(spec.node); if (t) t.hidden = false; }
+  var ss = document.getElementById("sp-search"), sb = document.getElementById("sp-scanbtn");
+  if (ss) ss.hidden = !spec.search;
+  if (sb) sb.hidden = !spec.scan;
+  var sd = document.getElementById("sd-bar");
+  if (sd) sd.hidden = !spec.detail;
+}
+/* 顶栏「自动检测」（照 proto/Agent.html 的 .topact）。
+   ⚠️ 这个能力本来就在跑 —— 打开 Agent 页时 loadAgents() 就会扫本机装了什么。
+      这个按钮的作用是**不重启面板也能重扫**（刚装完一个新 Agent 的场景）。 */
+async function detectAgents(){
+  try { await loadAgents(); }
+  catch (e) { toast("检测失败：" + e.message, "err"); return; }
+  var inst = AGENTS.filter(function(a){ return a.installed; }).length;
+  toast("已检测本机 Agent：" + AGENTS.length + " 个已知 · " + inst + " 个已装", "ok");
+}
 function show(v){
   /* 指示器 + 内容区进场：与 class 切换同一帧，时间轴同一起点 */
   navMotion.move(v); navMotion.enter(v);
@@ -5635,20 +5706,13 @@ function show(v){
   document.querySelectorAll(".nav").forEach(n=>n.classList.toggle("on",n.dataset.v===navV));
   ["mem","session","sdetail","audit","clean","collect","agents","skill","pack","handoff"]
     .forEach(x=>document.getElementById("v-"+x).hidden=(x!==v));
-  /* 详情页专属动作条（面包屑 / 复制原文 / 返回会话列表）。
-     ⚠️ 2026-10-07：这三样原来在 #v-sdetail 自己的 .sd-top 里，
-        和全局 .toolbar 叠成两行 LOCI 忆宫。现在搬进全局顶栏，
-        用 hidden 控制 —— 只有详情页显示。
-        元素不存在时静默跳过，别打断页面切换。
-     ⚠️ 详情页同时**隐藏搜索框和「重新扫描」**：原型 proto/会话详情.html
-        的 .topact 只有 复制原文 / ⏻ / 返回会话列表。
-        搜索是列表页的筛选、重新扫描是入库动作，在读原文时都不该出现。 */
-  var sb=document.getElementById("sd-bar");
-  if(sb) sb.hidden=(v!=="sdetail");
-  var onDetail=(v==="sdetail");
-  ["sp-search","sp-scanbtn"].forEach(function(id){
-    var e=document.getElementById(id); if(e) e.hidden=onDetail;
-  });
+  /* 顶栏按页切换 —— 统一走 applyTopbar()（2026-10-15 改）。
+     ⚠️ 原来这里是散在 show() 里的几句：
+          sd-bar 单独一句、sp-search/sp-scanbtn 一个 forEach —— 各页的点名式切换。
+        加了「每页专属动作容器」之后再这么写就有风险：每加一页就多一个分支，
+        漏一个分支 = 上一页的按钮留在顶栏上（"串页"）。
+        现在收进一张表 TBAR + 一个函数，切页时**先全关再开一个**，结构上不可能残留。 */
+  applyTopbar(v);
   if(v==="session") loadSessions();
   /* 2026-10-07：进采集页重新探测来源 —— 面板开着的时候用户装了新 Agent，
      不重扫就看不到。成本是几个目录的 stat，可以接受。 */

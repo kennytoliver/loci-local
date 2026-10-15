@@ -31,7 +31,7 @@ BASE="${BASE:-http://127.0.0.1:8787}"
 FILTER="${1:-}"
 
 # 重型闸门：出现名字里的关键字就归为"慢"
-HEAVY="audit_tokens measure_layers smoke_panel verify_link_shots verify_link_measure verify_slist_rows verify_pane_guide verify_sel_feedback verify_frames verify_shutdown verify_audit_perf verify_extract_perf shot_new_pages verify_content"
+HEAVY="verify_topbar audit_tokens measure_layers smoke_panel verify_link_shots verify_link_measure verify_slist_rows verify_pane_guide verify_sel_feedback verify_frames verify_shutdown verify_audit_perf verify_extract_perf shot_new_pages verify_content"
 
 # 名称 | 命令  （顺序按规范第八节；越靠前越快）
 GATES=(
@@ -67,6 +67,12 @@ GATES=(
   "verify_pane_guide|$NODE tools/verify_pane_guide.js $BASE"
   "verify_sel_feedback|$NODE tools/verify_sel_feedback.js $BASE"
   "verify_frames|$NODE tools/verify_frames.js $BASE"
+  # 顶栏「按页显示」不能串（2026-10-15 加）。
+  # R3 原型是一页一个顶栏，实现是"一条共用顶栏 + 按页切 hidden"——
+  # 这种做法的唯一风险就是切走之后没关掉、上一页的按钮留在上面。
+  # 它逐页断言"可见元素集合**全等**"，再乱序切 60 跳每一跳都比一遍，
+  # 带 --broken 反向测试（故意多开一个容器必须变红）。
+  "verify_topbar|$NODE tools/verify_topbar.js $BASE"
   "shot_new_pages|$NODE tools/shot_new_pages.js $BASE"
 )
 

@@ -5871,9 +5871,6 @@ async function showContext(){
 
 /* 清理页：源文件 + 记忆逐条 + 备份记录 */
 var SFILES=[], MPICK=[];
-function sfmsg(t,kind){var el=document.getElementById("sf-msg");
-  if(!t){el.style.display="none";return} el.style.display="block";
-  el.className="msg"+(kind?(" "+kind):"");el.textContent=t;}
 function cmmsg(t,kind){var el=document.getElementById("cm-msg");
   if(!t){el.style.display="none";return} el.style.display="block";
   el.className="msg"+(kind?(" "+kind):"");el.textContent=t;}
@@ -5956,30 +5953,6 @@ async function cleanSourceFiles(){
   toast("已处理 "+r.files+" 个源文件"+(wantBak?"（进回收站+备份）":"（进回收站，未备份）"),"ok");
   CL_SEL={};
   loadLibraryPage();
-}
-async function loadMemPick(){
-  var proj=document.getElementById("cm-proj").value;
-  var q=proj?("?project="+encodeURIComponent(proj)+"&limit=300"):"?limit=300";
-  var r=await api("/api/cleanup/preview"+q);
-  MPICK=r.items||[];
-  document.getElementById("cm-list").innerHTML = MPICK.length ?
-    ('<div class="row" style="margin-bottom:8px"><label class="ckwrap"><input type="checkbox" onchange="toggleAllCM(this.checked)"> 全选（'+MPICK.length+' 条）</label></div>'+
-     MPICK.map(function(m,i){
-      return '<div class="mem pick">'+
-        '<input type="checkbox" class="cmck" data-i="'+i+'">'+
-        '<span class="mico '+(m.mtype||"")+'">'+rowIcon(m.mtype)+'</span>'+
-        '<div class="mbody">'+
-          '<div class="mtitle">'+esc(m.content)+'</div>'+
-          '<div class="mmeta">'+
-            '<span class="chip">#'+m.id+'</span>'+
-            '<span class="chip">'+esc(TL[m.mtype]||m.mtype||"")+'</span>'+
-            (m.project?('<span class="chip">'+esc(m.project)+'</span>'):"")+
-            (m.agent?('<span class="chip">'+esc(m.agent)+'</span>'):"")+
-            '<span class="mtime">'+String(m.created_at||"").slice(0,10)+'</span>'+
-          '</div>'+
-        '</div></div>';
-    }).join("")) : '<div class="empty">没有记忆</div>';
-  cmmsg("共 "+r.count+" 条可选","ok");
 }
 function toggleAllCM(v){document.querySelectorAll(".cmck").forEach(function(c){c.checked=v})}
 async function loadBackups(){
@@ -6329,38 +6302,6 @@ function pickHfProj(el){
       现在按钮补回来了（顺带就是反馈位置），另外加两处保护：
         · 没导出过就没内容可复制 → 提示，别默默复制一段空字符串
         · 剪贴板权限被浏览器拒绝时 → 说清楚，别什么都不发生 */
-async function copyHandoff(){
-  var el=document.getElementById("handoff");
-  if(!el||!el.textContent.trim()){ toast("先点「导出交接卡」生成内容，再复制","err"); return; }
-  var txt=el.textContent, btn=document.getElementById("hf-copy"), done=false;
-  try{
-    if(navigator.clipboard&&navigator.clipboard.writeText){
-      await navigator.clipboard.writeText(txt); done=true;
-    }
-  }catch(e){ /* 落到下面的兜底 —— 不是没救 */ }
-  if(!done){
-    /* 兜底：老的 execCommand("copy")。
-       ⚠️ 为什么需要它（2026-10-15 实测）：异步剪贴板 API 会被环境拒绝 ——
-          文档没有焦点、权限策略不允许、或非安全上下文。无头浏览器里就是这样，
-          写进去直接抛 "Write permission denied"。这不是 bug，是环境差异，
-          但用户看到的就是"点了没反应"，所以必须有兜底路径。 */
-    try{
-      var ta=document.createElement("textarea");
-      ta.value=txt; ta.setAttribute("readonly","");
-      ta.style.cssText="position:fixed;top:-1000px;left:-1000px;opacity:0";
-      document.body.appendChild(ta);
-      ta.select(); ta.setSelectionRange(0, ta.value.length);
-      done=document.execCommand("copy");
-      document.body.removeChild(ta);
-    }catch(e){ done=false; }
-  }
-  if(done){
-    if(btn){ btn.textContent="已复制"; setTimeout(function(){ btn.textContent="复制"; },1500); }
-    toast("交接卡已复制到剪贴板","ok");
-  }else{
-    toast("复制失败：这个浏览器不允许访问剪贴板，请手动全选复制","err");
-  }
-}
 
 /* 采集中心 */
 async function doScan(){
@@ -7496,24 +7437,6 @@ async function skCopy(){
 }
 function roleName(r){return r==="user"?"我":(r==="assistant"?"AI":(r==="raw"?"原文":r))}
 function roleColor(r){return r==="user"?"var(--data-me)":(r==="assistant"?"var(--data-ai)":(r==="raw"?"var(--data-context)":"var(--data-preference)"))}
-async function sessionParse(){
-  var t=document.getElementById("s-text").value;
-  if(!t.trim()){alert("先粘贴对话内容");return}
-  var r=await api("/api/session/parse",{method:"POST",
-    headers:{"Content-Type":"application/json"},body:JSON.stringify({text:t})});
-  SPARSED=r.messages||[];
-  var users=SPARSED.filter(function(m){return m.role==="user"}).length;
-  document.getElementById("s-info").textContent=
-    "解析出 " + SPARSED.length + " 条（我问 " + users + " / 其他 " +
-    (SPARSED.length-users) + "）。确认无误后点「确认归档」。";
-  document.getElementById("s-list").innerHTML=SPARSED.map(function(m,i){
-    return '<div class="mem"><div class="top">' +
-      '<span class="ttag"><i style="background:'+roleColor(m.role)+'"></i>'+roleName(m.role)+'</span>' +
-      '<span class="proj">第'+(i+1)+'轮</span></div>' +
-      '<div class="content">'+esc(m.content.length>400?m.content.slice(0,400)+"…":m.content)+'</div></div>';
-  }).join("");
-  document.getElementById("s-save").disabled=!SPARSED.length;
-}
 /* 会话页 4 张 KPI 卡 + 页头数据行（2026-09-25）。
    会话数 / 轮次 / 记忆数取自 /api/stats —— 与顶栏同源，不会出现"卡里一个数、顶栏另一个数"。
    「有记忆的会话」只能从列表算，而列表是按 limit=50 取的：会话超过 50 个时

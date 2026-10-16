@@ -827,12 +827,22 @@ def import_pack(pack):
         # 2026-10-05 P0 修复：save_memory 现在会抛 MemorySkipped（排除清单命中）。
         #   原来没接住 → **一条垃圾废掉整包**（实测 10 条的包只进了 2 条）。
         #   正确做法：这一条跳过、计数，让包继续导完。
+        _m_pack = {}
         try:
             hippo.save_memory(c, m.get("mtype", "fact"), m.get("importance", 2),
-                              m.get("tags", ""), m.get("project", ""), "pack-import")
+                              m.get("tags", ""), m.get("project", ""), "pack-import",
+                              meta=_m_pack)
         except hippo.MemorySkipped as e:
             skipped += 1
             _pack_skipped_reasons.append(e.reason)
+            continue
+        # 🔴 2026-10-16 修「谎报新增」：上面那个 existing 集合只做**精确内容**比对，
+        #   而 save_memory 自己的去重是"前缀重合"（同一天的工作日志会越写越长，
+        #   短的出现在长的开头就算同一条）。那种情况 save_memory **不插入**、
+        #   只返回既有 id —— 这里却照样 imported+1，于是 toast 报的新增数比实际多。
+        #   现在按引擎查证过的 meta 计数，不再靠猜。
+        if _m_pack.get("deduped"):
+            skipped += 1
             continue
         existing.add(c)
         imported += 1
@@ -973,8 +983,10 @@ def collect(paths):
                 skipped += 1
                 continue
             proj, kind = _classify(rp)
+            _m_col = {}
             try:
-                hippo.save_memory(text, "context", 2, f"采集,{kind}", proj, "collector", rp)
+                hippo.save_memory(text, "context", 2, f"采集,{kind}", proj, "collector", rp,
+                                  meta=_m_col)
             except hippo.MemorySkipped:
                 # 2026-10-05 P0 修复（复核发现的第三个遗漏调用点）：
                 #   命中排除清单是**正常业务判定**（这个文件的内容没有可记忆信息，
@@ -982,6 +994,11 @@ def collect(paths):
                 #   `except Exception` 记进 errors，让用户以为采集出错了、
                 #   还看不到是哪一类被拦。单独接住，计入 excluded 而不是 errors。
                 excluded += 1
+                continue
+            # 同 /api/pack/import：existing 只比精确内容，save_memory 的"前缀重合"
+            # 去重命中时**没有真写入**，不能算新增（2026-10-16 修谎报）。
+            if _m_col.get("deduped"):
+                skipped += 1
                 continue
             existing.add(text)
             imported += 1
@@ -9295,8 +9312,14 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, json.dumps(
                 {"markdown": hippo.handoff(q.get("project", [""])[0])}, ensure_ascii=False))
         elif u.path == "/api/context":
+            # branch 可选（2026-10-16）：传了就按「同分支优先」重排，便于预览
+            # 编码 Agent 实际会看到的顺序。**不传时不猜** —— 面板进程的 cwd 是
+            # Loci 自己的仓库目录，自动探测会把它自己的分支当成"当前分支"，
+            # 那是错的（来看这份预览的人不是在这个仓库里干活）。
             self._send(200, json.dumps(
-                {"markdown": hippo.context_pack(q.get("project", [None])[0] or None)},
+                {"markdown": hippo.context_pack(
+                    q.get("project", [None])[0] or None,
+                    branch=(q.get("branch", [None])[0] or None))},
                 ensure_ascii=False))
         elif u.path == "/api/audit":
             self._json(hippo.quality_scan(q.get("project", [None])[0] or None))
@@ -9477,6 +9500,7 @@ class Handler(BaseHTTPRequestHandler):
             #   500 是"服务故障"，但这其实是**正常业务判定**（用户输入被判为无信息量），
             #   5xx 会污染监控、也拿不到原因。改成 400 并把原因回给前端。
             #   面板上加"强制保存"勾选会传 skip_check=false 绕过（下面已透传）。
+            _meta = {}
             try:
                 mid = hippo.save_memory(
                     body["content"], _mtype,
@@ -9484,7 +9508,8 @@ class Handler(BaseHTTPRequestHandler):
                     body.get("project", ""), "panel",
                     session_id=body.get("session_id", 0),
                     turn=body.get("turn", 0),
-                    skip_check=not bool(body.get("force_save", False)))
+                    skip_check=not bool(body.get("force_save", False)),
+                    meta=_meta)
             except hippo.MemorySkipped as e:
                 return self._json({
                     "ok": False,
@@ -9494,7 +9519,10 @@ class Handler(BaseHTTPRequestHandler):
                              "勾选「强制保存」再提交。" % e.reason}, 400)
             # 命中去重时 save_memory 返回的是既有那条的 id（不是新写入），
             #   告诉调用方，否则面板/Agent 会以为新存了一条，下次可能重复问。
-            self._json({"id": mid, "deduped": bool(body.get("_dedup_hit"))})
+            # ⚠️ 2026-10-16 修：这里原来读的是 `body.get("_dedup_hit")` —— 请求体里
+            #   根本没有这个键（实测：永远 False），等于**每次都谎报"新写入"**。
+            #   现在改成读 save_memory 填出来的 meta，是查证过的事实。
+            self._json({"id": mid, "deduped": bool(_meta.get("deduped"))})
         elif u.path == "/api/delete":
             # 2026-10-01 修（P1-1）：以前不看 delete_memory 的返回值，目标不存在也回 ok:true
             if not hippo.delete_memory(int(body["id"])):

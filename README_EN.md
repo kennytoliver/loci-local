@@ -85,15 +85,28 @@ Python 3.9+ is the only requirement. Rust-free, Node-free, cloud-free.
 
 ## What it does
 
-**10 MCP tools** for agents:
+**11 MCP tools** for agents:
 
 | Tool | Purpose |
 |---|---|
-| `memory_save` / `memory_search` / `memory_list` / `memory_delete` / `memory_stats` | store and retrieve memories |
-| `memory_context` | pinned + recent memories — call once at the start of a conversation |
+| `memory_save` | store a memory — returns a **write-back receipt**: what was written, where it belongs, which session it came from, and how to undo it. On a dedup hit it honestly says "no duplicate write" instead of pretending. Nothing enters long-term memory silently |
+| `memory_search` / `memory_list` / `memory_delete` / `memory_stats` | store and retrieve memories |
+| `memory_context` | pinned + recent memories, in a fixed order (static → semi-stable → per-call) so the provider's prefix cache keeps hitting. Same-branch memories rank first when branches are tracked. Call once at the start of a conversation |
 | `memory_pin` | mark a memory as always-on |
 | `memory_handoff` | project hand-off card to paste into the next agent |
 | `session_save` / `session_recall` | archive raw conversations, then search the original wording |
+| `panel_open` | open the web panel — **only when the user explicitly asks for it** (say "open the Loci panel"). It is not called automatically |
+
+**The panel does not pop up on its own.** Loci never opens it just because an agent read
+memory. To open it: run `python panel.py --open`, or ask your agent to. `LOCI_PANEL`
+tunes this — `explicit` (default), `write` (also after a real write), `auto` (open as soon
+as the MCP server starts), `off` (never).
+
+**Branch-aware** — a memory can carry a Git branch. If you don't pass one, Loci reads the
+current branch from the working directory and **says so in the receipt** (auto-detection
+mislabels: any agent launched inside a Git repo would otherwise get that repo's branch
+stamped on memories that have nothing to do with it). Hand-off cards label each entry with
+its branch, so a conclusion tried on `feature/x` is never mistaken for a settled fact.
 
 **Memory QC (7 checks + health score)** — the part most memory tools skip:
 

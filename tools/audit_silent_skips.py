@@ -55,8 +55,20 @@ TARGETS = ["loci.py", "panel.py", "install_agents.py"]
 #     「except Exception: return False」—— 探测失败就当作"没在跑"是正确的语义
 #     （宁可多探一次，不可漏探；漏探的代价是每次 MCP 启动都多开一个面板）。
 #     而且它是**有出声的**：真启动失败时 maybe_open_panel() 会往 stderr 说原因。
+#   · 2026-10-16 又 +1 return_empty：current_branch() 探测 git 分支时的
+#     「except Exception: return ""」—— 探不到就留空是正确的语义：写记忆不能因为
+#     "没装 git / 不是仓库 / 命令超时 / 没权限" 就失败，空串的下游含义是"分支无关"，
+#     不是错误状态。理由逐条写在那个函数上方。
+#     ⚠️ 这是**新增**的静默点（不是历史漂移），所以本次是"确认安全 → 同步数字"，
+#     不是"把数字改到能过"。凡是往下调的数字仍然要按头部「红了怎么办」先查清楚。
+#   · 2026-10-16 再 +1 return_empty（同日第二轮，仍是新增而非漂移）：get_memory() 收
+#     畸形 mid 时的「except (TypeError, ValueError): return None」——
+#     int("abc") 会抛 ValueError 而不是返回 None，这里必须兜住：get_memory 是写回回执的
+#     取数口，回执不能因为一个畸形 id 把**已经成功**的 memory_save 变成异常
+#     （调用方会以为没存进去而重试 → 反而写出重复记忆）。而且它对用户**不是静默的**：
+#     memory_receipt 会明说"读不回这条记录，可能是并发删除"。
 EXPECTED = {
-    "loci.py": {"pass": 12, "continue": 12, "return_empty": 12},
+    "loci.py": {"pass": 12, "continue": 12, "return_empty": 14},
     "panel.py": {"pass": 8, "continue": 4, "return_empty": 2},
     "install_agents.py": {"pass": 0, "continue": 0, "return_empty": 0},
 }

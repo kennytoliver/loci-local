@@ -132,7 +132,10 @@ wc -l loci.py   # ≈2980 行，含注释与 MCP 协议层
 
 | 模块 | 说明 |
 |---|---|
-| 10 个 MCP 工具 | `memory_save` / `memory_search` / `memory_list` / `memory_delete` / `memory_stats` / `memory_handoff` / `session_save` / `session_recall` / `memory_context` / `memory_pin` |
+| 11 个 MCP 工具 | `memory_save` / `memory_search` / `memory_list` / `memory_delete` / `memory_stats` / `memory_handoff` / `session_save` / `session_recall` / `memory_context` / `memory_pin` / `panel_open`（用户在对话里要求时才用） |
+| 写回回执 | `memory_save` 返回的不是一句「已保存」，而是**这条到底写了什么**：内容 / 归属 / 出自哪段会话 / 怎么撤。命中去重时**如实说「没有重复写入」**（旧版本这种情况也回"已保存"，是假话）。**没有任何东西会静默进入长期记忆**（学 codex-obsidian-memory） |
+| 分支感知 | 记忆可带 Git 分支（不传会自动读当前目录的 git 分支，并在回执里标出「自动探测到」）。`memory_context` **同分支优先**、其他分支降权但不隐藏；交接卡输出标注分支 —— 免得把别的分支上的试验结论当既定事实用（学 codex-obsidian-memory） |
+| 省 token 的注入顺序 | `memory_context` 输出按「几乎不变的 → 偶尔变的 → 每次变的」固定排列，统计行放**末尾**（它每次都变，放前面会让整块前缀缓存失效）。开头逐字不变 → 模型商的前缀缓存能命中（学 Orbital v0.4.2） |
 | 项目交接卡 | `memory_handoff` 按项目抽取决策/偏好/坑/事实，生成 markdown 注入下一个 Agent |
 | 网页面板 | **6 页工作台**：**会话**（原话列表 + 独立详情页）/ **采集**（扫描勾选入库，支持一键全选）/ **交接卡**（按项目生成）/ **库**（备份·导出·恢复·销毁）/ **Agent**（体检 + 一键接入）/ **技能 · MCP**（跨 Agent 复制技能、查看并复制 MCP 配置）|
 | 记忆包 | 导出为 JSON 文件，可在不同电脑/不同人之间交换记忆（导入自动去重）。**入口在「库」页的导出 / 恢复卡片** |
@@ -171,9 +174,14 @@ python panel.py --port 8787   # 手动访问 http://127.0.0.1:8787
 > （也可以点右上角 ⏻ 立刻退出）。
 > 想让它一直开着：`python panel.py --idle-exit 0`。（记忆本体不受影响 —— Agent 照常读写）
 
-> **你也可以完全不用手动开**：Agent 通过 MCP 调用 Loci 时，面板会**自己打开**
-> （服务起来 + 浏览器打开；已在跑就不重复开）。
-> 不想要这个行为就设 `LOCI_PANEL=off` —— 那时它只做记忆，不碰界面。
+> **面板默认不会自己弹出来**：Agent 读写记忆时，面板**不会**自动打开。
+> 想打开有两条路：① 自己跑上面的命令；② 在对话里说一句「打开 Loci 面板」—— Agent 会调
+> 工具 `panel_open` 替你打开。
+> 想让它更自动一点，用环境变量 `LOCI_PANEL` 调档：
+> `explicit`（默认，只有你明确要求才开）/ `write`（另外：真的写入记忆之后也开）/
+> `auto`（MCP 服务一启动就开）/ `off`（一律不开，只做记忆、不碰界面）。
+> ⚠️ 早期的 `auto` 档做过默认，结果**一打开任何 Agent 产品面板就跳出来**（因为一开会话
+> Agent 就会读上下文）—— 那是在说"你启动了一个 Agent"，不是"你在用 Loci"，所以改了。
 
 **方式二：接入 Agent（MCP）**
 

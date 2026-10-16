@@ -91,8 +91,8 @@ check("A3 ping 有响应", (recv() or {}).get("id") == 2, "")
 send({"jsonrpc": "2.0", "id": 3, "method": "tools/list"})
 r = recv()
 tools = [t["name"] for t in r["result"]["tools"]]
-check("A4 tools/list = 10 个工具且 schema 齐全",
-      len(tools) == 10 and all("inputSchema" in t for t in r["result"]["tools"]),
+check("A4 tools/list = 11 个工具且 schema 齐全",
+      len(tools) == 11 and all("inputSchema" in t for t in r["result"]["tools"]),
       tools)
 
 send({"jsonrpc": "2.0", "id": 4, "method": "no/such/method"})

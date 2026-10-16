@@ -85,7 +85,9 @@ else:
 #    加元素时请连同它所属的页面一起写，别只堆一个清单。
 need_ids = [
     # 框架
-    "navInd", "page-title", "themetgl", "toast",
+    # ⚠️ 2026-10-16：原来这里有 "page-title" —— 它挂在已删的记忆页 #v-mem 里
+    #    （页码用 `.phead .ttl h2`，不是 #page-title）。随记忆页一起清掉。
+    "navInd", "themetgl", "toast",
     # ① 会话（含从列表点进去的独立详情页）
     "v-session", "s-list", "s-q", "s-chips", "s-kpi",
     "v-sdetail", "sd-title", "sd-thread", "sd-meta",
@@ -94,8 +96,10 @@ need_ids = [
     # ③ 交接卡
     "v-handoff", "hf-list", "hf-proj", "hf-q", "hf-tags", "hf-fmt", "hf-pickbar",
     # ④ 库（备份 / 导出 / 恢复 / 销毁）
-    "v-clean", "sf-list", "db-txt", "db-go", "bk-list", "cleanup-panel",
-    "cl-project", "cl-agent", "cl-before", "cl-msg",
+    # ⚠️ 2026-10-16：原来还有 "cleanup-panel" / "cl-project" / "cl-agent" / "cl-before" /
+    #    "cl-msg" —— 这 5 个都在已删的记忆页 #v-mem 里，随记忆页一起清掉。
+    #    库页现在用 .card / .tbl / .sfr 这套（见 #v-clean 的 DOM）。
+    "v-clean", "sf-list", "db-txt", "db-go", "bk-list",
     # ⑤ Agent
     "v-agents", "ag-list", "ex-path",
     # ⑥ 技能 / MCP

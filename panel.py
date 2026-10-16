@@ -1204,7 +1204,6 @@ PAGE = r"""<!DOCTYPE html>
   /* 页面底从库值 #161616 压到 #0e0e0e：库的 #161616 对卡片 #1d1d1c 只有 1.073:1 面差，
      用户 2026-09-21 反馈「框跟背景底色融在一起，分不开」——框画出来了，但框里框外一个色。
      现在 1.144:1，与亮色的 1.141:1 手感对齐（低亮度区人眼分辨更差，所以暗色不能低于亮色）。 */
-  --d0:#0e0e0e; --d1:#1d1d1c; --d2:#2e2e2e; --d3:#383838;
   /* R3 工作台的页面底色（2026-10-07）。
      顶栏 .toolbar 与 #v-session 都读 var(--r3-bg) —— 亮色下是 #faf9f7 暖白，
      暗色下没有这条会解析失败（整个声明作废 → 顶栏退回透明、透出后面的内容）。
@@ -1214,46 +1213,26 @@ PAGE = r"""<!DOCTYPE html>
      结果就是"框看不见"（用户 2026-09-21 明确反馈，实测对比度只有 1.00:1）。
      这里按用户要求调亮：常规 1.44:1、控件 1.90:1（暗色要更高，低亮度下人眼分辨更差）。
      控件描边取库里 --sidebar-border 的暗色族（#404040）再提一档，不是凭空编的。 */
-  --line:#383838; --line2:#4a4a4a;
-  --ink:#eff1f4; --sub:#949494;
   /* --faint 提一档：卡片上 3.31:1 → 4.89:1（输入框占位符 2.66 → 3.93）。
      --sub 5.56:1 已合格，不动。 */
-  --faint:#8a8a8a;
-  --acc:#8ab4f8; --acc2:#2dccd3; --ok:#34a853; --warn:#fbbc05; --bad:#f1204a;
   /* 实心主按钮专用填充色：--acc 是「表面上的亮色」，拿它当填充面会出现
      白字压浅蓝（深色实测 2.11:1，不达标）。取色来自现有 --sidebar-primary。 */
-  --acc-solid:#0065fd; --acc-solid-ink:#fff; --acc-solid-hover:#0052cc;
   /* FIX-5：主色当「文字」用时单独一条令牌 —— 亮色下 --acc 当文字只有 3.56:1
      （12px 文字需 4.5:1），暗色却有 8.01:1。暗色这里与 --acc 同值，观感零变化。 */
-  --acc-ink:#8ab4f8;
   /* 数据可视化五色（库的 --chart-1..5，暗色刻意更"电"）——
      规范原话：图表是整个系统里颜色能量最强的地方，其余表面要保持安静 */
-  --chart-1:#2dccd3; --chart-2:#f1204a; --chart-3:#edbbe8; --chart-4:#fbeb35; --chart-5:#baf6f0;
-  --destructive:#ef4444; --destructive-foreground:#ffffff;
   --tracking-normal:0em;
-  --chrome:rgba(22,22,22,.88); --toastbg:rgba(46,46,46,.96);
   /* FIX-10：原 .05 叠在卡片上只有 1.14:1，几乎看不见 → 提到 .07 */
-  --hover:rgba(255,255,255,.07);
   /* FIX-9：破坏性动作 / 软边框 / 进度渐变都走令牌，别再硬编码 */
-  --danger:#ff453a; --danger-soft:rgba(255,69,58,.5); --ok-soft:rgba(48,209,88,.5);
   --grad-progress:linear-gradient(90deg,var(--acc),var(--acc2));
   /* FIX-3：语义色 / 数据色令牌化 —— 这些 hex 原来硬编码在 JS 里，**只有暗色主题成立**：
      亮色下 #ffd60a 1.41:1、#30d158 2.02:1、#f9ab00 1.93:1、#09b6a2 2.55:1 全看不见；
      反过来 #5f6368 在暗色只有 2.79:1。（判据 3:1 —— 这些是 7px 圆点，属非文字图形）
      内联样式可以直接吃 CSS 变量，所以 JS 侧只换字符串，不用加取值逻辑。 */
-  --data-fact:#0a84ff; --data-decision:#ffd60a; --data-preference:#bf5af2;
-  --data-skill:#30d158; --data-error:#ff453a; --data-context:#8e8e93;
-  --data-me:#0a84ff; --data-ai:#30d158;
   /* 记忆类型徽章 / 图标块的**底色**（2026-09-24 记忆页改版新增）。
      文字色直接复用上面的 --data-*，所以只需要底 ——
      亮暗两套各给一份，避免用 rgba 硬编码导致暗色下发灰。
      值都是"同色系、低饱和"的一档，保证徽章上的彩字仍有 4.5:1 左右对比。 */
-  --t-fact-bg:#0d2b4d; --t-decision-bg:#3d3410; --t-preference-bg:#33204d;
-  --t-skill-bg:#0e3520; --t-error-bg:#4a1d1a; --t-context-bg:#2b2b2e;
-  --t-summary-bg:#1f2c3d;
-  --data-agent-a:#0a84ff; --data-agent-b:#ea4335; --data-agent-c:#f9ab00;
-  --data-agent-d:#30d158; --data-agent-e:#007acc; --data-agent-f:#5f6368;
-  --data-agent-g:#09b6a2;
   /* 字体栈把库里的 DM Sans / JetBrains Mono 放在最前（没装就自动回落系统栈，零外链不能引 CDN） */
   --sans:"DM Sans",-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;
   /* 页面底色与卡片底色分开：浅色下两者同色就只剩 1px 描边能区分 */
@@ -1268,41 +1247,16 @@ PAGE = r"""<!DOCTYPE html>
   --ease-out:cubic-bezier(.16,1,.3,1); --ease-in-out:cubic-bezier(.45,0,.55,1);
   /* 阴影：库里 8 档全部定义为「透明度 0」。规范原话 —— 层次不靠模糊和抬升，
      靠色调、描边、分区和选择性对比。所以这里保持纯平：只留结构，不留视觉。 */
-  --shadow-2xs:0 3px 0 0 rgba(0,0,0,0);
-  --shadow-xs:0 3px 0 0 rgba(0,0,0,0);
-  --shadow-sm:0 3px 0 0 rgba(0,0,0,0),0 1px 2px -1px rgba(0,0,0,0);
-  --shadow:0 3px 0 0 rgba(0,0,0,0),0 2px 4px -1px rgba(0,0,0,0);
-  --shadow-md:0 3px 0 0 rgba(0,0,0,0),0 2px 4px -1px rgba(0,0,0,0);
-  --shadow-lg:0 3px 0 0 rgba(0,0,0,0),0 4px 6px -1px rgba(0,0,0,0);
-  --shadow-xl:0 3px 0 0 rgba(0,0,0,0),0 8px 10px -1px rgba(0,0,0,0);
-  --shadow-2xl:0 3px 0 0 rgba(0,0,0,0);
   /* 语义色别名（Trae 稿命名 → 本面板色板） */
   --background:var(--bg); --foreground:var(--ink); --card-foreground:var(--ink);
   --popover:var(--d2); --popover-foreground:#e5e5e5;
   --primary:var(--acc); --primary-foreground:#fff;
-  --secondary:#383838; --secondary-foreground:#e5e5e5;
   --muted:var(--d3); --muted-foreground:var(--sub);
   /* 库把描边分成两个色：--border 常规描边 / --input 表单控件描边 */
   --border:var(--line); --input:var(--line2); --ring:var(--acc);
-  --destructive:#ef4444; --destructive-foreground:#fff;
   --font-sans:var(--sans); --font-mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Consolas,monospace;
 }
-/* ── 交互态令牌 ──
-   亮色走蓝（库的 --accent:#dbeafe / #003e8f）。
-   暗色：库给的是红（#4a2026 / #fc2c50），但用户 2026-09-21 明确说
-   「夜间模式不希望用红色，颜色太不协调」→ 换成**库自带的蓝系**：
-   底 #00266b、浅蓝字 #bfdbfe（这两个就是库的 --sidebar-accent / -accent-foreground），
-   左强调条用亮蓝 #0065fd（库的 --sidebar-primary）。三个值都出自这个库，只是换了族。 */
-:root{
-  --accent:#00266b; --accent-foreground:#bfdbfe;
-  --sel-bg:var(--accent); --sel-ink:#eff1f4; --sel-accent:#0065fd;
-  --ring:#ffffff; --ring-soft:rgba(255,255,255,.18);
-  --primary-hover:#a7c7fb;
-  --sidebar:#171717; --sidebar-foreground:#e5e5e5;
-  --sidebar-primary:#0065fd; --sidebar-primary-foreground:#fff;
-  --sidebar-accent:#00266b; --sidebar-accent-foreground:#bfdbfe;
-  --sidebar-border:#404040; --sidebar-ring:#00266b;
-}
+
 /* 白天模式 */
 :root[data-theme="light"]{
   /* 页面底从库值 #ffffff 压到 #eef0f4 —— 这是**有意偏离库**，登记在设计规范 2.5。
@@ -1741,13 +1695,7 @@ h2{font-family:var(--sans);font-size:20px;font-weight:600;letter-spacing:-.2px;m
 .stat{background:none;border:none;padding:0;min-width:0;display:flex;flex-direction:column;gap:1px}
 .stat .v{font-family:var(--sans);font-size:18px;font-weight:700;line-height:1.2;
   letter-spacing:-.2px;font-variant-numeric:tabular-nums}
-.stat .k{font-size:10.5px;color:var(--sub);letter-spacing:.2px;white-space:nowrap}
-
-/* ── 记忆卡片 ────────────────────── */
-.mem{background:var(--card);border:1px solid var(--line);border-radius:var(--radius-lg);padding:14px 18px;margin-bottom:10px;box-shadow:var(--shadow-2xs)}
-.mem .top{display:flex;align-items:center;gap:12px;margin-bottom:8px;flex-wrap:wrap}
-.ttag{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--sub)}
-.ttag i{width:7px;height:7px;border-radius:50%;display:inline-block}
+.stat .k{font-size:10.5px;color:var(--sub);letter-spacing:.2px;white-space:nowrap}.ttag i{width:7px;height:7px;border-radius:50%;display:inline-block}
 .proj{font-size:11px;color:var(--sub);border:1px solid var(--line);
   border-radius:6px;padding:2px 8px}
 /* 输出里的强调小字（关联 X 条 / 体积 / 类型 / 轮次）。
@@ -1755,24 +1703,7 @@ h2{font-family:var(--sans);font-size:20px;font-weight:600;letter-spacing:-.2px;m
    `.pri{font-size:11px}` 写在 `.btn{font-size:13px}` 之后，同权重后者胜，
    把所有主按钮的字号压成了 11px。改名 .accent 彻底断开。 */
 .accent{font-size:11px;color:var(--warn)}
-.score{font-size:11px;color:var(--acc)}
-/* ⚠ padding/overflow/flex 必须显式压回来 —— 上方页面级 `.content` 那条
-   全局规则（flex:1 + padding:20px 20px 48px）会顺带命中列表项内部的
-   `.content`，把每一项虚增 68px。实测证据：插件行内容 2 行 = 49px，实高 117px。
-   这里**只压本机内容页**（`#sk-list`）。全站修的影响面（实测）：
-     会话 151.5→83.5 ／ 清理 183→115 ／ 质检 639.3→548.5 ／ 本机内容 298.5→206
-   那几页是用户已签字的排版，换个 pass 再动，别顺手改（见设计规范 2.5 已知偏差）。 */
-#sk-list .mem .content{font-size:14px;line-height:1.75;padding:0;overflow:visible;flex:none}
-/* 同 P0-3：记忆列表里已作废的条目也别整块半透明 */
-.mem.indb{opacity:1}
-.mem.indb .content,.mem.indb .meta{color:var(--faint)}
-/* 复选框用更饱和的蓝，暗色下那条极细的原生框才看得见 */
-.ck{width:14px;height:14px;accent-color:var(--sidebar-primary);cursor:pointer;flex-shrink:0}
-.mem .meta{display:flex;justify-content:space-between;align-items:center;
-  margin-top:10px;padding-top:9px;border-top:1px solid var(--line);
-  font-size:11px;color:var(--faint)}
-.del{border:none;background:none;color:var(--faint);cursor:pointer;font-size:11px}
-.del:hover{color:var(--bad)}
+.score{font-size:11px;color:var(--acc)}.del:hover{color:var(--bad)}
 
 /* ── Agent 体检 ──────────────────── */
 /* 卡片网格：自适应列宽（15 款产品，窄窗口自动降列） */
@@ -1815,12 +1746,7 @@ select,.formrow input[type=text]{background:var(--d2);border:1px solid var(--lin
 .empty{text-align:center;color:var(--faint);font-size:12px;padding:28px 0}
 .listhead{display:flex;justify-content:space-between;align-items:center;
   margin:20px 0 12px}
-.listhead .t{font-family:var(--sans);font-size:14px;font-weight:600;letter-spacing:-.1px}
-/* ⚠️ .listhead 原本是 space-between；改成可折叠（.ghead）后多了一个箭头子元素，
-   三个子元素会被均分 → 按钮组跑到中间（用户报"文字未对齐"）。
-   改成三段式：标题靠左，按钮组和箭头一起顶到右边。 */
-.listhead.ghead>.t{flex-shrink:0;margin-right:auto}
-/* 框线：具体哪几处加，看 frameTitles() 里的 FRAME_SELECTION（**用户在 ?frames=1 里
+.listhead .t{font-family:var(--sans);font-size:14px;font-weight:600;letter-spacing:-.1px}/* 框线：具体哪几处加，看 frameTitles() 里的 FRAME_SELECTION（**用户在 ?frames=1 里
    亲手点出来的**，不自动推断 —— 试过两次自动判断，两次都猜错）。
    画法用绝对定位的 ::after，而不是 border / inset 阴影 —— 因为要支持"往下拉大"：
    框可以比元素本身高出 --fext 像素，把下面更多内容圈进来。两种画法都不占布局，
@@ -1862,8 +1788,18 @@ select,.formrow input[type=text]{background:var(--d2);border:1px solid var(--lin
 #v-skill .pagehead .ptitle{font-size:22px;font-weight:680;letter-spacing:-.015em;
   line-height:1.2}
 .pagehead .pacts{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap}
-/* 动作区内的分组：筛选组 / 动作组之间插一条竖分隔线，让「哪个是筛选、哪个是动作」一眼可辨 */
-.pagehead .pacts .pgrp{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap}
+/* 动作区内的分组：筛选组 / 动作组之间插一条竖分隔线
+.score,
+
+.foldbtn,
+
+.grpfoot,
+
+.lead .leadlink,
+
+.badge-new,
+
+.btn.txtpace-2);flex-wrap:wrap}
 .pagehead .pacts .psep{width:1px;height:20px;background:var(--line);flex:0 0 1px}
 /* ── ⑦ Agent 页：卡片网格（原型 C 的 .agrid / .acard）────────────────────
    每个 Agent 一张小卡：头像 + 名称 + 配置路径 + 状态徽章 / 底部 chip + 动作按钮。
@@ -1929,19 +1865,7 @@ select,.formrow input[type=text]{background:var(--d2);border:1px solid var(--lin
 .pmtgl .cvs{width:11px;height:11px;flex:0 0 auto;transition:transform .2s ease}
 .pmtgl[aria-expanded="true"]{color:var(--acc-ink);background:var(--d3)}
 .pmtgl[aria-expanded="true"] .cvs{transform:rotate(90deg)}
-.pmtgl:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
-.pfold{display:grid;grid-template-rows:0fr;opacity:.001;overflow:hidden;
-  transition:grid-template-rows .22s var(--ease),opacity .18s ease}
-.pfold.pf-on{grid-template-rows:1fr;opacity:1}
-.pfold>.pfin{overflow:hidden;min-height:0;display:flex;flex-direction:column;gap:10px;
-  padding-bottom:0}
-.pfold.pf-on>.pfin{padding-bottom:20px}
-.pfold>.pfin>.lead{margin-bottom:0}
-
-/* ── 本机内容页的 4 张 KPI 卡（技能 / MCP / 插件 / 配置文件）───────────────
-   2026-09-24 用户指定就要这四类（文件名原话：「4 张 KPI 卡需要改成
-   skill、MCP、插件、配置文件」），不要"总数 / 备份 / 来源"混在里面。
-   数字由 loadSkills() 用真实探测结果填 —— **不写死**：原型里那版"技能 10 /
+.pmtgl:focus-visible{outline:2px solid var(--acc);outline-offset:2px}   数字由 loadSkills() 用真实探测结果填 —— **不写死**：原型里那版"技能 10 /
    插件 60"是编的，被用户当场揪出来过，这类数字必须能对上 /api/skills 与 /api/content。
    卡片沿用项目现有语言：纯平（阴影全透明）、靠 1px 描边与面差分层，
    hover 只抬 2px + 描边提一档，不引入阴影。 */
@@ -2011,74 +1935,11 @@ select,.formrow input[type=text]{background:var(--d2);border:1px solid var(--lin
   font-size:10.5px;font-weight:600;white-space:nowrap;flex:0 0 auto}
 .riskflag.ok{background:var(--t-skill-bg);color:var(--data-skill)}
 .riskflag.warn{background:var(--t-decision-bg);color:var(--data-decision)}
-.riskflag.bad{background:var(--t-error-bg);color:var(--data-error)}
-/* wrapPanels() 生成的折叠体 .gbody 直接扮演原型的 .pbody（内边距）——
-   不能自己再写一层 .pbody：那层会被 wrapPanels 一起搬进 .gbody，变成双层留白。 */
-.pcard>.gbody{padding:12px 14px 14px 17px}
-.pcard.tight-body>.gbody{padding:8px 8px 8px 10px}
-.pcard>.gbody>p.hint{margin-top:0}
-.pcard>.gbody>.row{margin-top:10px}
-.btn.sm{height:26px;padding:0 9px;font-size:11.5px}
-/* 危险动作按钮：只改文字色（边框保持默认，避免硬编码 rgba —— 明暗主题各有一套变量） */
-.btn.danger{color:var(--data-error)}
-.btn.danger:hover{background:var(--t-error-bg);border-color:var(--data-error)}
+.riskflag.bad{background:var(--t-error-bg);color:var(--data-error)}.btn.danger:hover{background:var(--t-error-bg);border-color:var(--data-error)}
 /* 段间距：原型用 .stepped 包一层 —— 但 wrapPanels 认的是 `#v-clean > .panel`
    **直接子元素**，多包一层折叠会整页失效。所以用 margin 代替 .stepped。 */
 :is(#v-clean,#v-collect)>.pcard{margin-bottom:14px}
-:is(#v-clean,#v-collect)>.pcard:last-child{margin-bottom:0}
-/* 清理页列表行：原型用的是紧凑行，不是卡片。
-   ⚠️ **不要加 .lrow 类** —— 主从页的紧凑行（`.split-main .mem.lrow`）有自己一整套规则，
-      而清理页不在 .split-main 里；更要紧的是统一选中态那条写的是
-      `.mem.sel:not(.lrow)`，注释明确说「这里只管卡片行（质检/清理/本机内容/采集）」。
-      给清理行挂上 .lrow 会把它从本该所属的那一档里踢出去 → **选中蓝底直接没了**
-      （verify_sel_feedback 已实测报错）。所以：仍用 .mem，紧凑外观靠 #v-clean 前缀收口。
-   ⚠️ 前缀 #v-clean 是跨页护栏：别的页一行不受影响。 */
-:is(#v-clean,#v-collect) .mem{display:flex;align-items:flex-start;gap:10px;background:transparent;border:0;
-  border-radius:0;padding:9px 2px;margin-bottom:0;box-shadow:none;border-bottom:1px solid var(--line)}
-:is(#v-clean,#v-collect) .mem:last-child{border-bottom:0}
-/* 采集页：已入库的候选整行置灰（原型就是 opacity:.45）—— 一眼看出哪些不用管 */
-:is(#v-clean,#v-collect) .mem.indb{opacity:.45}
-/* ⚠️ 带 :not(.sel)：否则 hover 的灰底会压掉选中态（#v-clean 前缀特异性比 .mem.sel 那条高） */
-:is(#v-clean,#v-collect) .mem:hover:not(.sel){background:var(--hover);transform:none}
-:is(#v-clean,#v-collect) .mem .top{margin-bottom:5px}
-:is(#v-clean,#v-collect) .mem .content{font-size:12.5px;line-height:1.6}
-/* 源文件/勾选行里的图标块：.mico 的尺寸原本也挂在 .split-main 下，这里补一份 */
-:is(#v-clean,#v-collect) .mico{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;
-  border-radius:var(--radius-md);flex:0 0 auto}
-:is(#v-clean,#v-collect) .mico svg{width:16px;height:16px}
-/* 紧凑行内部：.mbody/.mtitle/.mmeta 的样式原本同样挂在 .split-main 下，
-   清理页拿不到 → 这里按同样的排版补一份（只作用于 #v-clean）。 */
-:is(#v-clean,#v-collect) .mbody{min-width:0;flex:1 1 auto}
-:is(#v-clean,#v-collect) .mtitle{font-size:13px;color:var(--ink);line-height:1.45;overflow:hidden;
-  text-overflow:ellipsis;white-space:nowrap}
-/* 记忆勾选行：正文要读得全，给两行 */
-:is(#v-clean,#v-collect) .mem.pick .mtitle{display:-webkit-box;-webkit-box-orient:vertical;
-  -webkit-line-clamp:2;white-space:normal;line-height:1.55;word-break:break-word}
-:is(#v-clean,#v-collect) .mmeta{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:4px;
-  font-size:11px;color:var(--faint)}
-:is(#v-clean,#v-collect) .mtime{color:var(--faint);font-variant-numeric:tabular-nums}
-/* 选中态：统一规则换的是 .content/.meta 的文字色，这里用的是 .mtitle/.mmeta —— 补齐。
-   ⚠️ 选中底**必须在 #v-clean 里重写一遍**：上面 `:is(#v-clean,#v-collect) .mem{background:transparent}`
-      带 id 前缀（特异性 1,1,0），而全局那条是 `.mem.sel:not(.lrow)`（0,3,0）——
-      **id 永远赢**，所以全局规则压不过这里（verify_sel_feedback 实测：四条全红）。
-      不是 lrow 的问题，是 id 前缀太强。 */
-:is(#v-clean,#v-collect) .mem.sel{background:var(--sel-bg);border-color:transparent;
-  box-shadow:inset 3px 0 0 var(--sel-accent)}
-:is(#v-clean,#v-collect) .mem.sel .mtitle,:is(#v-clean,#v-collect) .mem.sel .mmeta,
-:is(#v-clean,#v-collect) .mem.sel .mtime,:is(#v-clean,#v-collect) .mem.sel .mico{color:var(--sel-ink)}
-:is(#v-clean,#v-collect) .mem.sel .chip{background:var(--sel-accent);color:var(--sel-ink)}
-:is(#v-clean,#v-collect) .mem>input[type=checkbox]{margin:0;flex:0 0 auto}
-:is(#v-clean,#v-collect) .empty{padding:24px 12px;text-align:center;color:var(--faint);font-size:12.5px}
-
-/* 收拢一组内容的卡片壳（原型 C 的 .pcard）。面板原本没有这个类 ——
-   质检页的「七查明细」用它包住七行，头部标题与说明各占一端。
-   ⚠️ 原型用 --radius-2xl / --inner-hi / --line-soft，面板没有 → 用现有变量替代。 */
-.pcard{background:var(--card);border:1px solid var(--line);border-radius:var(--radius-lg);
-  margin-bottom:var(--space-4);overflow:hidden}
-.pcard>.phead{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);
-  padding:var(--space-4) var(--space-5);border-bottom:1px solid var(--line)}
-.pcard>.phead .t{font-size:14px;font-weight:600;color:var(--ink)}
-.pcard>.phead .hint{margin-top:0;flex:0 1 auto;text-align:right}
+:is(#v-clean,#v-collect)>.pcard:last-child{margin-bottom:0}.pcard>.phead .hint{margin-top:0;flex:0 1 auto;text-align:right}
 .pcard .pbody{padding:var(--space-3) var(--space-4)}
 /* tight：行自己带内边距（.auditrow 就是），外壳就别再加一层，否则每行上下各空一截 */
 .pcard .pbody.tight{padding:var(--space-1) var(--space-2)}
@@ -2171,18 +2032,7 @@ select,.formrow input[type=text]{background:var(--d2);border:1px solid var(--lin
 .kv-grid .k{font-size:10.5px;color:var(--faint);line-height:1.4}
 .kv-grid .v{font-size:12.5px;color:var(--ink);font-weight:600;line-height:1.5;margin-top:2px;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-@media (max-width:900px){.kv-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-
-/* ── 记忆列表行的排版（2026-09-24）────────────────────────────────────
-   ⚠️ 必须带 #list 前缀：`.split-main .mtitle` 是记忆页与会话页**共用**的选择器，
-      直接改字号会让会话行从 61.19px 长高 → verify_slist_rows 量到就红。
-      #list 只有记忆页有（会话页是 #s-list），所以这条是安全的收口。 */
-#list .mem.lrow{padding:15px var(--space-4)}
-#list .mtitle{font-size:14px}
-#list .mmeta{margin-top:5px}
-
-/* ── 主从详情切换：内容整体换掉时淡入一次（2026-09-24）─────────────────────
-   纯 CSS，不写一行 JS：renderDetail() / 会话详情 / 技能详情都是整块 innerHTML
+@media (max-width:900px){.kv-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}   纯 CSS，不写一行 JS：renderDetail() / 会话详情 / 技能详情都是整块 innerHTML
    重写，新插入的节点天然会重放 animation —— 于是切换就有了呼吸感。
    ⚠️ 只用 opacity，**不用 transform**：translateY 会临时改变
       getBoundingClientRect，而本项目有一批量几何的闸门（measure_layers /
@@ -2191,56 +2041,13 @@ select,.formrow input[type=text]{background:var(--d2);border:1px solid var(--lin
    ⚠️ 时长 0.2s 是刻意的：比切换本身的网络往返短得多，不会让人等动画。
    系统「减少动态效果」时由全局 @media 压掉（animation-duration→0.001ms）。 */
 @keyframes detailIn{from{opacity:0}to{opacity:1}}
-.split-side>.dhead,.split-side>.dmain{animation:detailIn .2s var(--ease) both}
-
 /* 页面骨架的卡片节奏：卡片之间 20px（库的 .content 用 calc(--spacing*5)），
    区块标题（.listhead）跟着卡片走。规范第五节的 A/B/C 三套骨架都靠这两条，
    页面上就不用写内联 margin 了 */
 .panel+.panel{margin-top:var(--space-5)}
 .panel>.listhead:first-child{margin-top:0}
 .panel>.listhead{margin-bottom:12px}
-.listhead+.panel{margin-top:0}
-/* 清单里的类别分组头：技能 / 配置文件 / MCP 三组共用左列一条滚动线。
-   不是新模块，就是把原来单一列表按类别分段（用户明确讨厌"突然多一个模块"）。 */
-.grphead{display:flex;justify-content:space-between;align-items:center;gap:10px;
-  margin:18px 0 10px;padding:0 2px}
-.grphead:first-child{margin-top:2px}
-.grphead .gt{font-family:var(--sans);font-size:12.5px;font-weight:600;color:var(--sub)}
-.grphead .gn{font-size:11.5px;color:var(--faint);margin-left:auto}
-/* 段头改成可折叠（加 .ghead）后，flex 的 space-between 会把新插的箭头甩到中间，
-   所以计数用 margin-left:auto 顶到右边，箭头紧贴标题。 */
-.grphead.ghead{gap:6px}
-.grphead.ghead .cv{cursor:pointer}
-/* 每一类单独成一个「框」（用户要的"一块一片区域"）：框头 + 框体各自有边框，
-   折叠后框体消失、框头留着。 */
-/* P2-1：组头 + 组体原来是两块各自带边框、中间还留 2px 缝，看着像"两块"。
-   并成一块：组头保上圆角去下边框，组体保下圆角、去掉上间距。 */
-#sk-list .grphead.ghead{border:1px solid var(--line);border-bottom:0;
-  border-radius:var(--radius-md) var(--radius-md) 0 0;
-  padding:var(--space-2) var(--space-3);background:var(--d2);margin-top:var(--space-3)}
-#sk-list .gbody{border:1px solid var(--line);
-  border-radius:0 0 var(--radius-md) var(--radius-md);
-  padding:var(--space-2);margin-top:0}
-/* 亮色主题下组头底色与卡片的面差只有 1.05:1 —— 分组条等于消失了。换深一档。 */
-:root[data-theme="light"] #sk-list .grphead.ghead{background:var(--d3)}
-/* 左栏条目不是太挤、是太松：单条实测 206px 高，插件组五十几条 → 上万 px，
-   而右栏同时是空的。描述压到 3 行（206 → 128.5px，技能组体 1828 → 1341px）。
-   ⚠️ line-clamp 必须配 display:-webkit-box + -webkit-box-orient:vertical ——
-   只写 clamp 的话 getComputedStyle 会读回"3"骗你，但高度一动不动。 */
-#sk-list .gbody .mem{padding:var(--space-3) var(--space-4);margin-bottom:2px}
-#sk-list .gbody .mem .content{display:-webkit-box;-webkit-box-orient:vertical;
-  -webkit-line-clamp:3;overflow:hidden}
-/* 分组内容下方的收起按钮（用户要求放在下面，而不是去点标题） */
-/* 组体可能 1800+px 高，收起按钮会离组头很远（实测 1834px）——
-   sticky 让它吸附在滚动容器底部，人在哪儿都够得着。 */
-.grpfoot{display:block;width:100%;margin-top:4px;padding:4px 0;font:inherit;font-size:12px;
-  color:var(--acc);background:var(--card);border:1px dashed var(--line);
-  border-radius:var(--radius-md);cursor:pointer;
-  position:sticky;bottom:0;z-index:2}
-.grpfoot:hover{background:var(--hover)}
-/* 会话页：第一眼该看「已归档会话」（列表 + 原文），「归档新会话」表单排到最后。
-   顺序只用 order 调，DOM 不动 —— 免得搬一大块 HTML 出错。 */
-/* ⚠️⚠️ 2026-10-06 实测 bug：滚到底时「记忆质检」整页露出来了。
+.listhead+.panel{margin-top:0}/* ⚠️⚠️ 2026-10-06 实测 bug：滚到底时「记忆质检」整页露出来了。
    根因：`#v-session:not([hidden]){display:flex}` 这类规则给会话页设了 display:flex，
    而 **`display:flex` 会覆盖 `<section hidden>` 的浏览器默认 `display:none`**
    —— 一旦某个 section 被别的 display 规则命中，hidden 就彻底失效。
@@ -2259,9 +2066,7 @@ section[hidden]{display:none!important}
 #v-session>.bignums{order:3}            /* 2026-10-04: .kgrid 4张KPI卡 → .bignums 5个大数字 */
 #v-session>#scan-msg{order:4}
 #v-session>#scan-out{order:5}
-#v-session>.listhead{order:6}
-#v-session>.split{order:7}
-/* ⚠️ 2026-10-04：.split 改成 display:block 后，「归档新会话」这个 .panel(order:8)
+#v-session>.listhead{order:6}/* ⚠️ 2026-10-04：.split 改成 display:block 后，「归档新会话」这个 .panel(order:8)
    会插到会话列表前面去（截图实测过）。显式排到列表之后。 */
 #v-session>.panel{order:9}
 
@@ -2281,26 +2086,11 @@ section[hidden]{display:none!important}
 .bignums .v{font-family:var(--mono);font-size:32px;font-weight:700;line-height:1;
   letter-spacing:-.03em;color:var(--ink)}
 .bignums .v.warn{color:var(--warn)}
-.bignums .v.bad{color:var(--danger)}
-/* 单栏：会话表 + 正文区上下排。
-   ⚠️ .split 保持 flex（不能用 display:block）——实测改成 block 后，
-   .split-side 会被挤到列表下面，29 条会话要滚到底才看得到详情。
-   改用 flex-direction:column + order，把详情提到列表上方：
-   选中一条会话立刻就在眼前，不用滚。
-   为什么原来是 flex: 现在 .split 的默认方向是 row（左右），
-   显式改 column 才是上下。 */
-#v-session .split{display:flex;flex-direction:column;max-width:none}
-#v-session .split-main{order:2;width:100%}
-#v-session .split-side{order:1;width:100%;margin-bottom:20px;overflow:visible}
-/* 本机内容页同理：第一眼该看「清算结果」（几个技能 / MCP / 插件），
-   「本机来源探测」排到最后并**默认收起**。 */
-/* ⚠️ 同 #v-session：必须带 :not([hidden])，否则会顶掉 hidden 的 display:none */
+.bignums .v.bad{color:var(--danger)}/* ⚠️ 同 #v-session：必须带 :not([hidden])，否则会顶掉 hidden 的 display:none */
 #v-skill:not([hidden]){display:flex;flex-direction:column}
 #v-skill>.pagehead{order:1}
 #v-skill>.lead,#v-skill>.pfold{order:2}   /* 同上：.lead 会被挪进 .pfold */
-#v-skill>.kgrid{order:3}                  /* 4 张 KPI 卡：技能 / MCP / 插件 / 配置文件 */
-#v-skill>.split{order:4}
-#v-skill>.panel{order:5}
+#v-skill>.kgrid{order:3}#v-skill>.panel{order:5}
 .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .hint{font-size:12px;color:var(--faint);line-height:1.7;margin-top:10px}
 /* 本机对话来源列表 —— 让"这次到底扫了谁、为什么"看得见
@@ -2431,8 +2221,8 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
       导致 flex 子项的可用空间算错。稳妥写法是 grid 而不是 flex：
       grid-template-columns 的 1fr 不会被子项内容撑开。
       （flex 里 1fr 实际是 minmax(auto,1fr)，auto 最小值会被长标题顶开。） */
-#v-session .cols{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px;
-  align-items:start}
+#v-session .cols{display:grid;grid-template-columns:minmax(0,1fr) 30
+#v-session>.lead
 #v-session .cols > .sp-main{min-width:0;width:100%}
 #v-session .sp-side{display:flex;flex-direction:column;gap:14px;width:100%}
 #v-session .tbl{width:100%;max-width:100%}
@@ -2464,7 +2254,8 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
 #v-session .tr.on{background:var(--sp-ibg)}
 #v-session .tr .ti{min-width:0}
 #v-session .tr .tt{font-size:13.5px;font-weight:600;color:var(--lz-ink);
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  wh
+#v-skill>.leaden;text-overflow:ellipsis}
 #v-session .tr.on .tt{color:var(--sp-indigo)}
 #v-session .tr .mt{font-size:11px;color:var(--lz-sub);margin-top:1px;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -2500,17 +2291,32 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
 #v-session .lg .sw{width:8px;height:8px;border-radius:3px;flex:none}
 #v-session .lg .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #v-session .lg .v{font-family:var(--mono);font-size:11px;color:var(--ink);margin-left:auto}
-#v-session .lg .p{font-family:var(--mono);font-size:10.5px;color:var(--faint);width:32px;text-align:right}
+#v-session .lg .p{font
+
+.stat,
+
+
+.kpiono);font-size:10.5px;color:var(--faint);width:32px;text-align:right}
 /* 等你处理：左竖条表状态类别，右侧数字 */
 #v-session .td{display:flex;align-items:center;gap:10px;padding:9px 0;
-  border-bottom:1px solid var(--line)}
-#v-session .td:last-child{border-bottom:none}
+  border-bottom:1px 
+.kpi:hover-session .td:last-child{border-bottom:none}
 #v-session .td .bar2{width:3px;height:26px;border-radius:2px;flex:none}
 #v-session .td .tx{flex:1;min-width:0;font-size:12px;color:var(--sp-ink2);
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#v-session .td .tx b{color:var(--ink);font-weight:600}
-#v-session .td .n{font-family:var(--mono);font-size:15px;font-weight:700;flex:none}
-#v-session .empty{padding:30px 15px;text-align:center;color:var(--faint);font-size:12px}
+  white-space:nowrap;overflow:hidde
+.btn:focus-visible,
+
+.nav:focus-visible,
+
+.mini:focus-visible,
+
+.del:focus-visible,
+
+.foldbtn:focus-visible,
+
+.grpfoot:focus-visible,
+
+[data-secfold]:focus-visiblen .empty{padding:30px 15px;text-align:center;color:var(--faint);font-size:12px}
 
 
 /* ── 会话详情 · 独立页面（2026-10-06 用户拍板方案 2）─────────────────────
@@ -2674,16 +2480,6 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
 
 
 .lead{color:var(--sub)}
-
-/* 卡片：hover 带主色描边，更强的层次 */
-.mem{border-radius:8px}
-/* 卡片 hover：规范 ui_kit 的做法是 border-color 变 --ring，不加抬升（阴影全平） */
-/* FIX-4：hover 描边原来吃 --ring —— 暗色下 --ring 是纯白（14.91:1）、亮色才是蓝（3.56:1），
-   两个主题成了两种视觉语言；而且暗色下它与焦点环**同色同宽**，hover 和 focus 分不开。
-   规范第四节的口径是「hover 只动底色，不加描边」，所以改用底色表达，焦点仍走 outline。 */
-.mem:hover{background:var(--hover);border-color:var(--line);box-shadow:none}
-
-
 /* 进度条改用主色 → 辅色 */
 #topbar{background:linear-gradient(90deg,var(--acc),var(--acc2))}
 
@@ -2744,339 +2540,28 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
   color:var(--lz-sub);cursor:pointer;box-shadow:var(--lz-sh);
   transition:color .18s var(--ease),border-color .18s var(--ease)}
 .themetgl:hover{color:var(--lz-indigo);border-color:#c9c8f5}
-.ml-auto{margin-left:auto}
-
-/* 主从双栏（列表 + 详情） */
-.split{display:grid;grid-template-columns:clamp(360px,33%,460px) minmax(0,1fr);gap:20px;align-items:start}
-/* ⚠️「详情栏空着就不占格子」（`.split.solo` 塌单列）—— **2026-09-24 用户拍板撤销，别再改回来。**
-   撤销理由：本项目所有主从页都是"左边列表 + 右边详情"，不存在单列形态；
-   塌单列会让两栏宽度在"选没选中"之间从 1160px 猛跳到 383px，比空着更晃眼。
-   现行做法：**详情栏常驻**，未选中时里面渲染一张引导卡（`.split-side .guide`），
-   三处共用同一套样式 —— 记忆 #detail / 会话 #s-guide / 技能 #sk-detail。 */
-.split-main{min-width:0;background:var(--card);border:1px solid var(--line);
-  border-radius:var(--radius-lg);box-shadow:var(--shadow-2xs);overflow:hidden;
-  animation:cardIn .3s var(--ease) both}
-/* 左列卡片头／体 —— 对齐 Trae 稿的 .card-header / .card-body */
-.split-main .shead{display:flex;align-items:center;justify-content:space-between;gap:12px;
-  padding:var(--space-4) var(--space-5);min-height:52px;border-bottom:1px solid var(--line)}
-.split-main .shead .t{font-size:14px;font-weight:600;letter-spacing:-.1px;color:var(--ink)}
-/* 标题栏右侧的计数常常很长（"40 个 skill | 14 个配置文件 | 3 个 MCP | 55 个插件 …"），
-   不截断会把标题栏撑成两行、看着像"排列不准"（用户报的 bug）。
-   标题自己不缩；计数占剩下的宽度，超出用省略号。 */
-.split-main .shead .t{flex-shrink:0}
-.split-main .shead .hint{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;
-  white-space:nowrap;margin:0;text-align:right}
-.split-main .sbody{padding:var(--space-1) 0}
-/* 搜索结果是平铺列表（无分组），行距由 `.lrow + .lrow` 统一给 */
-.split-main .handoff-out{margin:var(--space-3) var(--space-3) var(--space-2)}
-/* 右栏里的输出区（会话页的原文时间线 #s-view）已经在卡片里了，不该再长一层卡片 */
-.split-side .handoff-out{background:transparent;border:0;padding:0;margin:0;
-  color:var(--ink);white-space:pre-wrap}
-.split-side{
-  position:sticky;top:14px;background:var(--card);border:1px solid var(--line);
-  border-radius:var(--radius-lg);padding:0;box-shadow:var(--shadow-2xs);
-  min-height:0;
-  animation:cardIn .3s var(--ease) both
-}
-/* 详情卡头／体 —— 对齐 Trae 稿 .detail-header / .detail-body（均 20px 内边距，头下一条分隔线） */
-.split-side .dhead{padding:var(--space-5);border-bottom:1px solid var(--line)}
-.split-side .dmain{padding:var(--space-5)}
-/* 空态引导卡 —— **三处主从骨架共用**（记忆 #detail / 会话 #s-guide / 技能 #sk-detail）。
-   未选中时详情栏常驻这张卡，把"右边为什么空着、该点哪里"说清楚；
-   选中后由各自的渲染函数整体覆盖。
-   2026-09-24 用户拍板：**不再有「空态塌单列」**，两栏宽度恒定。 */
-.split-side .guide{display:flex;flex-direction:column;align-items:center;justify-content:center;
-  text-align:center;padding:var(--space-10) var(--space-6);min-height:220px}
-.split-side .guide .gic{width:52px;height:52px;border-radius:var(--radius-xl);
-  background:var(--popover);display:flex;align-items:center;justify-content:center;
-  margin-bottom:var(--space-4)}
-.split-side .guide .gic svg{width:24px;height:24px;stroke:var(--faint);fill:none;
-  stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
-.split-side .guide h4{margin:0 0 var(--space-2);font-size:14px;font-weight:600;
-  color:var(--ink);letter-spacing:-.1px}
-.split-side .guide p{margin:0;font-size:12.5px;color:var(--sub);line-height:1.65;max-width:320px}
-.split-side .dhtop{display:flex;align-items:flex-start;justify-content:space-between;
-  gap:var(--space-4)}
-.split-side h3{font-size:16px;font-weight:600;line-height:1.4;margin:0;color:var(--ink)}
-/* 卡头第二行：时间 · 平台 · 状态（对齐 Trae 稿的 .detail-meta + 图标） */
-.split-side .dtop{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;
-  margin-top:var(--space-2);font-size:12px;color:var(--sub)}
-.split-side .dmi{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
-.split-side .dmi svg{width:12px;height:12px;flex-shrink:0;opacity:.85}
-/* 分区（对齐 Trae 稿 .detail-section / .detail-section-title / .tag） */
-.split-side .dsec+.dsec{margin-top:var(--space-6)}
-.split-side .dsec-t{font-size:11px;font-weight:600;letter-spacing:.06em;
-  text-transform:uppercase;color:var(--sub);margin:0 0 var(--space-3)}
-.split-side .dtags{display:flex;flex-wrap:wrap;gap:var(--space-2)}
-.split-side .tag{display:inline-flex;align-items:center;padding:var(--space-1) var(--space-3);
-  border:1px solid var(--line);border-radius:var(--radius-md);background:var(--muted);
-  color:var(--ink);font-size:12px;transition:background var(--duration-fast) var(--ease-out),
-  color var(--duration-fast) var(--ease-out)}
-.split-side .tag:hover{background:var(--accent);color:var(--accent-foreground);
-  border-color:transparent}
-.split-side .dbody{font-size:14px;line-height:1.7;color:var(--ink);
-  white-space:pre-wrap;word-break:break-word}
-/* 技能/配置详情的正文要像"一块内容"（原来是透明无边框，看着像没有正文）。
-   ⚠️ 不给内层高度限制 —— 之前那个 max-height 小窗是踩过的坑，别加回来。 */
-#sk-text{background:var(--background);border:1px solid var(--line);
-  border-radius:var(--radius-md);padding:var(--space-4);font-size:13px;line-height:1.7;
-  white-space:pre-wrap;word-break:break-word}
-/* 正文里的 `# 标题` 行原本被当成普通文字 —— 实测有 28 个现成的分段点全浪费了。
-   由 JS 变成真标题，再在顶部给一条**横向**小节条：不占阅读宽度（不做右侧悬浮目录，
-   797px 的右栏再切 180px 出去，中文一行会短到难读），对长文更友好。 */
-#sk-text .sk-h{display:block;font-size:13px;font-weight:600;color:var(--ink);
-  margin:var(--space-5) 0 var(--space-2);scroll-margin-top:80px}
-#sk-text .sk-h:first-child{margin-top:0}
-.sk-toc{display:flex;flex-wrap:wrap;align-items:center;gap:6px;
-  margin:0 0 var(--space-3);padding-bottom:var(--space-3);
-  border-bottom:1px solid var(--line);font-size:11.5px}
-.sk-toc b{color:var(--faint);font-weight:500;flex-shrink:0}
-.sk-toc a{color:var(--acc);text-decoration:none;border-bottom:1px dashed var(--acc)}
-.sk-toc a:hover{color:var(--ink)}
-/* 回到顶部：跟着真正的滚动容器 .content 走 */
-/* ⚠️ 2026-10-07 删除「回到顶部」浮动按钮（#backtop）—— 原型里没有。
-   实测 bug：position:fixed;bottom:22px 与底部坞**位置重叠**，滚过一屏就压在
-   「技能 / MCP」上（用户截图已确认）。另两条硬伤：用了禁用的 border-radius:999px；
-   且它出现在会话列表页，而列表页不是长文，给「回到顶部」没意义。 */
-.split-side .dmeta{font-size:12px;color:var(--sub);line-height:1.9;word-break:break-all}
-.split-side .dacts{display:flex;gap:8px;flex-wrap:wrap;margin:0;flex-shrink:0}
-.mem.sel{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc),0 8px 26px rgba(138,180,248,.22)}
-.dempty{color:var(--faint);font-size:12.5px;line-height:1.9}
-/* 记忆列表：可折叠分组（常驻 / 最近）—— 比例对齐 Trae 稿：
-   分组头 12/16 内边距 + 6px 圆角、不画下划线；组间 16px、组内行间 2px */
-.ghead{display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;
-  font-size:13px;font-weight:600;color:var(--ink);
-  margin:var(--space-4) 0 0;padding:var(--space-3) var(--space-4);border-radius:var(--radius-md);
-  transition:background var(--duration-fast) var(--ease-out)}
-.ghead:first-child{margin-top:0}
-.ghead:hover{background:var(--hover)}
-.ghead:hover .cv{color:var(--sel-accent)}
-.ghead .cv{font-size:10px;color:var(--sub);
-  transition:transform .2s var(--ease-out),color var(--duration-fast) var(--ease-out)}
-.ghead.collapsed .cv{transform:rotate(-90deg)}
-.ghead .cnt{margin-left:2px;font-size:11px;color:var(--sub);background:var(--muted);
-  border-radius:999px;padding:1px 6px;line-height:15px}
-.ghead::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--acc);
-  flex-shrink:0}
-.ghead.g-recent::before{background:var(--faint)}
-.gbody{display:flex;flex-direction:column;gap:2px;padding:var(--space-2) 0}
-.gbody.hide{display:none}
-/* 区域折叠沿用同一个 hide 语义：sbody（左列表）/ dmain（右详情）收起时整块不占位。
-   ⚠️ 必须有这条 —— 之前只有 .gbody.hide，新增的容器带上 hide 类也「没反应」。 */
-.sbody.hide,.dmain.hide{display:none}
-
-/* 整块区域折叠（2026-09-22）：点标题栏收起整个区块 —— 收起的是**容器**，
-   所以布局真的跟着收缩（.split 是 align-items:start，栏内一变矮那一栏就矮）。
-   箭头用伪元素画在标题文字前，不额外占 DOM。 */
-[data-secfold]{cursor:pointer;user-select:none}
-/* FIX-8：箭头统一**放右侧** —— 原先是 `::before` 左前缀，而 .grphead 用右后缀，
-   同一个东西两套位置（同类名 .ghead 在记忆页箭头在左、在本机内容页在右）。
-   改用 ::after 追加到标题末尾。⚠️ [data-secfold] 只落在 .shead / .dhead 上，
-   而它们内部只有 .t / h3 一个文本节点，所以 ::after 不会插到别的东西中间。 */
-[data-secfold] .t::after,[data-secfold] h3::after{content:"▼";display:inline-block;
-  font-size:10px;color:var(--sub);margin-left:var(--space-2);vertical-align:middle;
-  transition:transform .15s ease}
-[data-secfold].sec-collapsed .t::after,
-[data-secfold].sec-collapsed h3::after{content:"▶"}
-.shead[data-secfold]{border-radius:var(--radius-sm)}
-.shead[data-secfold]:hover{background:var(--hover)}
-/* 收起后在标题栏右侧补一条"内容第一行"，让收起态也有信息 */
-.sec-1{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-  font-size:11.5px;color:var(--faint);margin-left:var(--space-3);font-weight:400}
-
-/* 徽章：列表 meta 行与详情卡头共用 */
+.ml-auto{margin-left:auto}/* 徽章：列表 meta 行与详情卡头共用 */
 .bdg{display:inline-flex;align-items:center;font-size:11px;line-height:15px;
   padding:1px 6px;border-radius:999px;background:var(--muted);color:var(--sub);
   flex-shrink:0;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bdg.pin{background:var(--accent);color:var(--accent-foreground)}
-.bdg.state{background:transparent;box-shadow:inset 0 0 0 1px var(--line)}
-/* ↑ 描边用 inset 阴影而不是 border：border 会让这一枚徽章高 2px，
-   整行随之从 61.19 变 63.19（批4 辛苦对齐的行高）*/
-
-/* 主从分工：左侧列表 = 单行标题 + 一行 meta（≈61px，对齐 Trae 稿的 .memory-item）
-   完整内容在右侧详情；类型用左侧圆点表示，项目/来源一律走 meta 行的小字。
-
-   ⚠️ 紧凑行用**显式类 `.lrow` 标记**，不要挂在容器上（如 #s-list）。
-   踩过两次同一个坑：#s-list 被四种内容复用 —— ① 会话列表（要紧凑行）
-   ② 解析预览 ③ 抽取候选 ④ 原话检索（这三类都要**完整卡片**，正文要能读）。
-   一开始把紧凑行写在容器上，②③④ 的正文全被压成一根细条（中文一字一行竖排）。 */
-.split-main .mem.lrow{display:flex;align-items:flex-start;gap:var(--space-3);cursor:pointer;
-  padding:var(--space-3) var(--space-4);border-radius:var(--radius-md);margin:0;
-  background:transparent;border:0;box-shadow:none}
-.split-main .mem.lrow:hover{transform:none;background:var(--hover);box-shadow:none}
-.split-main .lrow + .lrow{margin-top:2px}
-/* ── 记忆行的类型图标块（2026-09-24 改版）──
-   原来是 8px 小圆点：只能表达"有颜色"，说不出是"哪一类"。
-   换成 30px 圆角方块的图标（内联 SVG，颜色吃 --data-*），类型一目了然。
-   ⚠️ 类名从 .mdot 改成 .mico（只有记忆行走 cardHtml()，会话行走另一套渲染，
-      所以这个类名是记忆页独有的，改名不会波及 #s-list —— verify_slist_rows 量的是后者）。 */
-/* 尺寸与布局（颜色兜底在低特异性的 .mico 里，见上面那段注释） */
-.split-main .mem.lrow .mico{width:30px;height:30px;border-radius:var(--radius-md);
-  flex:0 0 30px;display:grid;place-items:center}
-.split-main .mem.lrow .mico svg{width:16px;height:16px}
-/* ── 类型徽章 + 类型图标块（记忆列表行里的两处"彩色标记"）──
-   底色走 --t-*-bg 令牌（亮暗各一份），文字/图形色复用 --data-*，
-   所以两种主题下都保持"彩字 + 同色系浅底"，不会在暗色里发灰。
-   ⚠️ 两者共用同一组变体规则（一条规则同时命中 .tb.fact 与 .mico.fact），
-      避免"徽章改了、图标块忘了改"这种一半新一半旧的漂移；
+.bdg.state{background:transparent;box-shadow:inset 0 0 0 1px var(--line)}      避免"徽章改了、图标块忘了改"这种一半新一半旧的漂移；
       万一 mtype 是个没登记的值 → 没有变体命中 → 自动退回中性灰，不会画出空白块。 */
 .tb{display:inline-flex;align-items:center;height:17px;padding:0 6px;border-radius:5px;
   font-size:10.5px;font-weight:600;line-height:1;flex:0 0 auto;
-  background:var(--d3);color:var(--sub)}
-/* ⚠️ .mico 的中性兜底必须写在这条**低特异性**规则里（0,1,0）。
-      踩过的坑：把 background 写在下面那条 `.split-main .mem.lrow .mico`（0,3,1）里，
-      特异性高过 `.mico.fact`（0,2,0）→ 图标块永远吃不到类型的 --t-*-bg，
-      实测亮色下还是灰底 rgb(239,241,244)，只有徽章变了色（一半新一半旧）。
-      现在把"尺寸/布局"放高特异性、"颜色兜底"放低特异性，变体规则才压得住。 */
-.mico{background:var(--d3);color:var(--data-context)}
-.tb.fact,.mico.fact{background:var(--t-fact-bg);color:var(--data-fact)}
+  background:var(--d3);color:var(--sub)}.tb.fact,.mico.fact{background:var(--t-fact-bg);color:var(--data-fact)}
 .tb.decision,.mico.decision{background:var(--t-decision-bg);color:var(--data-decision)}
 .tb.preference,.mico.preference{background:var(--t-preference-bg);color:var(--data-preference)}
 .tb.skill,.mico.skill{background:var(--t-skill-bg);color:var(--data-skill)}
 .tb.error,.mico.error{background:var(--t-error-bg);color:var(--data-error)}
 .tb.context,.mico.context{background:var(--t-context-bg);color:var(--data-context)}
-.tb.summary,.mico.summary{background:var(--t-summary-bg);color:var(--data-fact)}
-.split-main .mbody{min-width:0;flex:1}
-.split-main .mtitle{font-size:13px;font-weight:500;line-height:1.4;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.split-main .mmeta{display:flex;align-items:center;gap:var(--space-2);margin-top:2px;
-  font-size:12px;color:var(--sub);overflow:hidden;white-space:nowrap;line-height:1.4}
-/* meta 行结构对齐 Trae 稿：时间（纯文字）· 平台（徽章）· 常驻/最近（徽章）· 标签 */
-.split-main .mmeta .mtime{flex-shrink:0;font-variant-numeric:tabular-nums}
-.split-main .mmeta .bdg{max-width:120px}
-.split-main .mtags{overflow:hidden;text-overflow:ellipsis;min-width:0;color:var(--faint)}
-/* 行内操作按钮：平时不占视线，hover / 选中才出现（同样的动作右侧详情里也有） */
-/* ⚠️ opacity:0 依然占位 —— 实测这 115px 吃掉 meta 行 31% 宽，
-   把「914 轮 · #81」压成一个「9」。改成悬浮在行尾，不占文档流。 */
-.split-main .mem.lrow{position:relative}
-/* ── FIX-1：行内三个操作改成**三个各自独立的框** ──
-   原来 .macts 自带一块 --card 不透明底 + padding-left，而里面三个按钮既无边框也无底色
-   （实测容器 127×16、底色 rgb(29,29,28)，按钮 border:0 / background:none / radius:0）
-   → 眼睛看到的必然是"一条"。现在容器彻底透明，每个 .del 自己是一张迷你卡片，
-   对齐库 Button 的 ghost/secondary 口径（"border-light action for table rows"）。 */
-.split-main .macts{position:absolute;right:var(--space-4);top:50%;
-  transform:translateY(-50%);margin:0;display:flex;gap:var(--space-2);
-  background:transparent;padding:0;
-  opacity:0;pointer-events:none;transition:opacity var(--duration-fast) var(--ease-out)}
-/* ★ 选中态原来另有一条 --sel-bg 共享底 —— 也要关掉，否则选中那行仍然是"一条" */
-.split-main .mem.lrow.sel .macts{background:transparent}
-.split-main .mem.lrow:hover .macts,.split-main .mem.lrow.sel .macts{opacity:1;pointer-events:auto}
-/* 每个操作 = 一张迷你卡片：--card 底 + --line 描边 + 6px 圆角（规范 2.3 按钮圆角）
-   24px 高 = WCAG 2.5.8 的最小点击目标；平时中性色，只有 hover 才出警示色 */
-.split-main .macts .del{display:inline-flex;align-items:center;justify-content:center;
-  height:24px;padding:0 var(--space-2);
-  border:1px solid var(--line);background:var(--card);
-  border-radius:var(--radius-md);
-  font-size:11px;line-height:1;color:var(--sub);white-space:nowrap}
-.split-main .macts .del:hover{color:var(--bad);border-color:var(--bad)}
-
-/* ── FIX-2：hover 时不再压断 meta 行 ──
-   上一版是"整行砍 150px"：实测 .mbody 从 348.8 掉到 214.8，而 meta 需要 267.2
-   → 差 52.4px，末尾两段被省略号切掉（用户截图里的「暂无…」「753 轮 ·…」就是这个）。
-   换算过：三个框要 169px，完整 meta 要 259.2px，加起来 428.2 > 可用的 348.8 → 不可能共存。
-   三条路里「叠上去」和「压成省略号」都被否了，只剩"让位"；让位的对象只能是那两个
-   次要标签（让掉 121.4px 后 137.8+169=306.8 ≤ 348.8，留 42px 净空）。 */
-.split-main .mem.lrow:hover,
-.split-main .mem.lrow.sel{padding-right:var(--space-4)}      /* 恢复 16px，别再砍整行 */
-.split-main .mem.lrow:hover .mtitle,
-.split-main .mem.lrow.sel .mtitle{padding-right:177px}       /* 标题本来就 nowrap+省略号 */
-.split-main .mem.lrow:hover .mmeta,
-.split-main .mem.lrow.sel .mmeta{padding-right:169px}        /* 双保险，防 meta 溢出 */
-.split-main .mem.lrow:hover .mtags,
-.split-main .mem.lrow.sel .mtags{display:none}               /* 收起会被挤成半截的两个标签 */
-.split-main .mem.lrow.sel{background:var(--sel-bg);box-shadow:inset 3px 0 0 var(--sel-accent)}
-.split-main .mem.lrow.sel:hover{background:var(--sel-bg)}
-.split-main .mem.lrow.sel .mtitle{color:var(--sel-ink);font-weight:600}
-.split-main .mem.lrow.sel .mmeta{color:var(--sel-ink);opacity:.8}
-/* 选中行里图标块的写法（原来是给 8px 圆点套一圈 --sel-bg 让它从蓝底上"抠出来"）。
-   30px 的图标块自带类型底色，**底色保留** —— 和同一行里的类型徽章保持一致，
-   否则会出现"徽章有颜色、图标块变透明"的一半新一半旧。
-   只把字形换成 --sel-ink，保证压在蓝色选中底上仍然读得清（明暗两主题都成立）。 */
-.split-main .mem.lrow.sel .mico{color:var(--sel-ink)}
-
-/* ── 选中底统一（2026-09-23，用户先后报了两次同一件事）──
-   第 1 次：黑夜下点列表项，只有**记忆页**有蓝色选中底（`--sel-bg`）；会话页和本机内容页
-     点下去只剩 hover 的那层淡灰，像"没有反馈"。根因：`.sel` 只由 `selectMem()` 打在
-     `#memcard-*` 上，别的页从来没人打过标记。
-   第 2 次：**质检页**（`#audit-out`）和**清理页**（`#sf-list` / `#cm-list` / `#bk-list`）
-     点下去连 hover 停留感都很弱（只有那一层 0.18s 的动画），那三个容器压根不在
-     `.split-main` 里 —— 所以第一版只写在 `#sk-list` 上的规则完全没覆盖到它们。
-   现在：JS 侧 `markRowSel` 的委托监听已覆盖全部列表容器；CSS 这里用**同一套令牌**
-   （`--sel-bg` / `--sel-accent` / `--sel-ink`）统一，不再按页写死选择器。
-   ⚠️ `:not(.lrow)` 是有意的：主从页的紧凑行（`.mem.lrow`）自己有上面那组规则
-   （还带 hover 让位、隐藏标签等联动），这里只管"卡片行"（质检 / 清理 / 本机内容 / 采集）。 */
-.mem.sel:not(.lrow),.mem.sel:not(.lrow):hover{
-  background:var(--sel-bg);border-color:transparent;
-  box-shadow:inset 3px 0 0 var(--sel-accent)}
-.mem.sel:not(.lrow) .content,.mem.sel:not(.lrow) .content b,
-.mem.sel:not(.lrow) .meta,.mem.sel:not(.lrow) .proj,
-.mem.sel:not(.lrow) .score,.mem.sel:not(.lrow) .accent{
-  color:var(--sel-ink)}
-.mem.sel:not(.lrow) .ttag,.mem.sel:not(.lrow) .top{color:var(--sel-ink)}
-
-/* 右栏里的内容卡（会话页的抽取候选）—— 套规范 ui_kit 的 .mini-card：
-   用 --background 而不是 --card，避免"卡里再套一张卡"看着发糊 */
-.split-side .mem{background:var(--background);border:1px solid var(--line);
-  border-radius:var(--radius-md);padding:var(--space-3) var(--space-4);
-  margin-bottom:var(--space-2)}
-.split-side .mem .content{font-size:13px;line-height:1.7;white-space:normal}
-
-/* 会话原文气泡（右栏时间线）—— 我靠右、AI 靠左，与库里 --accent 的用法一致 */
-.bub{max-width:80%;padding:var(--space-3) var(--space-4);border-radius:var(--radius-lg);
-  font-size:13px;line-height:1.75;white-space:pre-wrap;word-break:break-word;
-  margin-bottom:var(--space-3)}
-.bub .btag{display:block;font-size:11px;opacity:.65;margin-bottom:var(--space-1)}
-.bub.me{background:var(--accent);color:var(--accent-foreground);margin-left:auto;
-  border-bottom-right-radius:var(--radius-sm)}
-.bub.ai{background:var(--muted);color:var(--ink);
-  border-bottom-left-radius:var(--radius-sm)}
-.bub.raw{background:transparent;border:1px dashed var(--line);color:var(--sub);max-width:100%}
-
-/* 长文折叠（2026-09-22）：会话原文 / 记忆长内容 / 交接卡输出。
-   只有超过阈值才折（短内容不出现按钮），收起时按行截断，点「展开全文」看全。
-   —— 用户反馈：几百轮的会话原文一条条铺下来太长，页面拉不到底。 */
-/* P2-7：正文块的标签原来是 11px / uppercase / --sub，比它标注的 13px 正文还小 ——
-   最大的一块内容配了最小的标签。回正到正文之上。（uppercase 对中文也没意义） */
-.split-side .dsec-t{font-size:12.5px;letter-spacing:0;text-transform:none;
-  color:var(--sub);font-weight:600}
-/* P2-3：CSS 的 6 是死值，JS 里另有 FOLD_LINES=4 覆盖它。让 CSS 成为唯一真值。 */
-.foldbody.folded{display:-webkit-box;-webkit-box-orient:vertical;
-  -webkit-line-clamp:var(--fold-lines,4);overflow:hidden}
-/* P2-2：区域收起后，栏头那条 border-bottom 会留成一条孤线 */
-.split-main:has(.sbody.hide) .shead,
-.split-side:has(.dmain.hide) .dhead{border-bottom-color:transparent}
-.foldbtn{display:inline-block;margin:0 0 var(--space-2);font:inherit;font-size:12px;
-  color:var(--acc);background:transparent;border:0;padding:2px 0;cursor:pointer}
-.foldbtn:hover{text-decoration:underline}
-
-/* 会话页右栏装的是结构化 HTML（气泡 + 记忆芯片），不能继承 .handoff-out 的
-   white-space:pre-wrap —— 那会把拼接 HTML 时留下的空白也渲染成空行。 */
-#s-view{white-space:normal}
-
-/* 贴在某轮气泡后面的「产出记忆」芯片 —— 会话层与记忆层的接缝就在这里。
-   点一下跳到记忆页并选中那一条；反过来记忆卡的「出处」也能跳回这一轮。 */
-.tmem{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:-6px 0 var(--space-4)}
-.tmem-k{font-size:11px;color:var(--faint);letter-spacing:.04em;flex-shrink:0}
-.tchip{display:inline-flex;align-items:center;gap:5px;max-width:330px;cursor:pointer;
-  padding:3px 10px;border-radius:var(--radius-full,999px);font-size:11.5px;line-height:1.6;
+.tb.summary,.mico.summary{background:var(--t-summary-bg);color:var(--data-fact)}  padding:3px 10px;border-radius:var(--radius-full,999px);font-size:11.5px;line-height:1.6;
   background:var(--muted);border:1px solid var(--line);color:var(--sub);
   transition:background var(--duration-fast) var(--ease-out)}
 .tchip:hover{background:var(--hover);color:var(--ink)}
 .tchip i{width:6px;height:6px;border-radius:50%;flex:0 0 6px}
 .tchip b{font-weight:500;flex-shrink:0;font-variant-numeric:tabular-nums}
-.tchip-t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
-
-/* 记忆列表行里的「会话出处」徽章（可点，跳回原话）。
-   描边同样用 inset 阴影 —— 用 border 会把行高顶破 2px，跟上面 .bdg 一个道理。 */
-.split-main .mmeta .bdg.src{background:transparent;color:var(--acc);
-  box-shadow:inset 0 0 0 1px var(--acc);cursor:pointer}
-.split-main .mmeta .bdg.src:hover{background:var(--muted)}
-@media (max-width:1150px){
-  .split{grid-template-columns:1fr}
-  .split-side{position:static;min-height:auto;max-height:none;overflow:visible}
-}
-/* 窄窗口：先隐标签、再隐统计（顶栏还有搜索框与两个按钮要放） */
-@media (max-width:1120px){
+.tchip-t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}@media (max-width:1120px){
   .stats{gap:16px}
   .stat .k{display:none}
 }
@@ -3378,13 +2863,20 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
 #v-collect .sp-side{display:flex;flex-direction:column;gap:14px;width:100%}
 #v-collect .side-box{background:var(--r3-surface);border:1px solid var(--r3-line);border-radius:12px;
   box-shadow:var(--lz-sh);overflow:hidden}
-#v-collect .side-box .bh{display:flex;align-items:baseline;gap:7px;padding:11px 15px 9px}
-#v-collect .side-box .bh .t{font-size:12.5px;font-weight:650;color:var(--r3-ink)}
-#v-collect .side-box .bh .n{font-family:var(--lz-mono);font-size:10.5px;color:var(--r3-sub);margin-left:auto}
-#v-collect .side-box .bd{padding:0 15px 14px;max-height:360px;overflow:auto}
-#v-collect .rt{display:flex;align-items:center;padding:7px 0}
-#v-collect .rt .sw{width:8px;height:8px;border-radius:2px;flex:none;margin-right:8px}
-#v-collect .rt .nm{font-size:11.5px;color:var(--r3-ink2);min-width:0;overflow:hidden;
+#v-collect .side-box .bh{display:flex;align-items:baseline;g
+.tb.fact 15px 9px}
+#v-collect .side-box .bh .t{font-size:12.5
+.tb.decisionr(--r3-ink)}
+#v-collect .side-box .bh .n{font-family:var(--lz
+.tb.preferencear(--r3-sub);margin-left:auto}
+#v-collect .side-box .bd{padding:0
+.tb.skill:360px;overflow:auto}
+#v-collect .rt{display:flex;align
+.tb.error:7px 0}
+#v-collect .rt .sw{width:8px;height:8px;border-
+.tb.contextin-right:8px}
+#v-collect .rt .nm{font-size:11.5px;color:var
+.tb.summaryverflow:hidden;
   text-overflow:ellipsis;white-space:nowrap}
 #v-collect .rt .vv{margin-left:auto;font-family:var(--lz-mono);font-size:11.5px;color:var(--r3-ink);
   padding-left:8px;flex:none}
@@ -3929,155 +3421,6 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
 
     <div class="content">
       <!-- 记忆 -->
-      <section id="v-mem" hidden>
-        <!-- 页面标题区：Trae 稿在数值条下方写「记忆」，右侧放动作按钮 -->
-        <div class="pagehead">
-          <div>
-            <h2 class="ptitle" id="page-title">记忆</h2>
-            <!-- 数据行按原型 C 放在页头内（常驻可见）—— 与会话页同一处理 -->
-            <p class="psub" id="mem-psub">正在统计…</p>
-          </div>
-          <div class="pacts">
-            <!-- 筛选（左）与动作（右）分开：原先项目下拉和几个动作按钮挤成一排，
-                 看不出「全部项目」是筛选器、后面那些是动作。 -->
-            <div class="pgrp">
-              <select id="proj-filter" class="proj-sel" onchange="loadList()">
-                <option value="">全部项目</option>
-              </select>
-              <button class="btn" onclick="backToList()">全部</button>
-            </div>
-            <span class="psep" aria-hidden="true"></span>
-            <div class="pgrp">
-              <button class="btn" onclick="showContext()">常驻上下文</button>
-              <button class="btn" onclick="toggleCleanup()">批量清理</button>
-              <button class="btn pri" onclick="goAdd()">＋ 记一条</button>
-            </div>
-          </div>
-        </div>
-        <p class="lead">这里是<strong>给模型检索用的记忆碎片</strong> —— 短、独立、能命中关键词，
-        不是给人读的叙事。想看「当时到底聊了什么」，去
-        <span class="leadlink" onclick="show('session')">会话</span>页看原文时间线；
-        每条记忆的「出处」都能跳回产出它的那一轮。</p>
-        <!-- 数据行（会被 pmAll() 收进页头折叠区，默认收起）+ 4 张 KPI 卡 + 类型构成条。
-             数字全部由 loadStats() 从 /api/stats 现取，**一个都不写死**。 -->
-        <div class="kgrid" id="mem-kpi">
-          <!-- 已按原型补上 .kbar（此前我以量纲不同为由去掉，是我不对）：本机内容页那 4 张卡是"同一种东西的不同类别"
-               （技能/MCP/插件/配置），同尺度比条宽才有意义；而记忆页这 4 项是
-               「条数 / 会话数 / 轮次 / 项目数」四种不同量纲，共用一条刻度只会造出
-               一根 100% 和三根 0.9% 的装饰条。现按原型折衷：条宽各自对**自己的参考值**（记忆/200 · 会话/50 · 轮次/5000 · 项目/30），不互相比。 -->
-          <div class="kpi hero">
-            <div class="ktop"><span class="kt">活跃记忆</span>
-              <span class="kic" style="background:var(--t-fact-bg);color:var(--data-fact)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><ellipse cx="8" cy="4" rx="5.2" ry="2.2"/><path d="M2.8 4v8c0 1.2 2.3 2.2 5.2 2.2s5.2-1 5.2-2.2V4"/><path d="M2.8 8c0 1.2 2.3 2.2 5.2 2.2S13.2 9.2 13.2 8"/></svg></span>
-            </div>
-            <div class="kv"><span id="mk-total">—</span><span class="u">条</span></div>
-            <div class="kbar"><i id="mk-total-b" style="background:var(--data-fact)"></i></div><!-- 记忆 / 200 条为满格 -->
-            <div class="kfoot"><span>检索时会被读到</span><span id="mk-total-f">统计中…</span></div>
-          </div>
-          <div class="kpi">
-            <div class="ktop"><span class="kt">归档会话</span>
-              <span class="kic" style="background:var(--t-skill-bg);color:var(--data-skill)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3.5h12v7H7l-3 2.5v-2.5H2z"/></svg></span>
-            </div>
-            <div class="kv"><span id="mk-sess">—</span><span class="u">个</span></div>
-            <div class="kbar"><i id="mk-sess-b" style="background:var(--data-skill)"></i></div><!-- 会话 / 50 个为满格（列表一次取 50） -->
-            <div class="kfoot"><span>写进库的历史对话</span><span id="mk-sess-f">统计中…</span></div>
-          </div>
-          <div class="kpi">
-            <div class="ktop"><span class="kt">对话轮次</span>
-              <span class="kic" style="background:var(--t-preference-bg);color:var(--data-preference)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 4h10M3 8h10M3 12h6"/></svg></span>
-            </div>
-            <div class="kv"><span id="mk-turn">—</span><span class="u">轮</span></div>
-            <div class="kbar"><i id="mk-turn-b" style="background:var(--data-preference)"></i></div><!-- 轮次 / 5000 轮为满格 -->
-            <div class="kfoot"><span>上面那些记忆的原料</span><span id="mk-turn-f">统计中…</span></div>
-          </div>
-          <div class="kpi">
-            <div class="ktop"><span class="kt">覆盖项目</span>
-              <span class="kic" style="background:var(--t-decision-bg);color:var(--data-decision)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M1.8 4.4c0-.7.6-1.2 1.2-1.2h3l1.3 1.6h5.7c.7 0 1.2.5 1.2 1.2v6c0 .7-.5 1.2-1.2 1.2H3c-.6 0-1.2-.5-1.2-1.2z"/></svg></span>
-            </div>
-            <div class="kv"><span id="mk-proj">—</span><span class="u">个</span></div>
-            <div class="kbar"><i id="mk-proj-b" style="background:var(--data-decision)"></i></div><!-- 项目 / 30 个为满格 -->
-            <div class="kfoot"><span>有记忆归属的项目</span><span id="mk-proj-f">统计中…</span></div>
-          </div>
-        </div>
-
-        <!-- 类型构成条：条宽 = 该类真实条数（flex-grow），图例给名称 + 条数。
-             ⚠️ 它与上面 4 张卡的分工：卡片给"总量"，这条给"构成" —— 两者都取自
-             /api/stats 的同一次返回，不会出现"卡里 76、条上加起来 74"这种自相矛盾。 -->
-        <div class="distcard" id="mem-dist">
-          <div class="dh"><b>记忆构成</b><span id="mem-dist-h">按类型分布</span></div>
-          <div class="bar" id="mem-dist-bar"></div>
-          <div class="legend" id="mem-dist-legend"></div>
-        </div>
-
-        <div class="panel formcard" id="form">
-          <textarea id="f-content" placeholder="要记什么？（决策 / 坑 / 事实 / 经验……）"></textarea>
-          <div class="formrow">
-            <select id="f-type">
-              <option value="fact">事实</option>
-              <option value="decision">决策</option>
-              <option value="preference">偏好</option>
-              <option value="skill">经验</option>
-              <option value="error">踩坑</option>
-              <option value="context">背景</option>
-              <option value="summary">摘要</option>
-            </select>
-            <input type="text" id="f-proj" placeholder="项目名（可选）">
-            <input type="text" id="f-tags" placeholder="标签，逗号分隔（可选）">
-            <span class="imp" id="f-imp" data-v="2" title="重要度 1-4，点击切换"><b>★★</b>★★</span>
-            <button class="btn pri" onclick="doSave()">保存</button>
-            <button class="btn" onclick="cancelSave()" title="放弃这次录入，清空已填内容">取消</button>
-          </div>
-        </div>
-        <div class="panel" id="cleanup-panel" style="display:none">
-          <div class="row">
-            <select id="cl-project" class="proj-sel" style="max-width:200px"><option value="">全部项目</option></select>
-            <select id="cl-agent" class="proj-sel" data-kind="agent" style="max-width:170px"><option value="">全部来源</option></select>
-            <input type="date" id="cl-before" class="textin" style="max-width:170px">
-            <label class="ckwrap"><input type="checkbox" id="cl-sup"> 只清空已作废</label>
-          </div>
-          <div class="row" style="margin-top:10px">
-            <button class="btn" onclick="cleanupPreview()">预览命中</button>
-            <button class="btn" onclick="cleanupRun()">执行删除</button>
-            <button class="btn" onclick="showOrphans()">检查陈旧记忆</button>
-            <button class="btn" onclick="purgeOrphans()">清理陈旧记忆</button>
-          </div>
-          <p class="hint">删除是<strong>硬删除</strong>（不进回收站）。执行时<strong>由你选</strong>要不要先导出全量备份 JSON —— 备份可随时用「记忆包导入」恢复；不备份则无法找回。时间条件＝删除该日期之前的记忆。</p>
-          <div class="msg" id="cleanup-msg" style="display:none"></div>
-        </div>
-        <div class="split">
-          <div class="split-main">
-            <div class="shead"><span class="t" id="list-title">记忆列表</span></div>
-            <div class="sbody">
-              <div class="handoff-out" id="ctx-out"></div>
-              <div id="list"></div>
-            </div>
-          </div>
-          <!-- 详情栏常驻：未选中时渲染引导卡（三处骨架都不再塌单列，见 .split CSS 上方注释）。
-               选中后 renderDetail() 会整体覆盖这里。 -->
-          <aside class="split-side" id="detail">
-            <div class="dhead">
-              <div class="dhtop"><h3>记忆详情</h3></div>
-              <div class="dtop"><span class="dmi">点左侧任意一条记忆，这里会显示完整内容、标签与操作按钮</span></div>
-            </div>
-            <div class="dmain">
-              <div class="guide">
-                <div class="gic"><svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h9M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg></div>
-                <h4>从左边选一条记忆</h4>
-                <p>这里会显示它的完整内容、标签、归属信息与操作按钮。</p>
-              </div>
-            </div>
-          </aside>
-        </div>
-      </section>
-
-      <!-- 会话层 -->
-      <!-- 会话页（2026-10-06 按定稿原型 p5-final/list.html 重做）
-           ⚠️ 旧结构是 .split 三栏（列表 + 右栏原文），已拆。
-              新结构照 p5-final/list.html：
-                页头（标题 + 副标）→ 5 个大数字 → 左表格 + 右栏两个框
-           ⚠️ 尺寸/间距照抄原型，不要凭手感改。用户 2026-10-06 明确要求：
-              定稿后的设计不许为了修 bug 自动放大/缩小。
-           ⚠️ 「抽记忆」交互原本挂在旧的右栏 #s-view 上，那条路保留在
-              gotoSession() 里；这里只管浏览 + 跳转。 -->
       <section id="v-session">
         <!-- 2026-10-07 照 proto/会话列表.html 从零重做。
              类名与原型逐字对应（.phead/.ttl/.psub/.kpis/.cols/.tbl/.tbar/
@@ -4156,39 +3499,6 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
         <div class="sd-thread" id="sd-thread"></div>
       </section>
 
-      <!-- 质检（2026-10-06 恢复）
-           ⚠️ ⚠️ 这里原来有一段 <section id="v-audit">，我在插入 v-sdetail 时
-              误删了它。show() 的列表里仍有 "audit"，于是每次切页都会抛
-              `Cannot set properties of null (setting 'hidden')`，
-              列表因此整页渲染不出来（实测 #s-list 为空）。
-              教训：往 section 堆里插新 section 时，**必须先 grep 全部 id 逐个核对**，
-              别只确认自己加的那个在。导航已砍到 6 项，但 v-audit 的 section
-              仍然保留（质检功能并进清理页的导航入口，页面本身没删）。 -->
-      <section id="v-audit" hidden>
-        <div class="pagehead">
-          <div>
-            <h2 class="ptitle">记忆质检</h2>
-            <!-- 数据行按原型 C 放在页头内（常驻可见）—— 与前三页同一处理 -->
-            <p class="psub" id="au-psub">正在统计…</p>
-          </div>
-          <div class="pacts">
-            <div class="pgrp">
-              <select id="au-proj" class="proj-sel" style="max-width:200px"><option value="">全部项目</option></select>
-            </div>
-            <span class="psep" aria-hidden="true"></span>
-            <div class="pgrp">
-              <button class="btn" onclick="exportReport()">下载质检报告</button>
-              <button class="btn pri" onclick="runAudit()">开始质检</button>
-            </div>
-          </div>
-        </div>
-        <p class="lead">七查：重复（合并）· 疑似同义（人工判断）· 可能矛盾（以新代旧）· 长期未更新（续期/作废）· 过短 · 过粗粒度（拆分）· 元数据缺失。作废的记忆保留在库里但不参与检索。</p>
-        <div class="health" id="health"></div>
-        <div class="msg" id="audit-msg" style="display:none"></div>
-        <div id="audit-out"></div>
-      </section>
-
-      <!-- 清理 -->
 <section id="v-clean" hidden>
         <!-- 2026-10-08 照 proto/库.html 重做（第二版，严格按原型视觉）。
              ⚠️ 第一版只对了结构，视觉偏了 6 处，被用户当场指出：
@@ -4673,67 +3983,7 @@ section[id^="v-"]{animation:viewIn var(--dur) var(--ease) both}
         </div>
       </section>
 
-      <section id="v-pack" hidden>
-        <div class="pagehead">
-          <div>
-            <h2 class="ptitle">记忆包</h2>
-            <p class="psub" id="pk-psub">导出为 JSON · 跨电脑备份或发给他人导入 · 导入时按内容自动去重</p>
-          </div>
-          <div class="pacts">
-            <button class="btn pri sm" onclick="doExport()">导出记忆包</button>
-          </div>
-        </div>
-
-        <div class="panel pcard risk-ok">
-          <div class="listhead phead">
-            <span class="t"><span class="stepno">1</span>导出范围</span>
-            <span class="hint">格式 loci-pack v1：内容 / 类型 / 重要度 / 项目 / 时间</span>
-          </div>
-          <div class="row">
-            <select id="pk-proj" class="proj-sel" style="flex:0 0 220px"><option value="">全部项目</option></select>
-            <span class="chip" id="pk-count">—</span>
-          </div>
-          <div class="row" style="gap:8px;align-items:center;margin-top:12px">
-            <input type="checkbox" id="pack-with-sessions" style="width:auto;margin:0">
-            <span>同时导出「会话层（对话原文）」</span>
-            <span class="chip" id="pk-sess">—</span>
-          </div>
-          <p class="hint">默认只导出记忆（结论）。勾上这一项会把归档的原始对话一起打包 ——
-            换电脑后原话也能恢复。导入时记忆与会话<b>两边都会自动去重</b>，重复导入不会产生第二份。</p>
-        </div>
-
-        <div class="panel pcard">
-          <div class="listhead phead">
-            <span class="t"><span class="stepno">2</span>导入</span>
-            <span class="hint">只接受 Loci 导出的记忆包（.json）</span>
-          </div>
-          <!-- 按原型：拖拽区（真的支持拖拽，不是只有样子） -->
-          <div class="dropzone" id="pk-drop">
-            <svg viewBox="0 0 24 24"><path d="M12 16V4"/><path d="M7.5 8.5L12 4l4.5 4.5"/><path d="M4 16v3a1 1 0 001 1h14a1 1 0 001-1v-3"/></svg>
-            <div class="dz">把 .json 记忆包拖到这里，或点此<u>选择文件并导入</u>
-              <small>与现有记忆内容重复的条目会自动跳过</small>
-            </div>
-            <input type="file" id="pack-file" accept=".json" style="display:none" onchange="doImport(this)">
-          </div>
-        </div>
-
-        <div class="panel pcard">
-          <div class="listhead phead">
-            <span class="t"><span class="stepno">3</span>技能包</span>
-            <span class="hint">把经验类记忆导出成 SKILL.md</span>
-          </div>
-          <div class="row">
-            <select id="sk-proj" class="proj-sel" style="max-width:220px"><option value="">选择项目</option></select>
-            <button class="btn" onclick="skillPreview()">预览技能包</button>
-            <button class="btn" onclick="skillExport()">写入 skills 目录</button>
-          </div>
-          <p class="hint">写进 <code>~/.workbuddy/skills</code>，各 Agent 可直接读取。</p>
-          <pre class="mdbox" id="skill-out" style="display:none;margin-top:14px"></pre>
-        </div>
-      </section>
-
-      <!-- 交接卡 -->
-<section id="v-handoff" hidden>
+      <section id="v-handoff" hidden>
         <!-- 2026-10-08 照 proto/交接卡.html 重做。原来是旧工作台那套
              （.pagehead / .panel.pcard / .tagline），与定稿原型不是一套结构。
              这次按原型逐块重写：.phead/.ttl/.psub + 5 格 .kpis
@@ -5708,7 +4958,11 @@ function show(v){
         所以 .nav 的 on 态统一在下面这处算，v==="sdetail" 映射回 "session"。 */
   var navV=(v==="sdetail")?"session":v;
   document.querySelectorAll(".nav").forEach(n=>n.classList.toggle("on",n.dataset.v===navV));
-  ["mem","session","sdetail","audit","clean","collect","agents","skill","pack","handoff"]
+  /* ⚠️ 2026-10-16：原来这里是十项，含已删的 mem / audit / pack（R3 六页改版砍掉，
+   2026-10-16 用户确认删残留）。留着它们的话 getElementById 会拿到 null。
+   注意：**删掉菜单项后，残留的 show("mem") 调用会退化成空操作**（不抛），
+   所以那些调用点可以随它们所在的死函数一起删。 */
+    ["session","sdetail","clean","collect","agents","skill","handoff"]
     .forEach(x=>document.getElementById("v-"+x).hidden=(x!==v));
   /* 顶栏按页切换 —— 统一走 applyTopbar()（2026-10-15 改）。
      ⚠️ 原来这里是散在 show() 里的几句：
@@ -5764,7 +5018,9 @@ function show(v){
 var _h=(location.hash||"").replace("#","");
 var _m=/^session\?sid=(\d+)$/.exec(_h);
 if(_m){ openSessionDetail(_m[1]); }
-else if(["mem","session","audit","clean","collect","agents","skill","pack","handoff"].indexOf(_h)>=0){ show(_h); }
+/* ⚠️ 2026-10-16：原来这里有 mem / audit / pack —— 三页已删，
+   带这两个锚点进来会 show() 到不存在的 section。 */
+else if(["session","clean","collect","agents","skill","handoff"].indexOf(_h)>=0){ show(_h); }
 // 没带锚点时落在「会话」：面板是给人看的，先看「发生过什么对话」，
 // 再看从对话里提炼出的记忆碎片（碎片是给模型检索用的，不该当第一眼）。
 else{ show("session"); }
@@ -8205,7 +7461,9 @@ function secApply(){
 var _secQ=false;
 function secQueue(){if(_secQ)return;_secQ=true;setTimeout(function(){_secQ=false;secApply()},0)}
 /* 观察名单：这些容器随时被重渲染，折叠状态靠 observer 补回去，免得每处渲染都手写一次。 */
-["detail","sk-detail","sk-list","s-list","list"].forEach(function(id){
+/* ⚠️ 2026-10-16：去掉 detail / list（记忆页已删）。原来有 if(el) 保护不会抛，
+   但留着会让人以为还有这两个容器。 */
+["sk-detail","sk-list","s-list"].forEach(function(id){
   var el=document.getElementById(id);
   if(el)new MutationObserver(secQueue).observe(el,{childList:true,subtree:true});
 });
@@ -9409,12 +8667,16 @@ async function syncPackInfo(){
   }catch(e){}
 }
 
-document.getElementById("f-imp").addEventListener("click",function(){
-  let v=+this.dataset.v%4+1;this.dataset.v=v;
-  this.innerHTML="<b>"+"★".repeat(v)+"</b>"+"★".repeat(4-v);
-});
+/* ⚠️ 2026-10-16 删：这里原来给 #f-imp（记忆页「重要度」打星控件）绑 click。
+   #f-imp 随已删的 #v-mem 一起没了 → getElementById 返回 null →
+   **加载时直接抛 TypeError，整个 script 块后面的代码都不再执行**。
+   （这就是"删残留"最容易踩的雷：删了 DOM，忘了删绑在它上面的监听。） */
 
-function refresh(){loadStats();loadAgents();syncPackInfo();syncHfTags();searching?doSearch():loadList()}
+/* ⚠️ 2026-10-16 清理：原来还调 syncPackInfo()（读 #pk-count/#pk-sess，记忆包页已删）、
+   doSearch() / loadList()（读 #form/#list/#list-title/#q，记忆页已删）。
+   refresh() 是**加载时顶层调用**的，所以那三个会让整个 script 在加载时抛错、
+   后面的代码全不执行。只留真正属于当前六页的加载器。 */
+function refresh(){loadStats();loadAgents();syncHfTags()}
 refresh();
 </script>
 </body>

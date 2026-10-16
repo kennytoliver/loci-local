@@ -18,6 +18,18 @@ Windsurf ────┤     (MCP server)
 Copilot ─────┘
 ```
 
+**What Loci IS** — one SQLite file, one standard MCP server, one web panel.
+Every agent you use reads and writes the *same* memory; switching agents no longer means re-explaining yourself.
+
+**What Loci is NOT** — the boundaries up front, so you don't install it with the wrong expectations:
+
+| Not | Because |
+|---|---|
+| **Not a cloud service** | No account, no API key, no telemetry. Your data is one file on your disk |
+| **Not a vector store** | Zero LLM dependencies ⇒ no embeddings ⇒ no semantic bridge. **Paraphrasing the same question only retrieves the right memory 67% of the time** (see "[What is NOT verified](#what-is-not-verified)"). This is an **architectural boundary, not a bug waiting to be fixed** |
+| **Not a chat logger** | **Conclusions only, never transcripts.** Raw conversations go to the session store (for you to re-read); the memory store holds the decisions / pitfalls / preferences distilled from them |
+| **Not an agent orchestrator** | It does not schedule agents, pick models, or own a task queue. That is Orbital's job — Loci only does memory |
+
 ## Why this exists
 
 ### The problem: every time you switch harnesses, you start over
@@ -116,7 +128,7 @@ python test_panel.py    # 8 checks: JS syntax guard, DOM ids, routes, zero-depen
 CI runs both on Ubuntu and Windows across Python 3.9 and 3.12,
 plus the recall-quality gate (`python tools/eval_recall.py --gate`).
 
-The full suite is **31 gates** (`bash tools/run_gates.sh`). The other 30 need a live
+The full suite is **26 gates** (`bash tools/run_gates.sh`). The other 25 need a live
 panel process, node and screenshots, so they stay local rather than in the CI matrix.
 
 ## What is NOT verified

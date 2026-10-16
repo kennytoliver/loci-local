@@ -80,8 +80,11 @@ SKIPPED_WRITES = [
 ]
 
 # 页面容器 id（8 页）—— 必须在首页 HTML 里（注意是 v-agents 复数）
-PAGES = ["v-mem", "v-session", "v-handoff", "v-pack", "v-clean",
-         "v-agents", "v-audit", "v-collect"]
+# ⚠️ 2026-10-16：原来这里 8 项，含 v-mem（记忆页）/ v-pack（记忆包页）/ v-audit（质检页）
+#   —— 三页随 R3 六页改版从导航移除，2026-10-16 用户确认删残留，section 已删。
+#   现在列的是面板里真实存在的 7 个 section（六页 + 会话详情独立页）。
+PAGES = ["v-session", "v-sdetail", "v-handoff", "v-clean",
+         "v-agents", "v-collect", "v-skill"]
 
 # 静态资源（icon-blue.png 是发布前必须核实存在的那一个）
 STATIC = ["/icon.png", "/icon-blue.png"]
@@ -114,7 +117,7 @@ print("\n【服务】")
 st, body = get("/")
 alive = st == 200 and len(body) > 50000
 check("首页可访问且内容完整", alive, f"HTTP {st}, {len(body)} 字节")
-check("首页含全部 8 个页面容器", all(f'id="{p}"'.encode() in body for p in PAGES),
+check("首页含全部 7 个页面容器", all(f'id="{p}"'.encode() in body for p in PAGES),
       f"{sum(1 for p in PAGES if f'id=\"{p}\"'.encode() in body)}/8")
 # 2026-10-05：品牌标识从「图标 + 两行文字」改为「LOCI 忆宫」极简文字标
 #   （原型图定稿，用户确认的设计变更）。断言的**意图不变** —— 首页必须

@@ -24,6 +24,8 @@ Copilot ─────┘
 ```
 
 **What Loci IS** — one SQLite file, one standard MCP server, one web panel.
+
+<p align="center"><img src="assets/panel.png" alt="The Loci panel: sessions from every agent, the memories extracted from them, and what is waiting on you" width="100%"></p>
 Every agent you use reads and writes the *same* memory; switching agents no longer means re-explaining yourself.
 
 **What Loci is NOT** — the boundaries up front, so you don't install it with the wrong expectations:

@@ -18,6 +18,8 @@
 **Loci 是什么** —— 一个 SQLite 文件 + 一个标准 MCP 服务 + 一个网页面板。
 你的所有 Agent 读写同一份记忆；换 Agent 不用重新解释自己。
 
+<p align="center"><img src="assets/panel.png" alt="Loci 面板：会话页 —— 每个 Agent 的对话、从里面抽出的记忆、以及等你处理的项" width="100%"></p>
+
 **Loci 不是什么** —— 先说清边界，省得你带着错误预期装它：
 
 | 不是 | 因为 |

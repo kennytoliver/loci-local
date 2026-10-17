@@ -23,7 +23,7 @@ import sys, os, io, json, math, re, sqlite3, argparse, datetime, hashlib, collec
 #      · panel.py 页脚用它（serve 时替换 __APP_VERSION__ 占位符）
 #      · panel.py 自检 clientInfo 用它
 #    发版时**只改这一行**。
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.1.0"
 
 # 环境变量：优先新名 LOCI_*，**同时兼容全部历史名**。
 # 老配置（4 个 Agent 的 MCP 配置里）可能还写着 HIPPOCAMPUS_DB / HIPPOHUB_DB，

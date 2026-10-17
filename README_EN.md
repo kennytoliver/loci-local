@@ -4,6 +4,11 @@
 
 # Loci
 
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![dependencies: 0](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](pyproject.toml)
+[![python: 3.9+](https://img.shields.io/badge/python-3.9%2B-3776AB.svg)](pyproject.toml)
+[![MCP tools: 11](https://img.shields.io/badge/MCP%20tools-11-4338ca.svg)](loci.py)
+
 [简体中文](README.md) ｜ English
 
 One SQLite file, shared by every MCP-capable agent you use — no cloud, no account, no dependencies.

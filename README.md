@@ -4,6 +4,11 @@
 
 # Loci（忆宫）— 个人跨 Agent 记忆中枢
 
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![dependencies: 0](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](pyproject.toml)
+[![python: 3.9+](https://img.shields.io/badge/python-3.9%2B-3776AB.svg)](pyproject.toml)
+[![MCP tools: 11](https://img.shields.io/badge/MCP%20tools-11-4338ca.svg)](loci.py)
+
 [English](README_EN.md) ｜ 简体中文
 
 零依赖单文件 · 中文友好检索 · 通用 MCP 接入 · 单文件网页面板 · 数据 100% 本地

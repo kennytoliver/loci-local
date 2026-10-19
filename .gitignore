@@ -1,0 +1,95 @@
+# ===== 私有数据，绝不上传 =====
+# 数据库的文件名，连同更早版本用过的名字一起列全 ——
+# 从旧版本升级上来的环境里还留着那些文件，少写一条它们就会变成"未忽略"
+loci.db
+hippocampus.db
+memhub.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# 本机文件（不进仓库）
+agents.json
+trash-backup/
+loci-backup-*.json
+hippocampus-backup-*.json
+RESTORE.md
+filelist.txt
+自检报告-*.md
+docs/
+# 启动脚本一律忽略：里面写着本机绝对路径（D:\repo\...），换台机器就不对，
+# 而且历史上抄过"只列具体文件名"的亏 —— 改名后旧文件名漏在规则外，差点被提交。
+*.bat
+
+# Python
+__pycache__/
+*.pyc
+
+# 临时文件（下划线开头的脚本/产物，防止误提交）
+_*.py
+_*.txt
+_*.json
+_*.png
+
+# 系统
+.DS_Store
+Thumbs.db
+
+# 本地备份与预览产物
+
+# 数据库一律排除（含旧名）
+*.db
+hippohub.db
+# 数据库的**任何形式**备份：一律不进版本库。
+# 按「*.db 后面接什么」来排除，不要枚举具体命名 —— 只写 *.db 会漏掉带后缀的备份。
+loci.db.bak-*
+*.db.bak-*
+*.db.*.bak
+*.db.bak
+*.bak
+
+# 本地备份一律不提交（通配符，避免又漏掉新的备份目录名）
+backup-*
+_*
+archive.json
+archive/
+
+# 损坏的 git 仓库副本（事故回退用，不属于项目）
+.git-broken-*/
+
+# ===== 会话转录 / 上下文提取 =====
+# 这类文件体积大、且写着本机路径。按模式排除，不要枚举文件名。
+*转录/
+*会话上下文提取*
+trae-workbuddy/
+
+# ===== 令牌 / 密钥（2026-09-25 加）=====
+# 本机上确实存在 github_token.txt 这类文件（统一放仓库外的 ~/.workbuddy/）。
+# 这里再兜一层：万一哪天手滑把它拖进仓库目录，也不会被提交上去。
+# （审计发现：加之前这个文件一条 token/密钥规则都没有）
+.env
+.env.*
+*.token
+github_token.txt
+gh_token.txt
+.gh_token
+credentials.json
+tools/.gate-logs/
+
+# 面板改版前的本地快照（2026-10-07）—— 只是回滚点，不进版本库
+# 里面有旧工作台的 1990 行 CSS，提交进去会污染 git 历史
+*.bak-*
+panel.py.bak-*
+
+# 本机自行留的备份文件（形如 loci.db.备份_加润源列前_001612 / panel.py.备份_改前_xxx）
+# 2026-10-08 加：这类带「备份_」的文件不在上面任何规则里，会被 git 当成新文件带进仓库。
+*.备份_*
+
+# 老仓库的历史目录（重开仓库时改名保留用），绝不能提交\.git-old/
+.git-old/
+
+# 打包产物（python -m build / pip install -e 生成）
+dist/
+build/
+*.egg-info/
+.eggs/

@@ -1,0 +1,57 @@
+# Loci（忆宫）打包配置
+#
+# ⚠️ 本项目是「根目录下一堆单文件」，不是常规的包结构。这里用 py-modules 直接把
+#    根目录那三个 .py 打进 wheel —— **不移动任何文件**。
+#    这样「克隆下来直接跑」和「pip 装上跑」是同一份代码、同一种用法，
+#    不会出现"仓库里是一套、装完是另一套"的分裂。
+
+[build-system]
+# PEP 639（license = "MIT" 与 license-files）从 setuptools 77 起才支持
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "loci-local"
+dynamic = ["version"]
+description = "Local-first cross-agent memory hub — zero dependencies, one SQLite file, 100% local."
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "kennytoliver" }]
+keywords = ["mcp", "memory", "ai-agent", "sqlite", "local-first", "cross-agent", "chinese"]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Operating System :: Microsoft :: Windows",
+  "Operating System :: POSIX :: Linux",
+  "Operating System :: MacOS",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+  "Topic :: Text Processing :: Linguistic",
+]
+
+[project.urls]
+Homepage = "https://github.com/kennytoliver/loci-local"
+Repository = "https://github.com/kennytoliver/loci-local"
+Changelog = "https://github.com/kennytoliver/loci-local/blob/main/CHANGELOG.md"
+"Bug Tracker" = "https://github.com/kennytoliver/loci-local/issues"
+
+[project.scripts]
+# 引擎 / MCP Server / CLI（同一个入口，参数决定行为）
+loci = "loci:main"
+# 网页面板
+loci-panel = "panel:main"
+# 命令行接入器
+loci-agents = "install_agents:main"
+
+[tool.setuptools]
+# 只打这三个模块。test_*.py / tools/ / docs/ 一律不进 wheel ——
+# 它们是开发用的，用户装完不该在 site-packages 里看到。
+py-modules = ["loci", "panel", "install_agents"]
+
+[tool.setuptools.dynamic]
+# 版本号**唯一来源**就是 loci.py 里那一行 APP_VERSION（本项目一直这么约定）
+version = { attr = "loci.APP_VERSION" }

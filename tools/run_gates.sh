@@ -1,0 +1,121 @@
+#!/usr/bin/env bash
+# 一键跑全套闸门并汇总。任一红都不算做完（规范第八节）。
+#
+# 用法：
+#   bash tools/run_gates.sh                 # 全部（约 3 分钟）
+#   bash tools/run_gates.sh fast            # 快速集：跳过多秒级的重型闸门（约 30 秒）
+#   bash tools/run_gates.sh browser         # 只跑浏览器类
+#   bash tools/run_gates.sh audit_tokens    # 只跑名字含该关键字的
+#
+# 为什么区分快慢：光看"全绿"没法判断这次改动值不值得等 3 分钟。
+# 重型闸门分两类 ——
+#   · 浏览器类：每道都要**冷启一次无头 Chrome** 再加载页面（单次 7~28s）
+#   · 性能类：故意在几百组数据上跑慢算法做对拍（单次 24~29s）
+# 改文案/改样式的日常迭代跑 fast 就够；碰会话管线、性能路径时再跑全量。
+#
+# 前置：面板已在 8787 运行（浏览器类闸门需要它）。
+# Windows 下需要 NODE_PATH 指向装了 puppeteer-core 的 node_modules。
+set -u
+
+cd "$(dirname "$0")/.." || exit 1
+
+NODE="${NODE:-$(ls "$HOME"/.workbuddy/binaries/node/versions/*/node.exe 2>/dev/null | head -1)}"
+PY="${PY:-$(ls "$HOME"/.workbuddy/binaries/python/envs/*/Scripts/python.exe 2>/dev/null | head -1)}"
+NODE="${NODE:-$(command -v node 2>/dev/null)}"
+PY="${PY:-$(command -v python 2>/dev/null)}"
+if [ -z "${NODE_PATH:-}" ]; then
+  export NODE_PATH="$HOME/.workbuddy/binaries/node/workspace/node_modules"
+  [ -d "$NODE_PATH" ] || export NODE_PATH="$(npm root -g 2>/dev/null)"
+fi
+BASE="${BASE:-http://127.0.0.1:8787}"
+FILTER="${1:-}"
+
+# 重型闸门：出现名字里的关键字就归为"慢"
+HEAVY="verify_topbar audit_tokens measure_layers smoke_panel verify_slist_rows verify_sel_feedback verify_shutdown verify_audit_perf verify_extract_perf shot_new_pages verify_content"
+
+# 名称 | 命令  （顺序按规范第八节；越靠前越快）
+GATES=(
+  "check_js_syntax|$NODE tools/check_js_syntax.js $BASE"
+  "audit_tokens|$NODE tools/audit_tokens.js $BASE"
+  "check_design|$PY tools/check_design.py panel.py"
+  "audit_silent_skips|$PY tools/audit_silent_skips.py"
+  "test_mcp|$PY test_mcp.py"
+  "test_panel|$PY test_panel.py"
+  "verify_conn_drop|$PY tools/verify_conn_drop.py"
+  "verify_session_flow|$PY tools/verify_session_flow.py"
+  "verify_session_time|$PY tools/verify_session_time.py"
+  "verify_session_dedup|$PY tools/verify_session_dedup.py"
+  "verify_scan_sources|$PY tools/verify_scan_sources.py"
+  "verify_skills|$PY tools/verify_skills.py"
+  "verify_skill_detail|$NODE tools/verify_skill_detail.js $BASE"
+  "verify_content|$NODE tools/verify_content.js $BASE"
+  "verify_extract_perf|$PY tools/verify_extract_perf.py"
+  # 召回质量回归护栏（2026-10-11 新增）。它验的是"改完之后记忆是不是更难找了"，
+  # 别的闸门都验不到这件事 —— 它们验的是契约、存储、界面接线。
+  # 基线写在 tools/eval_recall.py 里；低于基线才红。弱项（跨语言/换说法）也定了下限，
+  # 所以"改坏了"和"改好了"都能从这一行看出来。
+  "eval_recall|$PY tools/eval_recall.py --gate"
+  "verify_shutdown|$PY tools/verify_shutdown.py"
+  "verify_panel_api|$PY tools/verify_panel_api.py $BASE"
+  "verify_csrf|$PY tools/verify_csrf.py $BASE"
+  "verify_audit_perf|$PY tools/verify_audit_perf.py"
+  "measure_layers|$NODE tools/measure_layers.js $BASE"
+  "smoke_panel|$NODE tools/smoke_panel.js $BASE"
+  "verify_slist_rows|$NODE tools/verify_slist_rows.js $BASE"
+  "verify_sel_feedback|$NODE tools/verify_sel_feedback.js $BASE"
+  # 顶栏「按页显示」不能串（2026-10-15 加）。
+  # 原型是一页一个顶栏，实现是"一条共用顶栏 + 按页切 hidden"——
+  # 这种做法的唯一风险就是切走之后没关掉、上一页的按钮留在上面。
+  # 它逐页断言"可见元素集合**全等**"，再乱序切 60 跳每一跳都比一遍，
+  # 带 --broken 反向测试（故意多开一个容器必须变红）。
+  "verify_topbar|$NODE tools/verify_topbar.js $BASE"
+  "shot_new_pages|$NODE tools/shot_new_pages.js $BASE"
+)
+
+is_heavy() {
+  local n="$1" k
+  for k in $HEAVY; do [ "$n" = "$k" ] && return 0; done
+  return 1
+}
+
+pass=0; fail=0; skip=0; failed_names=()
+declare -a LINES
+
+for entry in "${GATES[@]}"; do
+  name="${entry%%|*}"
+  cmd="${entry#*|}"
+  if [ -n "$FILTER" ]; then
+    case "$FILTER" in
+      fast)    is_heavy "$name" && { skip=$((skip+1)); continue; } ;;
+      heavy)   is_heavy "$name" || { skip=$((skip+1)); continue; } ;;
+      *)       [[ "$name" != *"$FILTER"* ]] && continue ;;
+    esac
+  fi
+
+  printf '── %-22s … ' "$name"
+  t0=$SECONDS
+  out=$(eval "$cmd" 2>&1)
+  code=$?
+  dt=$((SECONDS - t0))
+  if [ $code -eq 0 ]; then
+    printf 'PASS  %ss\n' "$dt"; pass=$((pass+1))
+  else
+    printf 'FAIL (exit=%d)  %ss\n' "$code" "$dt"; fail=$((fail+1)); failed_names+=("$name")
+    # 失败时**把完整输出落盘**再打印末尾 —— 之前只用 grep 过滤关键字，
+    # 而 verify_scan_sources 的失败信息不含 FAIL/✗/error 等词，于是它红了三次
+    # 都没留下任何线索（每次单独复跑又全过）。别再过滤，直接存全量。
+    LOGDIR="tools/.gate-logs"; mkdir -p "$LOGDIR"
+    printf '%s\n' "$out" > "$LOGDIR/$name.log"
+    echo "      ↓ 完整输出已存 $LOGDIR/$name.log，末尾 15 行："
+    printf '%s\n' "$out" | tail -15 | sed 's/^/      /'
+  fi
+  LINES+=("$(printf '%-24s %-10s %3ss' "$name" "$([ $code -eq 0 ] && echo PASS || echo "FAIL($code)")" "$dt")")
+done
+
+echo
+echo "════════════════════════════════════"
+for l in "${LINES[@]}"; do echo "  $l"; done
+echo "════════════════════════════════════"
+echo "  通过 $pass 项，失败 $fail 项$([ $skip -gt 0 ] && echo "，跳过 $skip 项（$FILTER）")"
+[ $fail -gt 0 ] && echo "  红：${failed_names[*]}"
+exit $((fail > 0))
